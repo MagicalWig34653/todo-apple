@@ -1,0 +1,12 @@
+.DS_Store
+.workspace.local.json
+.env
+.env.*
+!.env.example
+.build/
+node_modules/
+.svelte-kit/
+DerivedData/
+xcuserdata/
+*.xcodeproj/
+.build/
