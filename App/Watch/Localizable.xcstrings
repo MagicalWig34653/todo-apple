@@ -1,0 +1,16 @@
+{
+  "sourceLanguage": "de",
+  "version": "1.0",
+  "strings": {
+    "watch.placeholder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitte zuerst auf dem iPhone anmelden. Anzeige und Abhaken folgen."
+          }
+        }
+      }
+    }
+  }
+}

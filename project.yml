@@ -1,6 +1,7 @@
 name: Todo
 options:
   bundleIdPrefix: example.todo   # placeholder, not a real identifier
+  developmentLanguage: de
 packages:
   TodoCore: { path: TodoCore }
 targets:
@@ -8,20 +9,20 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
-    sources: [App]
+    sources: [App/Shared]
     dependencies: [{ package: TodoCore }]
     settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: example.todo.ios, GENERATE_INFOPLIST_FILE: YES, INFOPLIST_KEY_UILaunchScreen_Generation: YES, INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES } }
   Todo-macOS:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
-    sources: [App]
+    sources: [App/Shared]
     dependencies: [{ package: TodoCore }]
     settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: example.todo.mac, GENERATE_INFOPLIST_FILE: YES, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES } }
   Todo-watchOS:
     type: application
     platform: watchOS
     deploymentTarget: "10.0"
-    sources: [App]
+    sources: [App/Watch]
     dependencies: [{ package: TodoCore }]
     settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: example.todo.watch, GENERATE_INFOPLIST_FILE: YES, INFOPLIST_KEY_WKApplication: YES } }

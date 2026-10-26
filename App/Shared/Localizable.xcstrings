@@ -1,0 +1,426 @@
+{
+  "sourceLanguage": "de",
+  "version": "1.0",
+  "strings": {
+    "login.server": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server"
+          }
+        }
+      }
+    },
+    "login.serverURL": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server-Adresse"
+          }
+        }
+      }
+    },
+    "login.checkServer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server prüfen"
+          }
+        }
+      }
+    },
+    "login.passkey": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Passkey anmelden"
+          }
+        }
+      }
+    },
+    "login.setup": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto einrichten"
+          }
+        }
+      }
+    },
+    "login.setup.bootstrap": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erste Einrichtung: Gib den Einrichtungs-Token des Servers ein."
+          }
+        }
+      }
+    },
+    "login.setup.invitation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib den Einladungs-Token ein, den du erhalten hast."
+          }
+        }
+      }
+    },
+    "login.setup.token": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token"
+          }
+        }
+      }
+    },
+    "login.setup.name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Name"
+          }
+        }
+      }
+    },
+    "login.setup.create": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey anlegen"
+          }
+        }
+      }
+    },
+    "login.other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Anmeldemethode"
+          }
+        }
+      }
+    },
+    "login.username": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzername"
+          }
+        }
+      }
+    },
+    "login.password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort"
+          }
+        }
+      }
+    },
+    "login.passwordSignIn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Passwort anmelden"
+          }
+        }
+      }
+    },
+    "projects.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte"
+          }
+        }
+      }
+    },
+    "projects.none": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Projekt ausgewählt"
+          }
+        }
+      }
+    },
+    "project.add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt hinzufügen"
+          }
+        }
+      }
+    },
+    "project.addSub": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterprojekt hinzufügen"
+          }
+        }
+      }
+    },
+    "project.delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt löschen"
+          }
+        }
+      }
+    },
+    "project.new": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neues Projekt"
+          }
+        }
+      }
+    },
+    "project.name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "task.quickAdd": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Aufgabe …"
+          }
+        }
+      }
+    },
+    "task.markDone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als erledigt markieren"
+          }
+        }
+      }
+    },
+    "task.markOpen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wieder öffnen"
+          }
+        }
+      }
+    },
+    "task.delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen"
+          }
+        }
+      }
+    },
+    "logout": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden"
+          }
+        }
+      }
+    },
+    "account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto"
+          }
+        }
+      }
+    },
+    "save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern"
+          }
+        }
+      }
+    },
+    "cancel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        }
+      }
+    },
+    "ok": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "notice.conflict": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Daten wurden zwischenzeitlich anderswo geändert und neu geladen. Bitte wiederhole die Änderung."
+          }
+        }
+      }
+    },
+    "error.network": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server ist nicht erreichbar."
+          }
+        }
+      }
+    },
+    "error.invalidServer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Server-Adresse ist ungültig."
+          }
+        }
+      }
+    },
+    "error.loginFailed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldung fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "error.forbidden": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht erlaubt, zum Beispiel ungültiger oder abgelaufener Token."
+          }
+        }
+      }
+    },
+    "error.passwordDisabled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anmeldung mit Passwort ist auf diesem Server deaktiviert."
+          }
+        }
+      }
+    },
+    "error.passkey": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Passkey konnte nicht verwendet werden."
+          }
+        }
+      }
+    },
+    "error.notFound": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht gefunden."
+          }
+        }
+      }
+    },
+    "error.invalidInput": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültige Eingabe."
+          }
+        }
+      }
+    },
+    "error.conflict": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konflikt mit vorhandenen Daten."
+          }
+        }
+      }
+    },
+    "error.generic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etwas ist schiefgelaufen."
+          }
+        }
+      }
+    },
+    "error.sessionExpired": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Sitzung ist abgelaufen. Bitte melde dich neu an."
+          }
+        }
+      }
+    }
+  }
+}
