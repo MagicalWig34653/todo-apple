@@ -1,215 +1,422 @@
 import Foundation
 
+public struct RunnerSettings: Sendable {
+    public var maxTurns = 20
+    public var timeout: TimeInterval = 1800
+    public var clarifyTools = ["Read", "Glob", "Grep"]
+    public var implementTools = ["Read", "Glob", "Grep", "Edit", "Write"]
+    public var now: @Sendable () -> Date = { Date() }
+    public init() {}
+}
+
+/// Runner state machine. Rules enforced here:
+/// - Local state is persisted before every external effect (claim, spawn, publish).
+/// - At most one non-closed run per canonical folder; no automatic re-execution of a prompt.
+/// - After startup the runner reconciles local state with the server BEFORE it claims anything.
+/// - Every server write carries the generation; losing the lease (409/410 or local expiry)
+///   permanently fences publishing for that run.
 public actor Runner {
     private let server: any RunnerServer
     private let provider: any AgentProvider
     private let store: LocalStateStore
-    private let approvals: FolderApprovals
-    private let timeout: TimeInterval
-    private var runs: [LocalRun]
-    private var tasks: [UUID: Task<Void, Never>] = [:]
-    private var ready = false
+    private let allowlist: FolderAllowlist
+    private let settings: RunnerSettings
+    private var runs: [UUID: LocalRun]
+    private var watchers: [UUID: Task<Void, Never>] = [:]
+    private var startupPending: Set<UUID>
+    private var startupDone = false
     private var ticking = false
+    /// Actor reentrancy: only one outbox flush per run at a time, or steps would be sent twice.
+    private var flushing: Set<UUID> = []
+    public private(set) var lastError: String?
 
     public init(server: any RunnerServer, provider: any AgentProvider, store: LocalStateStore,
-                approvals: FolderApprovals, timeout: TimeInterval = 300) throws {
+                allowlist: FolderAllowlist, settings: RunnerSettings = RunnerSettings()) throws {
         self.server = server; self.provider = provider; self.store = store
-        self.approvals = approvals; self.timeout = timeout; runs = try store.load()
+        self.allowlist = allowlist; self.settings = settings
+        let loaded = try store.load()
+        runs = Dictionary(uniqueKeysWithValues: loaded.map { ($0.runID, $0) })
+        startupPending = Set(loaded.filter { $0.phase != .closed }.map(\.runID))
     }
-    public func snapshot() -> [LocalRun] { runs }
-    private func save() throws { try store.save(runs) }
-    private func index(_ id: UUID) -> Int { runs.firstIndex { $0.job.runID == id }! }
 
-    /// Recovered processes cannot be reattached through POSIX waitpid. Keep the
-    /// folder reserved and require explicit recovery; never replay an old prompt.
-    public func reconcile() async throws {
-        guard !ready else { return }
-        for i in runs.indices where runs[i].phase.reservesFolder {
-            let observation: ProcessObservation
-            if let process = runs[i].process { observation = await provider.reconcile(process) }
-            else { observation = .exited }
-            if runs[i].phase == .waitingForAnswer && runs[i].process == nil { continue }
-            runs[i].phase = .needsReconciliation
-            switch observation {
-            case .exited:
-                runs[i].process = nil
-                runs[i].checkpoint = "Process exited; explicit checkpoint-based recovery required."
-            case .running, .uncertain:
-                runs[i].checkpoint = "Existing process requires identity verification; folder remains reserved."
-            }
+    public func snapshot() -> [LocalRun] { runs.values.sorted { $0.runID.uuidString < $1.runID.uuidString } }
+    private func persist() throws { try store.save(Array(runs.values)) }
+    private var now: Date { settings.now() }
+
+    private func mutate(_ id: UUID, _ change: (inout LocalRun) -> Void) {
+        guard var run = runs[id] else { return }
+        change(&run)
+        runs[id] = run
+        do { try persist() } catch { lastError = "State write failed: \(error)" }
+    }
+
+    private func adopt(_ id: UUID, _ remote: Run) {
+        mutate(id) {
+            guard $0.phase != .leaseLost else { return }
+            $0.generation = remote.generation; $0.leaseUntil = remote.leaseUntil; $0.job = remote.job
         }
-        try save()
-        ready = true
     }
 
-    /// Call periodically, or use runLoop. A slow transport never causes parallel claims.
+    // MARK: Loop
+
     public func tick() async throws {
         guard !ticking else { return }
         ticking = true
         defer { ticking = false }
-        try await reconcile()
-        for id in runs.map({ $0.job.runID }) {
-            let i = index(id)
-            if runs[i].phase == .leaseLost { continue }
-            if runs[i].phase.reservesFolder || runs[i].pendingEvent != nil {
-                guard try await renew(id) else { continue }
-                try await flush(id)
-                if runs[i].phase == .waitingForAnswer, let answer = try await server.answer(for: runs[i].job) {
-                    try await resume(runID: id, prompt: answer)
-                }
-            }
-        }
-        let bindings = try approvals.bindings()
-        let busy = Set(runs.filter { $0.phase.reservesFolder || $0.process != nil }.map { $0.folder.path })
-        let eligible = bindings.filter { !busy.contains($0.value.path) }.map(\.key).sorted()
-        guard !eligible.isEmpty, let job = try await server.claim(eligibleProjects: eligible) else { return }
-        guard eligible.contains(job.projectID), let folder = bindings[job.projectID],
-              job.leaseExpiresAt > Date(), !runs.contains(where: { $0.job.runID == job.runID }) else {
-            throw RunnerError.invalidConfiguration
-        }
-        let run = LocalRun(job: job, sessionID: UUID(), folder: folder, process: nil,
-                           phase: .launching, checkpoint: "Claim persisted before process launch.")
-        runs.append(run)
-        try save()
-        try await launch(job.runID, prompt: job.prompt, resume: false)
+        if !startupDone || !startupPending.isEmpty { try await reconcileAtStart() }
+        for id in runs.keys.sorted(by: { $0.uuidString < $1.uuidString }) { await service(id) }
+        try await claimNext()
     }
 
-    private func renew(_ id: UUID) async throws -> Bool {
-        let i = index(id)
-        guard runs[i].phase != .leaseLost else { return false }
-        let expiry: Date?
-        do { expiry = try await server.renew(runs[i].job) }
-        catch {
-            // Fail closed on network uncertainty. No publication or new work.
-            await loseLease(id)
-            throw error
+    public func runLoop(interval: Duration = .seconds(15)) async {
+        while !Task.isCancelled {
+            do { try await tick(); lastError = nil } catch { lastError = String(describing: error) }
+            try? await Task.sleep(for: interval)
         }
-        guard let expiry, expiry > Date(), runs[i].phase != .leaseLost else {
-            await loseLease(id); return false
+    }
+
+    // MARK: Startup reconciliation
+
+    private func reconcileAtStart() async throws {
+        let serverRuns = try await server.runs()
+        let remote = Dictionary(uniqueKeysWithValues: serverRuns.map { ($0.id, $0) })
+        for id in startupPending {
+            guard let local = runs[id], local.phase != .closed else { startupPending.remove(id); continue }
+            guard let current = remote[id] else {
+                // Server no longer lists the run: finished or cancelled elsewhere.
+                if let process = local.process { await provider.stop(process) }
+                mutate(id) { $0.phase = .closed; $0.process = nil; $0.outbox = []; $0.note = "Run is no longer open on the server." }
+                startupPending.remove(id); continue
+            }
+            if await reconcileStartup(id, remote: current) { startupPending.remove(id) }
         }
-        runs[i].job.leaseExpiresAt = expiry
-        try save()
+        // Server runs unknown locally: nothing was ever spawned for them (spawn follows persistence).
+        for unknown in serverRuns where runs[unknown.id] == nil {
+            _ = try? await server.reconcile(runID: unknown.id, generation: unknown.generation, observation: .stopped)
+        }
+        startupDone = true
+    }
+
+    /// Returns true when this run is settled for startup purposes.
+    private func reconcileStartup(_ id: UUID, remote: Run) async -> Bool {
+        adopt(id, remote)
+        guard var local = runs[id] else { return true }
+        if local.phase == .needsReconciliation || local.phase == .leaseLost { return true }
+        let observation: ProcessObservation = if let p = local.process { await provider.reconcile(p) } else { .exited }
+        let expired = now >= remote.leaseUntil
+        if observation == .uncertain {
+            mutate(id) { $0.phase = .needsReconciliation; $0.note = "Process identity cannot be verified; folder stays reserved. Verify, then run `release`." }
+            return true
+        }
+        if remote.job.state == .cancelled {
+            mutate(id) { $0.stopRequested = true }
+            if let p = local.process { await provider.stop(p) }
+            mutate(id) { $0.process = nil; $0.outbox = [.stop]; $0.afterOutbox = .closed }
+            if expired { await loseLease(id, reason: "Cancelled while lease had expired.") } else { await flushOutbox(id) }
+            return true
+        }
+        if observation == .running, let process = local.process {
+            if expired {
+                do { adopt(id, try await server.reconcile(runID: id, generation: remote.generation, observation: .alive)) }
+                catch let error as RunnerServerError where error.isOwnershipLoss {
+                    await loseLease(id, reason: "Server refused to re-adopt the running process."); return true
+                } catch { lastError = "Startup reconcile deferred: \(error)"; return false }
+            }
+            mutate(id) { $0.phase = .running; $0.note = "Adopted running process after restart." }
+            watch(id, process)
+            return true
+        }
+        // The process (if any) is verified gone.
+        switch local.phase {
+        case .claimed:
+            if expired { await loseLease(id, reason: "Claim lease expired before launch.") }
+        case .waitingForAnswer:
+            if expired && local.outbox.isEmpty {
+                do { adopt(id, try await server.reconcile(runID: id, generation: remote.generation, observation: .paused)) }
+                catch let error as RunnerServerError where error.isOwnershipLoss { await loseLease(id, reason: "Pause not confirmed.") }
+                catch { lastError = "Startup reconcile deferred: \(error)"; return false }
+            } else if expired { await loseLease(id, reason: "Lease expired with unsent events.") }
+        case .running, .launching:
+            guard let process = local.process else {
+                mutate(id) { $0.phase = .needsReconciliation; $0.note = "Spawn outcome unknown after crash; no blind restart." }
+                return true
+            }
+            if expired { await loseLease(id, reason: "Process ended while lease had expired.") }
+            else {
+                let outcome: Result<AgentResult, Error>
+                do { outcome = .success(try await provider.wait(for: process)) } catch { outcome = .failure(error) }
+                await processEnded(id, outcome)
+            }
+        case .resuming:
+            if remote.job.state == .waitingForAnswer {
+                mutate(id) { $0.phase = .waitingForAnswer; $0.deliveredQuestions = [] }
+            } else {
+                mutate(id) { $0.phase = .needsReconciliation; $0.note = "Resume interrupted; outcome unknown." }
+            }
+        default: break
+        }
+        local = runs[id] ?? local
+        if expired, local.phase != .closed, local.phase != .leaseLost, local.phase != .needsReconciliation, !local.outbox.isEmpty {
+            await loseLease(id, reason: "Lease expired with unsent events.")
+        }
         return true
     }
 
-    private func loseLease(_ id: UUID) async {
-        let i = index(id)
-        runs[i].phase = .leaseLost
-        runs[i].pendingEvent = nil
-        runs[i].checkpoint = "Ownership lost; publication disabled."
-        // Even if persisting fails, the in-memory fence is already closed.
-        try? save()
-        if let process = runs[i].process { await provider.stop(process) }
+    // MARK: Per-run servicing
+
+    private func service(_ id: UUID) async {
+        guard let run = runs[id], run.phase != .closed, run.phase != .needsReconciliation,
+              !startupPending.contains(id) else { return }
+        if run.phase == .leaseLost { await confirmLeaseLoss(id); return }
+        guard now < run.leaseUntil else { await loseLease(id, reason: "Lease expired locally."); return }
+        do {
+            let remote = try await server.heartbeat(runID: id, generation: run.generation)
+            adopt(id, remote)
+            if remote.job.state == .cancelled { await cancelByServer(id) }
+        } catch let error as RunnerServerError where error.isOwnershipLoss {
+            await handleOwnershipLoss(id); return
+        } catch { lastError = "Heartbeat failed: \(error)" }
+        guard let current = runs[id], current.phase != .leaseLost, current.phase != .closed else { return }
+        if current.phase == .claimed { await beginLaunch(id) }
+        await flushOutbox(id)
+        if let after = runs[id], after.phase == .waitingForAnswer, after.outbox.isEmpty { await tryResume(id) }
     }
 
-    private func launch(_ id: UUID, prompt: String, resume: Bool) async throws {
-        let i = index(id)
-        guard try approvals.bindings()[runs[i].job.projectID] == runs[i].folder else {
-            throw RunnerError.unapprovedFolder
+    private func handleOwnershipLoss(_ id: UUID) async {
+        if let process = runs[id]?.process { await provider.stop(process) }
+        // A human stop reports 410 "local stop required": confirm it instead of treating it as lost.
+        if let list = try? await server.runs(), let remote = list.first(where: { $0.id == id }),
+           remote.job.state == .cancelled, remote.generation == runs[id]?.generation, now < remote.leaseUntil {
+            adopt(id, remote)
+            await cancelByServer(id)
+        } else {
+            await loseLease(id, reason: "Server rejected generation or lease.")
         }
-        guard try await renew(id) else { return }
-        runs[i].phase = .launching
-        runs[i].checkpoint = "Launch intent persisted; reconcile before any retry."
-        try save()
-        let request = AgentRequest(sessionID: runs[i].sessionID, folder: runs[i].folder,
-                                   prompt: prompt, resume: resume, allowedTools: runs[i].job.allowedTools,
-                                   maxTurns: runs[i].job.maxTurns, timeout: timeout)
+    }
+
+    private func cancelByServer(_ id: UUID) async {
+        guard let run = runs[id], !run.stopRequested else { return }
+        mutate(id) { $0.stopRequested = true }
+        if let process = run.process { await provider.stop(process) }
+        else {
+            mutate(id) { $0.outbox = [.stop]; $0.afterOutbox = .closed }
+            await flushOutbox(id)
+        }
+    }
+
+    /// Closes the publication fence first, then kills the process. Nothing is sent for this run afterwards
+    /// except the final reconcile(stopped) confirmation.
+    private func loseLease(_ id: UUID, reason: String) async {
+        mutate(id) { $0.phase = .leaseLost; $0.outbox = []; $0.afterOutbox = nil; $0.note = "Ownership lost: \(reason)" }
+        if let process = runs[id]?.process { await provider.stop(process) }
+        await confirmLeaseLoss(id)
+    }
+
+    private func confirmLeaseLoss(_ id: UUID) async {
+        guard let run = runs[id], run.phase == .leaseLost else { return }
+        if let process = run.process {
+            await provider.stop(process)
+            guard await provider.reconcile(process) == .exited else { return }
+            mutate(id) { $0.process = nil }
+        }
+        do {
+            _ = try await server.reconcile(runID: id, generation: run.generation, observation: .stopped)
+            mutate(id) { $0.phase = .closed; $0.note += " Local stop confirmed." }
+        } catch let error as RunnerServerError where error.isOwnershipLoss {
+            mutate(id) { $0.phase = .closed; $0.note += " Run already settled on the server." }
+        } catch { lastError = "Lease-loss confirmation deferred: \(error)" }
+    }
+
+    // MARK: Outbox
+
+    private func flushOutbox(_ id: UUID) async {
+        guard flushing.insert(id).inserted else { return }
+        defer { flushing.remove(id) }
+        while let run = runs[id], run.phase != .leaseLost, run.phase != .closed, let step = run.outbox.first {
+            guard now < run.leaseUntil else { await loseLease(id, reason: "Lease expired before publishing."); return }
+            do {
+                let remote: Run
+                switch step {
+                case .checkpoint(let c): remote = try await server.checkpoint(runID: id, generation: run.generation, checkpoint: c)
+                case .question(let prompt, let options):
+                    remote = try await server.question(runID: id, generation: run.generation, prompt: prompt, options: options)
+                case .submit(let result): remote = try await server.submit(runID: id, generation: run.generation, result: result)
+                case .fail: remote = try await server.fail(runID: id, generation: run.generation)
+                case .stop: remote = try await server.stop(runID: id, generation: run.generation)
+                }
+                adopt(id, remote)
+                mutate(id) { if $0.outbox.first == step { $0.outbox.removeFirst() } }
+            } catch let error as RunnerServerError where error.isOwnershipLoss {
+                await loseLease(id, reason: "Publish rejected (\(error)).")
+                return
+            } catch { lastError = "Publish deferred: \(error)"; return }
+        }
+        if let run = runs[id], run.outbox.isEmpty, run.phase != .leaseLost, let after = run.afterOutbox {
+            mutate(id) { $0.phase = after; $0.afterOutbox = nil }
+        }
+    }
+
+    // MARK: Claim and launch
+
+    private func claimNext() async throws {
+        guard startupDone, startupPending.isEmpty else { return }
+        let busy = Set(runs.values.filter { $0.phase.reservesFolder }.map(\.folder))
+        let jobs = try await server.jobs().filter { $0.state == .queued }
+        guard !jobs.isEmpty else { return }
+        let bindings = try await server.bindings()
+        for job in jobs {
+            guard let binding = bindings.first(where: { $0.id == job.bindingID }),
+                  let folder = try? allowlist.folder(for: binding.repositoryKey),
+                  !busy.contains(folder.path) else { continue }
+            let claimed: Run
+            do { claimed = try await server.claim(jobID: job.id) }
+            catch let error as RunnerServerError where error.isOwnershipLoss || error == .notFound { continue }
+            let local = LocalRun(runID: claimed.id, job: claimed.job, repositoryKey: binding.repositoryKey, folder: folder.path,
+                                 sessionID: UUID(), generation: claimed.generation, leaseUntil: claimed.leaseUntil,
+                                 phase: .claimed, process: nil, contextRevision: claimed.job.taskRevision,
+                                 note: "Claimed; nothing launched yet.")
+            runs[claimed.id] = local
+            try persist()
+            await beginLaunch(claimed.id)
+            return
+        }
+    }
+
+    private func beginLaunch(_ id: UUID) async {
+        guard let run = runs[id], run.phase == .claimed else { return }
+        guard let detail = try? await server.detail(jobID: run.job.id) else { return }
+        await launch(id, prompt: Self.prompt(for: detail, answers: []), resume: false)
+    }
+
+    static func prompt(for detail: JobDetail, answers: [Question]) -> String {
+        var lines = [
+            "Task: \(detail.task.title) (task revision \(detail.task.version), released at revision \(detail.job.taskRevision))",
+            detail.task.description,
+            "Scope: \(detail.job.scope)",
+            detail.job.mode == .clarify
+                ? "Mode: clarify. Do not modify any file. Identify what is unclear and ask or summarise."
+                : "Mode: implement. Make the changes within the scope. Do not commit, push or deploy.",
+        ]
+        if !answers.isEmpty {
+            lines.append("Answers to your earlier questions:")
+            lines += answers.map { "- Q: \($0.prompt)\n  A: \($0.answer ?? "")" }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func launch(_ id: UUID, prompt: String, resume: Bool) async {
+        guard let run = runs[id] else { return }
+        let folder: URL
+        do {
+            guard let approved = try allowlist.folder(for: run.repositoryKey), approved.path == run.folder else { throw RunnerError.unapprovedFolder }
+            folder = approved
+        } catch {
+            mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Folder no longer approved; not started." }
+            await flushOutbox(id); return
+        }
+        mutate(id) { $0.phase = .launching; $0.note = "Launch intent persisted; never replayed automatically." }
+        let tools = run.job.mode == .clarify ? settings.clarifyTools : settings.implementTools
+        let request = AgentRequest(sessionID: run.sessionID, folder: folder, prompt: prompt, resume: resume,
+                                   allowedTools: tools, maxTurns: settings.maxTurns, timeout: settings.timeout)
         let process: ProcessReference
         do { process = try await provider.start(request) }
         catch {
-            guard runs[i].phase == .launching else { throw error }
-            runs[i].phase = .failed
-            runs[i].checkpoint = "Provider launch failed."
-            runs[i].pendingEvent = RunnerEvent(phase: .failed, checkpoint: runs[i].checkpoint)
-            try save()
-            throw error
+            mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Provider start failed: \(error)" }
+            await flushOutbox(id); return
         }
-        runs[i].process = process
-        // A stop or heartbeat may have arrived while start was suspended.
-        guard runs[i].phase == .launching else {
+        mutate(id) { $0.process = process }
+        guard let after = runs[id], after.phase == .launching else {
+            // Stopped or fenced while spawning: kill; the watcher reaps and reports nothing for a fenced run.
             await provider.stop(process)
-            tasks[id] = Task { await self.finish(id, process: process) }
-            return
+            watch(id, process); return
         }
-        runs[i].phase = .running
-        runs[i].checkpoint = "Agent process running."
-        do { try save() }
-        catch { await loseLease(id); tasks[id] = Task { await self.finish(id, process: process) }; throw error }
-        tasks[id] = Task { await self.finish(id, process: process) }
+        mutate(id) { $0.phase = .running; $0.note = "Agent process running." }
+        watch(id, process)
+        if let r = runs[id] {
+            _ = try? await server.progress(runID: id, generation: r.generation, text: resume ? "Agent resumed." : "Agent started.")
+        }
     }
 
-    private func finish(_ id: UUID, process: ProcessReference) async {
-        let result: AgentResult
-        do { result = try await provider.wait(for: process) }
-        catch { result = AgentResult(text: "Provider execution interrupted or failed.", exitStatus: -1, isError: true) }
-        let i = index(id)
-        runs[i].process = nil
-        tasks[id] = nil
-        if runs[i].phase == .leaseLost {
-            runs[i].phase = .stopped
-            runs[i].checkpoint = "Process reaped after lease loss; no owner event published."
-            try? save(); return
+    private func watch(_ id: UUID, _ process: ProcessReference) {
+        guard watchers[id] == nil else { return }
+        let provider = self.provider
+        watchers[id] = Task { [weak self] in
+            let outcome: Result<AgentResult, Error>
+            do { outcome = .success(try await provider.wait(for: process)) } catch { outcome = .failure(error) }
+            await self?.processEnded(id, outcome)
         }
-        if runs[i].phase == .stopping {
-            runs[i].phase = .stopped
-        } else if runs[i].phase != .stopped {
-            runs[i].phase = result.isError ? .failed : (result.question == nil ? .awaitingReview : .waitingForAnswer)
-            runs[i].checkpoint = result.question ?? result.text
-            runs[i].pendingEvent = RunnerEvent(phase: runs[i].phase, checkpoint: runs[i].checkpoint, result: result)
+    }
+
+    private func processEnded(_ id: UUID, _ outcome: Result<AgentResult, Error>) async {
+        watchers[id] = nil
+        guard let run = runs[id] else { return }
+        mutate(id) { $0.process = nil }
+        guard run.phase == .running || run.phase == .launching else { return }
+        var outbox: [OutboxStep]
+        var after: RunPhase = .closed
+        let reference = run.sessionID.uuidString.lowercased()
+        if run.stopRequested {
+            outbox = [.stop]
+        } else {
+            switch outcome {
+            case .failure: outbox = [.fail]
+            case .success(let result) where result.isError: outbox = [.fail]
+            case .success(let result):
+                if let question = result.question {
+                    let options = Array(result.options.prefix(20)).map { String($0.prefix(500)) }
+                    outbox = [.checkpoint(Checkpoint(contextRevision: run.contextRevision, sessionReference: reference,
+                                                     nextStep: "Waiting for human answer: \(question)")),
+                              .question(prompt: question, options: options)]
+                    after = .waitingForAnswer
+                } else {
+                    let limitation = run.job.mode == .clarify ? "Clarification only; no files changed." : "Runner did not execute checks itself."
+                    outbox = [.checkpoint(Checkpoint(contextRevision: run.contextRevision, sessionReference: reference,
+                                                     nextStep: "Awaiting human review.")),
+                              .submit(RunResult(summary: result.text, limitations: [limitation]))]
+                }
+            }
         }
-        do {
-            try save()
-            guard try await renew(id) else { return }
-            try await flush(id)
+        mutate(id) { $0.outbox = outbox; $0.afterOutbox = after; $0.note = "Process ended; publishing result." }
+        await flushOutbox(id)
+    }
+
+    private func tryResume(_ id: UUID) async {
+        guard let run = runs[id], run.phase == .waitingForAnswer, run.outbox.isEmpty,
+              let detail = try? await server.detail(jobID: run.job.id) else { return }
+        guard !detail.questions.isEmpty, !detail.questions.contains(where: { $0.answer == nil }) else { return }
+        let fresh = detail.questions.filter { !run.deliveredQuestions.contains($0.id) }
+        guard !fresh.isEmpty, runs[id]?.phase == .waitingForAnswer else { return }
+        let prompt = Self.prompt(for: detail, answers: fresh)
+        mutate(id) { $0.phase = .resuming; $0.deliveredQuestions += fresh.map(\.id) }
+        do { adopt(id, try await server.resume(runID: id, generation: run.generation)) }
+        catch let error as RunnerServerError where error.isOwnershipLoss {
+            await loseLease(id, reason: "Resume rejected (\(error))."); return
         } catch {
-            // Durable pending events are retried by tick; never restart the agent.
+            mutate(id) { $0.phase = .waitingForAnswer; $0.deliveredQuestions.removeAll { id in fresh.contains { $0.id == id } } }
+            lastError = "Resume deferred: \(error)"; return
         }
+        await launch(id, prompt: prompt, resume: true)
     }
 
-    private func flush(_ id: UUID) async throws {
-        let i = index(id)
-        guard runs[i].phase != .leaseLost, runs[i].job.leaseExpiresAt > Date(),
-              let event = runs[i].pendingEvent else { return }
-        try await server.publish(event, for: runs[i].job)
-        runs[i].pendingEvent = nil
-        try save()
-    }
+    // MARK: Operator actions
 
-    public func resume(runID id: UUID, prompt: String) async throws {
-        guard ready, let i = runs.firstIndex(where: { $0.job.runID == id }),
-              runs[i].phase == .waitingForAnswer || runs[i].phase == .needsReconciliation,
-              runs[i].pendingEvent == nil else { throw RunnerError.invalidConfiguration }
-        if let process = runs[i].process {
-            guard await provider.reconcile(process) == .exited else { throw RunnerError.unknownProcess }
-            runs[i].process = nil
-        }
-        // Reserve the phase before the first suspension to prevent concurrent resumes.
-        runs[i].phase = .launching
-        try save()
-        try await launch(id, prompt: prompt, resume: true)
-    }
-
+    /// Stops the local process and confirms the stop to the server (job becomes cancelled).
     public func stop(runID id: UUID) async throws {
-        guard let i = runs.firstIndex(where: { $0.job.runID == id }) else { throw RunnerError.invalidConfiguration }
-        guard runs[i].phase != .needsReconciliation else { throw RunnerError.unknownProcess }
-        guard try await renew(id) else { return }
-        let launching = runs[i].phase == .launching
-        runs[i].phase = .stopping
-        runs[i].checkpoint = "Stopped by local operator."
-        runs[i].pendingEvent = RunnerEvent(phase: .stopped, checkpoint: runs[i].checkpoint)
-        try save()
-        if let process = runs[i].process { await provider.stop(process) }
-        else if !launching {
-            runs[i].phase = .stopped
-            try save()
-            try await flush(id)
+        guard let run = runs[id], run.phase != .closed else { throw RunnerError.invalidConfiguration }
+        guard run.phase != .needsReconciliation else { throw RunnerError.unknownProcess }
+        mutate(id) { $0.stopRequested = true }
+        if let process = run.process { await provider.stop(process) }
+        else if run.phase != .leaseLost {
+            mutate(id) { $0.outbox = [.stop]; $0.afterOutbox = .closed }
+            await flushOutbox(id)
         }
     }
 
-    public func runLoop(interval: Duration = .seconds(1)) async throws {
-        while !Task.isCancelled {
-            try await tick()
-            try await Task.sleep(for: interval)
-        }
+    /// Operator confirms that no agent process of an ambiguous run exists; frees the server's repository seat.
+    public func release(runID id: UUID) async throws {
+        guard let run = runs[id], run.phase == .needsReconciliation else { throw RunnerError.invalidConfiguration }
+        if let process = run.process, await provider.reconcile(process) != .exited { throw RunnerError.unknownProcess }
+        _ = try await server.reconcile(runID: id, generation: run.generation, observation: .stopped)
+        mutate(id) { $0.phase = .closed; $0.process = nil; $0.note = "Released by operator after verification." }
     }
 }

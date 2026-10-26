@@ -1,23 +1,34 @@
 import Foundation
 import Darwin
 
-/// posix_spawn creates a separate process group before executing Claude. Output
-/// goes to files, avoiding pipe-buffer deadlocks for large CLI responses.
+/// Starts `claude -p` in its own process group. stdout/stderr go to files, so
+/// large answers cannot deadlock a pipe and the result survives a runner restart.
 public actor ClaudeProcessAdapter: AgentProvider {
-    private struct Child {
-        var output: URL
-        var error: URL
-        var session: UUID
-        var deadline: Date
-        var interruption: RunnerError?
-    }
     private let executable: URL
     private let scratch: URL
     private let environment: [String: String]
-    private var children: [Int32: Child] = [:]
+    private var children: Set<Int32> = []
+    private var interruptions: [Int32: RunnerError] = [:]
 
     public init(executable: URL, scratch: URL, environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.executable = executable; self.scratch = scratch; self.environment = environment
+    }
+
+    static let outputSchema = #"{"type":"object","properties":{"text":{"type":"string"},"question":{"type":"string"},"options":{"type":"array","items":{"type":"string"}}},"required":["text"]}"#
+    static let systemPrompt = "Answer with a concise summary in the structured text field. If you need a human decision, put exactly one question in the question field (optionally with answer options in options) and stop working. Never commit, push or deploy."
+
+    /// Exposed for tests: the exact CLI arguments.
+    public static func arguments(for request: AgentRequest) -> [String] {
+        ["-p", request.prompt,
+         request.resume ? "--resume" : "--session-id", request.sessionID.uuidString.lowercased(),
+         "--output-format", "json",
+         "--allowedTools", request.allowedTools.joined(separator: ","),
+         "--permission-mode", "dontAsk",
+         "--max-turns", String(request.maxTurns),
+         "--tools", request.allowedTools.map { String($0.prefix(while: { $0 != "(" })) }.joined(separator: ","),
+         "--json-schema", outputSchema,
+         "--append-system-prompt", systemPrompt,
+         "--strict-mcp-config", "--mcp-config", #"{"mcpServers":{}}"#]
     }
 
     public func start(_ request: AgentRequest) throws -> ProcessReference {
@@ -30,19 +41,11 @@ public actor ClaudeProcessAdapter: AgentProvider {
         let token = UUID().uuidString
         let output = scratch.appendingPathComponent(token + ".stdout")
         let error = scratch.appendingPathComponent(token + ".stderr")
-        let arguments = [executable.path, "-p", request.prompt,
-                         request.resume ? "--resume" : "--session-id", request.sessionID.uuidString.lowercased(),
-                         "--output-format", "json", "--allowedTools", request.allowedTools.joined(separator: ","),
-                         "--permission-mode", "dontAsk", "--max-turns", String(request.maxTurns),
-                         "--tools", request.allowedTools.map { String($0.prefix(while: { $0 != "(" })) }.joined(separator: ","),
-                         "--json-schema", "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"},\"question\":{\"type\":\"string\"}},\"required\":[\"text\"]}",
-                         "--append-system-prompt", "Return a concise text summary. If human input is required, put the question in the structured question field and stop working.",
-                         "--safe-mode", "--setting-sources", "", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}"]
-        let pid = try Self.spawn(executable: executable, arguments: arguments, environment: environment,
-                                 folder: request.folder, output: output, error: error)
-        children[pid] = Child(output: output, error: error, session: request.sessionID,
-                              deadline: Date().addingTimeInterval(request.timeout))
-        return ProcessReference(pid: pid)
+        let pid = try Self.spawn(executable: executable, arguments: [executable.path] + Self.arguments(for: request),
+                                 environment: environment, folder: request.folder, output: output, error: error)
+        children.insert(pid)
+        return ProcessReference(pid: pid, startTime: Self.startTime(of: pid) ?? 0, outputPath: output.path,
+                                sessionID: request.sessionID, deadline: Date().addingTimeInterval(request.timeout))
     }
 
     private nonisolated static func spawn(executable: URL, arguments: [String], environment: [String: String],
@@ -73,49 +76,65 @@ public actor ClaudeProcessAdapter: AgentProvider {
         return pid
     }
 
+    /// Process start time (seconds since epoch) from the kernel, nil if the PID does not exist.
+    static func startTime(of pid: Int32) -> Double? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0, size > 0, info.kp_proc.p_pid == pid else { return nil }
+        let t = info.kp_proc.p_un.__p_starttime
+        return Double(t.tv_sec) + Double(t.tv_usec) / 1_000_000
+    }
+
+    private func isAlive(_ process: ProcessReference) -> Bool {
+        guard let start = Self.startTime(of: process.pid) else { return false }
+        return process.startTime == 0 || abs(start - process.startTime) < 0.01
+    }
+
     public func wait(for process: ProcessReference) async throws -> AgentResult {
-        guard let child = children[process.pid] else { throw RunnerError.unknownProcess }
-        defer {
-            children.removeValue(forKey: process.pid)
-            try? FileManager.default.removeItem(at: child.output)
-            try? FileManager.default.removeItem(at: child.error)
-        }
+        let ours = children.contains(process.pid)
         var status: Int32 = 0
+        var reaped = false
         while true {
-            let waited = waitpid(process.pid, &status, WNOHANG)
-            if waited == process.pid { break }
-            if waited < 0 && errno != EINTR { throw RunnerError.unknownProcess }
-            if Task.isCancelled { stop(process) }
-            if Date() >= child.deadline, children[process.pid]?.interruption == nil {
-                children[process.pid]?.interruption = .timedOut
-                terminateGroup(process.pid)
+            if ours {
+                let waited = waitpid(process.pid, &status, WNOHANG)
+                if waited == process.pid { reaped = true; break }
+                if waited < 0 && errno != EINTR { break }
+            } else if !isAlive(process) { break }
+            if Task.isCancelled { kill(-process.pid, SIGKILL); interruptions[process.pid] = interruptions[process.pid] ?? .stopped }
+            if Date() >= process.deadline, interruptions[process.pid] == nil {
+                interruptions[process.pid] = .timedOut
+                kill(-process.pid, SIGKILL)
             }
-            // Cancellation must not skip reaping the process.
+            // Never leave the loop on cancellation before the process is reaped.
             try? await Task.sleep(for: .milliseconds(30))
         }
-        if let interruption = children[process.pid]?.interruption { throw interruption }
-        let exitStatus: Int32 = (status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f)
-        let data = try Data(contentsOf: child.output)
-        return try Self.parse(data, sessionID: child.session, exitStatus: exitStatus)
+        children.remove(process.pid)
+        let interruption = interruptions.removeValue(forKey: process.pid)
+        let output = URL(fileURLWithPath: process.outputPath)
+        defer {
+            try? FileManager.default.removeItem(at: output)
+            try? FileManager.default.removeItem(atPath: process.outputPath.replacingOccurrences(of: ".stdout", with: ".stderr"))
+        }
+        if let interruption { throw interruption }
+        let exitStatus: Int32 = reaped ? ((status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f)) : 0
+        let data = (try? Data(contentsOf: output)) ?? Data()
+        return try Self.parse(data, sessionID: process.sessionID, exitStatus: exitStatus)
     }
 
     public func stop(_ process: ProcessReference) {
-        // Never signal an unverified/reused PID recovered from disk.
-        guard children[process.pid] != nil else { return }
-        children[process.pid]?.interruption = .stopped
-        terminateGroup(process.pid)
-    }
-
-    private func terminateGroup(_ pid: Int32) {
-        // SIGKILL prevents ignored SIGTERM from leaving tool subprocesses alive.
-        kill(-pid, SIGKILL)
+        // Only signal a process whose identity is verified (guards PID reuse).
+        guard isAlive(process), getpgid(process.pid) == process.pid else { return }
+        interruptions[process.pid] = .stopped
+        // SIGKILL on the group: an ignored SIGTERM must not leave tool subprocesses alive.
+        kill(-process.pid, SIGKILL)
     }
 
     public func reconcile(_ process: ProcessReference) -> ProcessObservation {
-        if children[process.pid] != nil { return .running }
-        if kill(process.pid, 0) == -1 && errno == ESRCH { return .exited }
-        // PID existence is not proof of process identity after a runner restart.
-        return .uncertain
+        if children.contains(process.pid) { return .running }
+        guard let start = Self.startTime(of: process.pid) else { return .exited }
+        if process.startTime == 0 { return .uncertain }
+        return abs(start - process.startTime) < 0.01 ? .running : .exited
     }
 
     public static func parse(_ data: Data, sessionID: UUID, exitStatus: Int32) throws -> AgentResult {
@@ -124,11 +143,13 @@ public actor ClaudeProcessAdapter: AgentProvider {
             var result: String?
             var is_error: Bool
             var structured_output: Structured?
-            struct Structured: Decodable { var text: String?; var question: String? }
+            struct Structured: Decodable { var text: String?; var question: String?; var options: [String]? }
         }
-        let envelope = try JSONDecoder().decode(Envelope.self, from: data)
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { throw RunnerError.invalidResult }
         guard UUID(uuidString: envelope.session_id) == sessionID else { throw RunnerError.sessionMismatch }
-        return AgentResult(text: envelope.structured_output?.text ?? envelope.result ?? "", question: envelope.structured_output?.question,
+        let question = envelope.structured_output?.question.flatMap { $0.isEmpty ? nil : $0 }
+        return AgentResult(text: envelope.structured_output?.text ?? envelope.result ?? "", question: question,
+                           options: question == nil ? [] : (envelope.structured_output?.options ?? []),
                            exitStatus: exitStatus, isError: envelope.is_error || exitStatus != 0)
     }
 }

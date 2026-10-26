@@ -3,7 +3,6 @@ import PackageDescription
 
 let package = Package(
     name: "TodoRunner",
-    defaultLocalization: "de",
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "TodoRunner", targets: ["TodoRunner"]),
@@ -11,7 +10,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "TodoRunner"),
-        .executableTarget(name: "todo-runner", dependencies: ["TodoRunner"], resources: [.process("Resources")]),
+        .executableTarget(name: "todo-runner", dependencies: ["TodoRunner"]),
         .testTarget(name: "TodoRunnerTests", dependencies: ["TodoRunner"]),
     ]
 )

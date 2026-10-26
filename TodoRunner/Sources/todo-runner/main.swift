@@ -1,64 +1,80 @@
 import Foundation
 import TodoRunner
 
-/// A single local smoke job, explicitly not a substitute for the server API.
-private actor LocalJobServer: RunnerServer {
-    var job: RunnerJob?
-    init(_ job: RunnerJob) { self.job = job }
-    func claim(eligibleProjects: [String]) -> RunnerJob? {
-        guard let job, eligibleProjects.contains(job.projectID) else { return nil }
-        self.job = nil
-        return job
-    }
-    func renew(_ job: RunnerJob) -> Date? { Date().addingTimeInterval(60) }
-    func publish(_ event: RunnerEvent, for job: RunnerJob) throws {
-        print(String(decoding: try JSONEncoder().encode(event), as: UTF8.self))
-    }
-    func answer(for job: RunnerJob) -> String? { nil }
+// User-facing strings (German first; moving them into a Localizable resource is a follow-up).
+private enum Text {
+    static let usage = """
+    Verwendung: todo-runner <Befehl>
+      pair <Server-URL> <Code>          Gerät mit Einmalcode koppeln
+      approve <Ordner> [Repository-UUID] Ordner freigeben (gibt die Repository-UUID aus)
+      bindings                          Bindings dieses Geräts beim Server anzeigen
+      status                            Lokale Läufe anzeigen
+      run                               Runner starten (Abfrage, Heartbeat, Claude-Start)
+      release <Lauf-UUID>               Unklaren Lauf nach manueller Prüfung freigeben
+    Umgebung: TODO_RUNNER_HOME (Zustand), TODO_RUNNER_CLAUDE (Pfad zur claude-CLI)
+    """
+    static let paired = "Gekoppelt. Token lokal gespeichert."
+    static func approved(_ key: UUID) -> String { "Ordner freigegeben. Repository-UUID: \(key.uuidString.lowercased())" }
+    static let released = "Lauf freigegeben."
+    static func failure(_ error: Error) -> String { "Fehler: \(error)\n" }
 }
 
 @main struct RunnerCommand {
-    static func localized(_ key: String) -> String { NSLocalizedString(key, bundle: .module, comment: "") }
     static func main() async {
-        do {
-            let args = Array(CommandLine.arguments.dropFirst())
-            guard let command = args.first, ["approve", "status", "run-local"].contains(command) else {
-                print(localized("usage")); return
-            }
-            let environment = ProcessInfo.processInfo.environment
-            let directory = environment["TODO_RUNNER_HOME"].map { URL(fileURLWithPath: $0) }
-                ?? LocalStateStore.defaultDirectory
-            let store = try LocalStateStore(directory: directory)
-            let approvals = FolderApprovals(file: directory.appendingPathComponent("allowlist.json"))
-            switch command {
-            case "approve":
-                guard args.count == 3 else { throw RunnerError.invalidConfiguration }
-                try approvals.approve(projectID: args[1], folder: URL(fileURLWithPath: args[2]))
-                print(localized("approved"))
-            case "status":
-                print(String(decoding: try JSONEncoder().encode(store.load()), as: UTF8.self))
-            default:
-                guard args.count == 3 else { throw RunnerError.invalidConfiguration }
-                let executable = environment["TODO_RUNNER_CLAUDE"].map { URL(fileURLWithPath: $0) }
-                    ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/claude")
-                let job = RunnerJob(projectID: args[1], generation: 1,
-                                    leaseExpiresAt: Date().addingTimeInterval(60), prompt: args[2])
-                let server = LocalJobServer(job)
-                let provider = ClaudeProcessAdapter(executable: executable,
-                                                  scratch: directory.appendingPathComponent("process-output"))
-                let runner = try Runner(server: server, provider: provider, store: store, approvals: approvals)
-                repeat {
-                    try await runner.tick()
-                    let runs = await runner.snapshot()
-                    if runs.contains(where: { $0.job.runID == job.runID && $0.phase != .running && $0.phase != .launching }) { break }
-                    if !runs.contains(where: { $0.job.runID == job.runID }) { throw RunnerError.unapprovedFolder }
-                    try await Task.sleep(for: .seconds(1))
-                } while !Task.isCancelled
-            }
-        } catch {
-            let message = String(format: localized("error"), String(describing: error)) + "\n"
-            FileHandle.standardError.write(Data(message.utf8))
+        do { try await execute(Array(CommandLine.arguments.dropFirst())) }
+        catch {
+            FileHandle.standardError.write(Data(Text.failure(error).utf8))
             exit(1)
+        }
+    }
+
+    static func execute(_ args: [String]) async throws {
+        guard let command = args.first else { print(Text.usage); return }
+        let environment = ProcessInfo.processInfo.environment
+        let directory = environment["TODO_RUNNER_HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? LocalStateStore.defaultDirectory
+        let allowlist = FolderAllowlist(file: directory.appendingPathComponent("allowlist.json"))
+        switch command {
+        case "pair":
+            guard args.count == 3, let url = URL(string: args[1]) else { throw RunnerError.invalidConfiguration }
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            let device = try await URLSessionRunnerServer.pair(baseURL: url, code: args[2])
+            try RunnerConfig(baseURL: url, deviceID: device.deviceID, token: device.token).save(to: directory)
+            print(Text.paired)
+        case "approve":
+            guard args.count == 2 || args.count == 3 else { throw RunnerError.invalidConfiguration }
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            let key = try allowlist.approve(folder: URL(fileURLWithPath: args[1]),
+                                            repositoryKey: args.count == 3 ? UUID(uuidString: args[2]) : nil)
+            print(Text.approved(key))
+        case "bindings":
+            let config = try RunnerConfig.load(from: directory)
+            let server = URLSessionRunnerServer(baseURL: config.baseURL, token: config.token)
+            for binding in try await server.bindings() {
+                print("\(binding.id.uuidString.lowercased())\t\(binding.repositoryKey.uuidString.lowercased())\t\(binding.label)")
+            }
+        case "status":
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601
+            print(String(decoding: try encoder.encode(LocalStateStore(directory: directory).load()), as: UTF8.self))
+        case "run", "release":
+            let store = try LocalStateStore(directory: directory)
+            let config = try RunnerConfig.load(from: directory)
+            let server = URLSessionRunnerServer(baseURL: config.baseURL, token: config.token)
+            let executable = environment["TODO_RUNNER_CLAUDE"].map { URL(fileURLWithPath: $0) }
+                ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/claude")
+            let provider = ClaudeProcessAdapter(executable: executable, scratch: directory.appendingPathComponent("process-output"))
+            let runner = try Runner(server: server, provider: provider, store: store, allowlist: allowlist)
+            if command == "release" {
+                guard args.count == 2, let id = UUID(uuidString: args[1]) else { throw RunnerError.invalidConfiguration }
+                try await runner.release(runID: id)
+                print(Text.released)
+            } else {
+                let interval = environment["TODO_RUNNER_INTERVAL"].flatMap(Double.init) ?? 15
+                await runner.runLoop(interval: .seconds(interval))
+            }
+        default: print(Text.usage)
         }
     }
 }
