@@ -16,3 +16,8 @@ Start im Simulator/auf Gerät, Netzwerkzugriff zum Backend, Signierung, Passkeys
 
 ## Nächster Schritt
 Nach Backend-Auth (Etappe 1): Login/Passkey und Projekt-/Aufgabenliste im Client gegen `contracts/openapi.yaml`.
+
+## Runner-Zwischenstand (26.10.2026, feature/runner)
+Auftrag: eigenständiges macOS-Package `TodoRunner`, Bibliothek und CLI; Server-API wird parallel entwickelt und bleibt hinter `RunnerServer`. Hauptrepo nur gelesen, keine globalen Dokumente oder Verträge verändert (explizite Auftragsgrenze). `.workspace.local.json` fehlt im Worktree; Hauptrepo gemäß Nutzerpfad gelesen.
+Implementierungsstand: Protokolle/DTOs, atomarer lokaler JSON-Zustand mit Single-Writer-Lock, kanonische Ordnerfreigaben, Claude-Prozessgruppenadapter und Runner-Zustandsautomat angelegt. Wiederanlauf reserviert unklare Ordner und startet nichts blind neu. Prüfungen laufen; noch keine Erfolgsaussage. Initiales `swift build` scheiterte an nicht beschreibbarem globalem Clang-Modulcache; Cache wird in den Worktree verlegt.
+Nächster Schritt: Fake-Tests und echten Read/Resume-Lauf ausführen, Fehler beheben und Checkpoint abschließen. Keine App-/TodoCore-/XcodeGen-Änderungen, kein Push/Deployment.

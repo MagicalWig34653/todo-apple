@@ -1,0 +1,3 @@
+"usage" = "todo-runner approve <Projekt-ID> <Ordner> | run-local <Projekt-ID> <Prompt> | status\nTODO_RUNNER_HOME: lokales Zustandsverzeichnis; TODO_RUNNER_CLAUDE: CLI-Pfad. run-local prüft einen lokalen Auftrag ohne Serververbindung.";
+"approved" = "Ordner lokal freigegeben.";
+"error" = "Runner-Fehler: %@";
