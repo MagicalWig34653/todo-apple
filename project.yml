@@ -12,7 +12,7 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
-    sources: [App/Shared, { path: App/Icon, optional: true }]
+    sources: [App/Shared, { path: App/Icon/AppIcon.icon, optional: true }]
     dependencies: [{ package: TodoCore }]
     settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).ios, GENERATE_INFOPLIST_FILE: YES, INFOPLIST_KEY_UILaunchScreen_Generation: YES, INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO, INFOPLIST_KEY_CFBundleDisplayName: Todo, INFOPLIST_KEY_UISupportedInterfaceOrientations: 'UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight', INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: 'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight', INFOPLIST_KEY_NSFaceIDUsageDescription: 'Todo verwendet Face ID, um dich mit deinem Passkey anzumelden.', INFOPLIST_KEY_NSLocalNetworkUsageDescription: 'Todo verbindet sich mit einem Server in deinem lokalen Netzwerk, wenn du eine lokale Server-Adresse einstellst.', INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES } }
   Todo-macOS:

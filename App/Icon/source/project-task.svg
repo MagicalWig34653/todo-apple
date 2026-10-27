@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" color-interpolation="sRGB">
+  <title>Task card</title>
+  <defs>
+    <linearGradient id="paint" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EBF5F7"/>
+    </linearGradient>
+  </defs>
+  <g id="project-task">
+    <rect x="352" y="352" width="416" height="416" rx="72" fill="url(#paint)"/>
+  </g>
+</svg>

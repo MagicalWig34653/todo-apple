@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" color-interpolation="sRGB">
+  <title>Nested project</title>
+  <defs>
+    <linearGradient id="paint" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#589EA9"/>
+      <stop offset="1" stop-color="#357E8E"/>
+    </linearGradient>
+  </defs>
+  <g id="project-child">
+    <rect x="288" y="288" width="448" height="448" rx="80" fill="url(#paint)"/>
+  </g>
+</svg>

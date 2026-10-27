@@ -1,0 +1,21 @@
+{
+  "renderer": "Node.js / Sharp (SVG via librsvg, composition via libvips)",
+  "versions": {
+    "node": "26.5.0",
+    "sharp": "0.35.3",
+    "vips": "8.18.3",
+    "rsvg": "2.62.90"
+  },
+  "width": 1024,
+  "height": 1024,
+  "verified": [
+    "PNG dimensions",
+    "background fully opaque",
+    "foreground transparent and opaque pixels",
+    "bundle assets copied from layer renders"
+  ],
+  "limitations": [
+    "Static previews only; no Apple material, enclosure, lighting or system tint simulation",
+    "Icon Composer and Xcode import not verified"
+  ]
+}
