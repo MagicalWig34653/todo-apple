@@ -1,6 +1,6 @@
 name: Todo
 options:
-  bundleIdPrefix: example.todo   # placeholder; real prefix via TODO_BUNDLE_ID_PREFIX in App/Config/Base.xcconfig
+  bundleIdPrefix: de.linolaske.todo   # iOS-App-ID = Prefix selbst; mac/watch = Prefix.mac/.watch (siehe Base.xcconfig)
   developmentLanguage: de
 configFiles:
   Debug: App/Config/Base.xcconfig
@@ -14,14 +14,14 @@ targets:
     deploymentTarget: "17.0"
     sources: [App/Shared, { path: App/Icon/AppIcon.icon, optional: true }]
     dependencies: [{ package: TodoCore }]
-    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).ios, GENERATE_INFOPLIST_FILE: YES, INFOPLIST_KEY_UILaunchScreen_Generation: YES, INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO, INFOPLIST_KEY_CFBundleDisplayName: Todo, INFOPLIST_KEY_UISupportedInterfaceOrientations: 'UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight', INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: 'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight', INFOPLIST_KEY_NSFaceIDUsageDescription: 'Todo verwendet Face ID, um dich mit deinem Passkey anzumelden.', INFOPLIST_KEY_NSLocalNetworkUsageDescription: 'Todo verbindet sich mit einem Server in deinem lokalen Netzwerk, wenn du eine lokale Server-Adresse einstellst.', INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES } }
+    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX), CODE_SIGN_ENTITLEMENTS: App/Config/Todo.entitlements, GENERATE_INFOPLIST_FILE: YES, INFOPLIST_KEY_UILaunchScreen_Generation: YES, INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO, INFOPLIST_KEY_CFBundleDisplayName: Todo, INFOPLIST_KEY_UISupportedInterfaceOrientations: 'UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight', INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: 'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight', INFOPLIST_KEY_NSFaceIDUsageDescription: 'Todo verwendet Face ID, um dich mit deinem Passkey anzumelden.', INFOPLIST_KEY_NSLocalNetworkUsageDescription: 'Todo verbindet sich mit einem Server in deinem lokalen Netzwerk, wenn du eine lokale Server-Adresse einstellst.', INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES } }
   Todo-macOS:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
     sources: [App/Shared]
     dependencies: [{ package: TodoCore }]
-    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).mac, GENERATE_INFOPLIST_FILE: YES, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES } }
+    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).mac, CODE_SIGN_ENTITLEMENTS: App/Config/Todo.entitlements, GENERATE_INFOPLIST_FILE: YES, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES } }
   Todo-watchOS:
     type: application
     platform: watchOS

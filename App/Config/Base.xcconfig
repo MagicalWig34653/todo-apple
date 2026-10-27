@@ -1,6 +1,6 @@
 // Shared build settings (committed, no secrets).
 // Local overrides (team ID, real bundle id prefix) go into Signing.local.xcconfig (gitignored).
-TODO_BUNDLE_ID_PREFIX = example.todo
+TODO_BUNDLE_ID_PREFIX = de.linolaske.todo
 DEVELOPMENT_TEAM =
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
