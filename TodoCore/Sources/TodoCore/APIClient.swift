@@ -10,8 +10,8 @@ public struct HealthResponse: Codable, Sendable, Equatable {
 /// used so the server's cookie CSRF checks never apply to native clients.
 public struct APIClient: Sendable {
     public let baseURL: URL
-    private let session: URLSession
-    private let tokenStore: any TokenStore
+    let session: URLSession
+    let tokenStore: any TokenStore
 
     public init(baseURL: URL, session: URLSession = .shared, tokenStore: any TokenStore = InMemoryTokenStore()) {
         self.baseURL = baseURL
@@ -176,7 +176,7 @@ public struct APIClient: Sendable {
         return encoder
     }()
 
-    private func makeRequest(
+    func makeRequest(
         _ method: String, _ path: String, query: [URLQueryItem], body: (any Encodable)?, auth: Bool,
         headers: [String: String] = [:]
     ) throws -> URLRequest {
@@ -213,7 +213,7 @@ public struct APIClient: Sendable {
         try await performWithStatus(request).0
     }
 
-    private func performWithStatus(_ request: URLRequest) async throws -> (Data, Int) {
+    func performWithStatus(_ request: URLRequest) async throws -> (Data, Int) {
         let data: Data
         let response: URLResponse
         do { (data, response) = try await session.data(for: request) }

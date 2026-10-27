@@ -148,13 +148,7 @@ struct TaskDetailView: View {
             planningSection
             labelsSection
             commentsSection
-            if !model.attachments.isEmpty {
-                Section("task.attachments") {
-                    ForEach(model.attachments) { a in
-                        Label { Text(verbatim: a.filename) } icon: { Image(systemName: a.isImage ? "photo" : "doc") }
-                    }
-                }
-            }
+            AttachmentsSection(taskID: model.task.id, attachments: $model.attachments)
             if !model.activity.isEmpty {
                 Section("task.activity") {
                     ForEach(model.activity) { a in

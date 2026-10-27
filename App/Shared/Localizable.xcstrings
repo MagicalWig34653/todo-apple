@@ -1081,6 +1081,96 @@
           }
         }
       }
+    },
+    "attachment.addPhoto": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto hinzufügen"
+          }
+        }
+      }
+    },
+    "attachment.addFile": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei hinzufügen"
+          }
+        }
+      }
+    },
+    "attachment.open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnen und ansehen"
+          }
+        }
+      }
+    },
+    "attachment.error.invalid": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei wurde vom Server abgelehnt (erlaubt: PNG, JPEG, WebP, PDF bis 10 MB)."
+          }
+        }
+      }
+    },
+    "attachment.error.unsupported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Dateiformat wird nicht unterstützt (erlaubt: PNG, JPEG, WebP, PDF)."
+          }
+        }
+      }
+    },
+    "attachment.error.tooLarge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei ist größer als 10 MB."
+          }
+        }
+      }
+    },
+    "attachment.error.notFound": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Anhang ist nicht (mehr) verfügbar oder du hast keinen Zugriff."
+          }
+        }
+      }
+    },
+    "attachment.error.corrupt": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download ist beschädigt (Prüfsumme stimmt nicht)."
+          }
+        }
+      }
+    },
+    "attachment.error.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Anhang konnte nicht übertragen werden. Bitte erneut versuchen."
+          }
+        }
+      }
     }
   }
 }

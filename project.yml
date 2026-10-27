@@ -21,7 +21,7 @@ targets:
     deploymentTarget: "14.0"
     sources: [App/Shared]
     dependencies: [{ package: TodoCore }]
-    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).mac, CODE_SIGN_ENTITLEMENTS: App/Config/Todo.entitlements, GENERATE_INFOPLIST_FILE: YES, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES } }
+    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).mac, CODE_SIGN_ENTITLEMENTS: App/Config/Todo.entitlements, GENERATE_INFOPLIST_FILE: YES, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES, ENABLE_USER_SELECTED_FILES: readonly, INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO, INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity } }
   Todo-watchOS:
     type: application
     platform: watchOS
