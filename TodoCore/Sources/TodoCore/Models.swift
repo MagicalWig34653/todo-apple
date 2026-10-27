@@ -62,7 +62,7 @@ public enum TaskStatus: String, Codable, Sendable, CaseIterable {
     case done
 }
 
-public struct TodoTask: Codable, Sendable, Equatable, Identifiable {
+public struct TodoTask: Codable, Sendable, Equatable, Hashable, Identifiable {
     public let id: UUID
     public let projectID: UUID
     public let title: String

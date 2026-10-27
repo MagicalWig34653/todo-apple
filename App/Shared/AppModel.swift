@@ -2,6 +2,11 @@ import Foundation
 import Observation
 import TodoCore
 
+enum SidebarItem: Hashable {
+    case today, upcoming, search, teams
+    case project(UUID)
+}
+
 @MainActor @Observable
 final class AppModel {
     enum Phase { case launching, signedOut, signedIn }
@@ -16,7 +21,11 @@ final class AppModel {
     // Data
     var projects: [Project] = []
     var tasks: [TodoTask] = []
-    var selectedProjectID: UUID?
+    var selection: SidebarItem? = nil
+    var today: [PlanningTask] = []
+    var upcoming: [PlanningTask] = []
+    var teams: [Team] = []
+    var teamInvitations: [TeamMembership] = []
     /// Localization key of a transient notice (for example after a version conflict).
     var noticeKey: String?
 
@@ -33,6 +42,11 @@ final class AppModel {
         config.httpCookieStorage = nil
         return URLSession(configuration: config)
     }()
+
+    var selectedProjectID: UUID? {
+        get { if case .project(let id) = selection { id } else { nil } }
+        set { selection = newValue.map(SidebarItem.project) }
+    }
 
     var tree: [ProjectNode] { ProjectTree.build(projects) }
     var visibleTasks: [TodoTask] { tasks.filter { $0.projectID == selectedProjectID } }
@@ -85,7 +99,7 @@ final class AppModel {
 
     func logout() async {
         try? await client?.logout()
-        user = nil; projects = []; tasks = []; selectedProjectID = nil
+        user = nil; projects = []; tasks = []; today = []; upcoming = []; teams = []; teamInvitations = []; selection = nil
         phase = .signedOut
         await refreshCapabilities()
     }
@@ -98,9 +112,28 @@ final class AppModel {
             async let p = client.projects()
             async let t = client.tasks()
             (projects, tasks) = try await (p, t)
-            if selectedProjectID == nil || !projects.contains(where: { $0.id == selectedProjectID }) {
-                selectedProjectID = projects.first?.id
+            if selection == nil || (selectedProjectID != nil && !projects.contains(where: { $0.id == selectedProjectID })) {
+                selection = .today
             }
+            await reloadAgenda()
+        } catch { await handle(error) }
+    }
+
+    /// Today/upcoming come from the server (calendar day in the device time zone). Failures only keep the old lists.
+    func reloadAgenda() async {
+        guard let client else { return }
+        async let t = client.today()
+        async let u = client.upcoming()
+        if let t = try? await t { today = t }
+        if let u = try? await u { upcoming = u }
+    }
+
+    func reloadTeams() async {
+        guard let client else { return }
+        do {
+            async let t = client.teams()
+            async let i = client.teamInvitations()
+            (teams, teamInvitations) = try await (t, i)
         } catch { await handle(error) }
     }
 
@@ -135,7 +168,13 @@ final class AppModel {
         do {
             let updated = try await client.updateTask(task.id, version: task.version, TaskUpdate(status: task.isDone ? .open : .done))
             if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
+            await reloadAgenda()
         } catch { await handle(error) }
+    }
+
+    /// Applies a server-confirmed task (for example after a detail edit) to the local lists.
+    func apply(_ updated: TodoTask) {
+        if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
     }
 
     func deleteTask(_ task: TodoTask) async {
@@ -148,7 +187,7 @@ final class AppModel {
     }
 
     /// Simple conflict policy: the server state wins; reload and tell the user to repeat the change.
-    private func handle(_ error: Error) async {
+    func handle(_ error: Error) async {
         switch error as? APIError {
         case .versionConflict:
             noticeKey = "notice.conflict"

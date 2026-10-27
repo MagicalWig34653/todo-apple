@@ -170,7 +170,16 @@ public struct APIClient: Sendable {
         return decoder
     }()
 
-    private func makeRequest(_ method: String, _ path: String, query: [URLQueryItem], body: (any Encodable)?, auth: Bool) throws -> URLRequest {
+    private static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
+
+    private func makeRequest(
+        _ method: String, _ path: String, query: [URLQueryItem], body: (any Encodable)?, auth: Bool,
+        headers: [String: String] = [:]
+    ) throws -> URLRequest {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         if !query.isEmpty { components?.queryItems = query }
         guard let url = components?.url else { throw APIError.invalidResponse }
@@ -180,19 +189,31 @@ public struct APIClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(AnyEncodable(body))
-        } else if method == "POST" {
+            request.httpBody = try Self.encoder.encode(AnyEncodable(body))
+        } else if method == "POST" || method == "PUT" {
             // The server requires JSON for unsafe methods.
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = Data("{}".utf8)
         }
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         if auth, let token = try? tokenStore.load() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
     }
 
+    /// Like `send` but also returns the HTTP status (for 200 vs 201 on sync mutations).
+    func sendWithStatus<T: Decodable>(_ method: String, _ path: String, body: (any Encodable)? = nil) async throws -> (T, Int) {
+        let (data, status) = try await performWithStatus(makeRequest(method, path, query: [], body: body, auth: true))
+        do { return (try Self.decoder.decode(T.self, from: data), status) }
+        catch { throw APIError.decoding(String(describing: error)) }
+    }
+
     private func perform(_ request: URLRequest) async throws -> Data {
+        try await performWithStatus(request).0
+    }
+
+    private func performWithStatus(_ request: URLRequest) async throws -> (Data, Int) {
         let data: Data
         let response: URLResponse
         do { (data, response) = try await session.data(for: request) }
@@ -202,19 +223,20 @@ public struct APIClient: Sendable {
             let reason = (try? Self.decoder.decode(ErrorBody.self, from: data))?.reason
             throw APIError.from(status: http.statusCode, reason: reason)
         }
-        return data
+        return (data, http.statusCode)
     }
 
-    private func send<T: Decodable>(
-        _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable)? = nil, auth: Bool = true
+    func send<T: Decodable>(
+        _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable)? = nil, auth: Bool = true,
+        headers: [String: String] = [:]
     ) async throws -> T {
-        let data = try await perform(makeRequest(method, path, query: query, body: body, auth: auth))
+        let data = try await perform(makeRequest(method, path, query: query, body: body, auth: auth, headers: headers))
         do { return try Self.decoder.decode(T.self, from: data) }
         catch { throw APIError.decoding(String(describing: error)) }
     }
 
-    private func sendNoContent(_ method: String, _ path: String) async throws {
-        _ = try await perform(makeRequest(method, path, query: [], body: nil, auth: true))
+    func sendNoContent(_ method: String, _ path: String, body: (any Encodable)? = nil) async throws {
+        _ = try await perform(makeRequest(method, path, query: [], body: body, auth: true))
     }
 }
 
