@@ -31,6 +31,19 @@ struct MainView: View {
                 }
             }
             .navigationTitle("app.title")
+            .safeAreaInset(edge: .bottom) {
+                if model.syncStatus == .offline || model.pendingChanges > 0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: model.syncStatus == .offline ? "icloud.slash" : "arrow.triangle.2.circlepath")
+                        if model.syncStatus == .offline { Text("sync.offline") }
+                        if model.pendingChanges > 0 {
+                            Text(verbatim: String(model.pendingChanges))
+                            Text("sync.pending")
+                        }
+                    }
+                    .font(.caption).foregroundStyle(.secondary).padding(8)
+                }
+            }
             .toolbar {
                 ToolbarItem {
                     Button { newProjectName = ""; newProjectParent = .some(nil) } label: { Label("project.add", systemImage: "plus") }
@@ -64,6 +77,12 @@ struct MainView: View {
                 Task { await model.addProject(name: newProjectName, parentID: parent ?? nil) }
             }
             Button("cancel", role: .cancel) {}
+        }
+        .alert("sync.conflict.title", isPresented: Binding(get: { model.conflict != nil }, set: { _ in })) {
+            Button("sync.conflict.keepMine") { Task { await model.resolveConflict(keepMine: true) } }
+            Button("sync.conflict.useServer", role: .destructive) { Task { await model.resolveConflict(keepMine: false) } }
+        } message: {
+            Text("sync.conflict.message")
         }
         .alert(LocalizedStringKey(model.noticeKey ?? ""), isPresented: Binding(get: { model.noticeKey != nil }, set: { if !$0 { model.noticeKey = nil } })) {
             Button("ok") {}

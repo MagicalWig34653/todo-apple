@@ -1171,6 +1171,76 @@
           }
         }
       }
+    },
+    "sync.offline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline"
+          }
+        }
+      }
+    },
+    "sync.pending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen warten auf Übertragung"
+          }
+        }
+      }
+    },
+    "sync.conflict.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konflikt bei einer Änderung"
+          }
+        }
+      }
+    },
+    "sync.conflict.message": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Eintrag wurde zwischenzeitlich anderswo geändert. Du kannst deine Änderung trotzdem übernehmen oder den Serverstand behalten."
+          }
+        }
+      }
+    },
+    "sync.conflict.keepMine": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meine Änderung behalten"
+          }
+        }
+      }
+    },
+    "sync.conflict.useServer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverstand übernehmen"
+          }
+        }
+      }
+    },
+    "notice.syncRejected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Änderung wurde vom Server abgelehnt und verworfen."
+          }
+        }
+      }
     }
   }
 }

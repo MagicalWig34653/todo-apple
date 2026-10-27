@@ -20,6 +20,10 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         }
         Self.seen.append(req)
         let (status, body) = Self.handler?(req) ?? (500, Data())
+        if status < 0 {  // simulated transport failure
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
         let response = HTTPURLResponse(url: req.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: body)

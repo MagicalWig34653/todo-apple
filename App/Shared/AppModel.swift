@@ -31,6 +31,19 @@ final class AppModel {
     /// Localization key of a transient notice (for example after a version conflict).
     var noticeKey: String?
 
+    // Sync (local store + background sync; REST fallback if the server has no usable sync feed)
+    enum SyncStatus { case idle, syncing, offline }
+    var syncStatus: SyncStatus = .idle
+    /// Changes waiting to be sent.
+    var pendingChanges = 0
+    /// First unresolved `version_conflict` (the user decides: keep mine / use server).
+    var conflict: QueuedMutation?
+    private var engine: SyncEngine?
+    private var syncLoop: Task<Void, Never>?
+    /// True when the sync feed is unavailable and everything goes through REST like before the sync engine.
+    private(set) var usesREST = false
+    private static let syncInterval: Duration = .seconds(30)
+
     #if DEBUG
     // Unsigned simulator builds have no keychain access group; a debug token from the environment lives in memory.
     private let tokenStore: any TokenStore = {
@@ -53,6 +66,12 @@ final class AppModel {
         return URLSession(configuration: config)
     }()
 
+    /// Last signed-in account, so a launch without network can still open the local store.
+    private static var cachedUser: User? {
+        get { UserDefaults.standard.data(forKey: "cachedUser").flatMap { try? JSONDecoder().decode(User.self, from: $0) } }
+        set { UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: "cachedUser") }
+    }
+
     var selectedProjectID: UUID? {
         get { if case .project(let id) = selection { id } else { nil } }
         set { selection = newValue.map(SidebarItem.project) }
@@ -69,16 +88,23 @@ final class AppModel {
         guard let client, client.hasStoredSession() else { phase = .signedOut; await refreshCapabilities(); return }
         do {
             user = try await client.me()
+            Self.cachedUser = user
             phase = .signedIn
-            await reload()
+            await beginSync()
         } catch APIError.unauthorized {
             try? await client.logout()
             phase = .signedOut
             await refreshCapabilities()
         } catch {
-            // Offline at launch: keep the token, show login with the error.
-            phase = .signedOut
-            errorKey = "error.network"
+            if let cached = Self.cachedUser {
+                // Offline at launch with a stored session: work from the local store, sync when the server is back.
+                user = cached
+                phase = .signedIn
+                await beginSync()
+            } else {
+                phase = .signedOut
+                errorKey = "error.network"
+            }
         }
     }
 
@@ -96,8 +122,9 @@ final class AppModel {
         defer { busy = false }
         do {
             user = try await work(client)
+            Self.cachedUser = user
             phase = .signedIn
-            await reload()
+            await beginSync()
         } catch { errorKey = Self.key(for: error) }
     }
 
@@ -112,7 +139,11 @@ final class AppModel {
     }
 
     func logout() async {
+        syncLoop?.cancel(); syncLoop = nil
+        try? await engine?.reset()
+        engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
+        Self.cachedUser = nil
         user = nil; projects = []; tasks = []; today = []; upcoming = []; teams = []; teamInvitations = []; selection = nil
         phase = .signedOut
         await refreshCapabilities()
@@ -120,7 +151,95 @@ final class AppModel {
 
     // MARK: Data
 
+    // MARK: Sync
+
+    private func storePath(for user: User) -> String? {
+        guard let dir = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("Todo", isDirectory: true)
+        else { return nil }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // One database per server and account; a different account never sees another one's cache.
+        let server = serverURL.unicodeScalars.map { $0.properties.isAlphabetic || $0.properties.numericType != nil ? Character($0) : "_" }
+        return dir.appendingPathComponent("sync-\(String(server))-\(user.id.uuidString).sqlite").path
+    }
+
+    /// Opens the local store, shows what is cached right away, then syncs and keeps syncing in the background.
+    /// Falls back to REST if the store cannot be opened.
+    private func beginSync() async {
+        syncLoop?.cancel()
+        guard let client, let user, let path = storePath(for: user),
+            let store = try? SQLiteSyncStore(path: path), let engine = try? SyncEngine(client: client, store: store)
+        else { usesREST = true; await reloadREST(); return }
+        self.engine = engine
+        usesREST = false
+        await publish(await engine.snapshot())
+        await syncNow()
+        selectDefaultIfNeeded()
+        syncLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.syncInterval)
+                if Task.isCancelled { return }
+                await self?.syncNow()
+            }
+        }
+    }
+
+    private func publish(_ snap: SyncSnapshot) {
+        projects = snap.projects
+        tasks = snap.tasks
+        pendingChanges = snap.pending
+        conflict = snap.conflicts.first
+    }
+
+    private func selectDefaultIfNeeded() {
+        if selection == nil || (selectedProjectID != nil && !projects.contains(where: { $0.id == selectedProjectID })) {
+            selection = .today
+        }
+    }
+
+    /// Sends queued changes, pulls the feed and refreshes the lists. Offline is not an error: cached data stays.
+    func syncNow() async {
+        guard let engine, !usesREST else { return }
+        syncStatus = .syncing
+        do {
+            let report = try await engine.sync()
+            var snap = await engine.snapshot()
+            if report.rejected > 0 {
+                for q in snap.rejected { snap = (try? await engine.dismiss(q.id)) ?? snap }
+                noticeKey = "notice.syncRejected"
+            }
+            publish(snap)
+            syncStatus = report.offline ? .offline : .idle
+            selectDefaultIfNeeded()
+            if !report.offline { await reloadAgenda() }
+        } catch APIError.unauthorized {
+            await logout(); errorKey = "error.sessionExpired"
+        } catch {
+            // No usable feed (older server, decoding or store problem): use REST for everything.
+            syncLoop?.cancel(); syncLoop = nil
+            usesREST = true; syncStatus = .idle; pendingChanges = 0; conflict = nil
+            await reloadREST()
+        }
+    }
+
+    func resolveConflict(keepMine: Bool) async {
+        guard let engine, let c = conflict else { return }
+        if let snap = try? await engine.resolveConflict(c.id, keepMine: keepMine) { publish(snap) }
+        await syncNow()
+    }
+
+    private func queueChange(_ change: (SyncEngine) async throws -> SyncSnapshot) async -> Bool {
+        guard let engine, !usesREST else { return false }
+        do { publish(try await change(engine)) } catch { noticeKey = "error.generic"; return true }
+        Task { await syncNow() }
+        return true
+    }
+
     func reload() async {
+        if engine != nil, !usesREST { await syncNow() } else { await reloadREST() }
+    }
+
+    func reloadREST() async {
         guard let client else { return }
         do {
             async let p = client.projects()
@@ -154,6 +273,8 @@ final class AppModel {
     func addProject(name: String, parentID: UUID?) async {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard let client, !name.isEmpty else { return }
+        let id = UUID()
+        if await queueChange({ try await $0.createProject(id: id, name: name, parentID: parentID) }) { selectedProjectID = id; return }
         do {
             let p = try await client.createProject(name: name, parentID: parentID)
             projects.append(p); selectedProjectID = p.id
@@ -162,23 +283,27 @@ final class AppModel {
 
     func renameProject(_ project: Project, to name: String) async {
         guard let client else { return }
+        if await queueChange({ try await $0.updateProject(project.id, ProjectUpdate(name: name)) }) { return }
         do { replace(try await client.updateProject(project.id, version: project.version, ProjectUpdate(name: name))) }
         catch { await handle(error) }
     }
 
     func deleteProject(_ project: Project) async {
         guard let client else { return }
+        if await queueChange({ try await $0.deleteProject(project.id) }) { return }
         do { try await client.deleteProject(project.id); await reload() } catch { await handle(error) }
     }
 
     func addTask(title: String) async {
         let title = title.trimmingCharacters(in: .whitespaces)
         guard let client, let pid = selectedProjectID, !title.isEmpty else { return }
+        if await queueChange({ try await $0.createTask(projectID: pid, title: title) }) { return }
         do { tasks.append(try await client.createTask(projectID: pid, title: title)) } catch { await handle(error) }
     }
 
     func toggle(_ task: TodoTask) async {
         guard let client else { return }
+        if await queueChange({ try await $0.updateTask(task.id, TaskUpdate(status: task.isDone ? .open : .done)) }) { return }
         do {
             let updated = try await client.updateTask(task.id, version: task.version, TaskUpdate(status: task.isDone ? .open : .done))
             if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
@@ -189,10 +314,12 @@ final class AppModel {
     /// Applies a server-confirmed task (for example after a detail edit) to the local lists.
     func apply(_ updated: TodoTask) {
         if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
+        if let engine { Task { try? await engine.acceptServer(task: updated); await syncNow() } }
     }
 
     func deleteTask(_ task: TodoTask) async {
         guard let client else { return }
+        if await queueChange({ try await $0.deleteTask(task.id) }) { return }
         do { try await client.deleteTask(task.id); tasks.removeAll { $0.id == task.id } } catch { await handle(error) }
     }
 
