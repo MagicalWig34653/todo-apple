@@ -34,3 +34,9 @@ Stand: Swift Package `TodoRunner/` (macOS 14, Bibliothek + CLI `todo-runner`) au
 Pruefungen: `swift test` (Build ausserhalb von Documents, `--scratch-path /private/tmp/...`): 37 Tests gruen, mehrfach wiederholt (Fake-Server/-Provider: Neustart-Abgleich, Doppelstart, Lease-Verlust, Stop, Frage/Fortsetzung; URLProtocol-Mock fuer die REST-Schicht; Adapter mit Shell-Skripten). Mit `RUNNER_LIVE=1`: 2 Live-Tests gegen die echte `claude` 2.1.310 gruen (Datei lesen via Runner bis submit; Session per UUID fortsetzen, Kontext bleibt). Hinweis: `--json-schema` verbraucht Turns (max-turns 3 reichte nicht, Standard hier 20).
 Nicht geprueft: Lauf gegen das echte Backend (kein E2E, Docker nicht gestartet); Frage-/Rueckfragepfad mit echter claude-CLI; Schlaf/gesperrter Mac; macOS-App-Sandbox; Token im Keychain statt Datei; automatische Wiederaufnahme nach `needsReconciliation` (nur manuell); Fortschrittsmeldungen waehrend des Laufs (nur Start/Ende); Checkpoint-Kontextrevision wird nur aus der Freigaberevision abgeleitet; Token-Widerruf-Verhalten.
 Naechster Schritt: E2E gegen lokales Backend (pair, binding, Freigabe, Lauf, Frage/Antwort), dann Runner-Steuerung in der Mac-App.
+
+## Checkpoint 27.10.2026 (TestFlight-Vorbereitung)
+
+- `App/Config/Base.xcconfig`, `Signing.local.xcconfig.example`, `PrivacyInfo.xcprivacy`, `ExportOptions.plist`, `scripts/testflight-archive.sh`, `docs/TESTFLIGHT.md` angelegt.
+- Verifiziert: unsignierter Archive-Build (`TODO_UNSIGNED=1`) für generisches iOS erfolgreich. Nicht verifiziert: signierter Export, Upload, Passkey-Domain.
+- Offen: Team-ID, App-Store-Connect-Eintrag, Domain + apple-app-site-association, App-Icon (`App/Icon/AppIcon.icon`; XcodeGen-Aufnahme ungetestet), Bundle-Präfix (Platzhalter `example.todo`).
