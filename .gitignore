@@ -10,3 +10,5 @@ DerivedData/
 xcuserdata/
 *.xcodeproj/
 .build/
+Signing.local.xcconfig
+build/
