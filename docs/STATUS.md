@@ -46,3 +46,8 @@ Naechster Schritt: E2E gegen lokales Backend (pair, binding, Freigabe, Lauf, Fra
 - `Todo.entitlements` (`webcredentials:todo.linolaske.de`) aktiv, via `project.yml` fuer iOS und macOS. AASA-Datei fertig unter `docs/aasa/apple-app-site-association`, Hosting auf dem Server offen.
 - Signierter Archiv-/Export-Lauf erfolgreich (App-ID automatisch angelegt, Apple Distribution Zertifikat cloud-managed, IPA exportiert, nichts hochgeladen). Details und Stolperstein (`TODO_OUT_DIR` ausserhalb Documents) in `docs/TESTFLIGHT.md`.
 - Offen: App-Store-Connect-Eintrag (Nutzer), AASA auf `todo.linolaske.de` ausliefern, Upload, Passkey-Test auf Geraet. macOS-App-ID `de.linolaske.todo.mac` noch nicht registriert/signiert geprueft.
+
+## Checkpoint 27.10.2026 (TestFlight-Upload)
+- `scripts/testflight-archive.sh` hat jetzt `TODO_UPLOAD=1` (Export mit `destination=upload`, Xcode-Konto, keine Zugangsdaten im Repo).
+- Upload erfolgreich: 0.1.0 Build 2610271206, Delivery UUID `76573aed-cc05-4e99-bbfa-e425d8429ce4`, keine Validierungsfehler/Warnungen in den Distribution-Logs. Details in `docs/TESTFLIGHT.md`.
+- Offen: Verarbeitung in App Store Connect abwarten, Build Testgruppe zuweisen, AASA auf Server ausliefern, Passkey-Test auf Geraet, Datenschutz-Angaben in ASC.

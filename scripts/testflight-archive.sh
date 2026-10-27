@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Builds a TestFlight-ready iOS archive and exports an .ipa. Uploads NOTHING.
+# Builds a TestFlight-ready iOS archive and exports an .ipa. Uploads only with TODO_UPLOAD=1.
 # Env:
 #   TODO_TEAM_ID        Apple Developer Team ID (required unless TODO_UNSIGNED=1)
 #   TODO_BUNDLE_PREFIX  optional, overrides bundle id prefix (default from App/Config/Base.xcconfig)
 #   TODO_BUILD_NUMBER   optional, overrides CURRENT_PROJECT_VERSION
 #   TODO_VERSION        optional, overrides MARKETING_VERSION
 #   TODO_OUT_DIR        output dir (default: ./build/testflight)
+#   TODO_UPLOAD=1       export with destination=upload (direct upload to App Store Connect via Xcode account)
 #   TODO_UNSIGNED=1     archive only with CODE_SIGNING_ALLOWED=NO (no export; for verification)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -40,7 +41,10 @@ xcodebuild archive "${args[@]}" DEVELOPMENT_TEAM="$TODO_TEAM_ID" -allowProvision
 
 EXPORT_PLIST="$OUT/ExportOptions.plist"
 sed "s/TEAM_ID_PLACEHOLDER/$TODO_TEAM_ID/" ExportOptions.plist > "$EXPORT_PLIST"
+if [[ "${TODO_UPLOAD:-0}" == "1" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :destination upload" "$EXPORT_PLIST"
+fi
 xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$EXPORT_PLIST" \
   -exportPath "$OUT/export" -allowProvisioningUpdates
 
-echo "IPA in $OUT/export - upload manually, see docs/TESTFLIGHT.md"
+[[ "${TODO_UPLOAD:-0}" == "1" ]] && echo "Upload requested (destination=upload); see output above." || echo "IPA in $OUT/export - upload manually, see docs/TESTFLIGHT.md"

@@ -1,6 +1,6 @@
 # TestFlight-Vorbereitung (iOS)
 
-Stand 27.10.2026. Dieses Repository bereitet den Build vor; es wird nichts hochgeladen.
+Stand 27.10.2026. Dieses Repository bereitet den Build vor; Upload nur mit `TODO_UPLOAD=1`.
 
 ## Was im Repo vorbereitet ist
 - `App/Config/Base.xcconfig`: `TODO_BUNDLE_ID_PREFIX` (`de.linolaske.todo`), `DEVELOPMENT_TEAM` (leer), `MARKETING_VERSION` 0.1.0, `CURRENT_PROJECT_VERSION` 1. Lokale Werte in `App/Config/Signing.local.xcconfig` (gitignored, Vorlage: `Signing.local.xcconfig.example`).
@@ -37,3 +37,7 @@ Fertige Datei: `docs/aasa/apple-app-site-association` (Team `J2DU2P47XW`, appIDs
 5. Build: `TODO_TEAM_ID=... TODO_BUILD_NUMBER=<fortlaufend> scripts/testflight-archive.sh`. Jede Uploadrunde braucht eine neue Build-Nummer.
 6. Upload (manuell): Transporter.app mit der IPA aus `build/testflight/export`, oder `xcrun altool --upload-app -f <ipa> -t ios --apiKey <KEY> --apiIssuer <ISSUER>` (API-Key aus App Store Connect; nicht ins Repo). `notarytool` ist nur fuer macOS-Notarisierung, nicht fuer TestFlight.
 7. Nach der Verarbeitung Build in TestFlight dem Testteam zuweisen.
+
+## Upload (27.10.2026, erfolgreich)
+`TODO_TEAM_ID=J2DU2P47XW TODO_UPLOAD=1 TODO_OUT_DIR=/private/tmp/tfout TODO_BUILD_NUMBER=$(date +%y%m%d%H%M) scripts/testflight-archive.sh` setzt im Export `destination=upload` (PlistBuddy) und laedt ueber das in Xcode angemeldete Konto hoch (kein Passwort/API-Key noetig). Ergebnis: Version 0.1.0, Build 2610271206, "Upload succeeded", Delivery UUID `76573aed-cc05-4e99-bbfa-e425d8429ce4`, keine Warnungen/Fehler in den Distribution-Logs, App-Icon (Icon Composer) im Archiv. Es gibt dabei keine lokale IPA (`export/` bleibt leer).
+Offen in App Store Connect: Verarbeitung abwarten (Mail/TestFlight-Tab), Build interner Testgruppe zuweisen; fuer externe Tester Beta-App-Pruefungsinfos ausfuellen. Jede weitere Runde braucht eine neue Build-Nummer (Zeitstempel reicht).
