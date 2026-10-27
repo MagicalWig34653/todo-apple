@@ -941,6 +941,146 @@
           }
         }
       }
+    },
+    "activity.task_created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe erstellt"
+          }
+        }
+      }
+    },
+    "activity.task_updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe geändert"
+          }
+        }
+      }
+    },
+    "activity.task_status_changed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status geändert"
+          }
+        }
+      }
+    },
+    "activity.task_moved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe verschoben"
+          }
+        }
+      }
+    },
+    "activity.task_planning_updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planung geändert"
+          }
+        }
+      }
+    },
+    "activity.comment_created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommentar hinzugefügt"
+          }
+        }
+      }
+    },
+    "activity.comment_updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommentar geändert"
+          }
+        }
+      }
+    },
+    "activity.comment_deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommentar gelöscht"
+          }
+        }
+      }
+    },
+    "activity.agent_claimed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent übernommen"
+          }
+        }
+      }
+    },
+    "activity.agent_answered": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent hat geantwortet"
+          }
+        }
+      }
+    },
+    "activity.agent_released": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent freigegeben"
+          }
+        }
+      }
+    },
+    "activity.criterion_created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium hinzugefügt"
+          }
+        }
+      }
+    },
+    "activity.criterion_updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium geändert"
+          }
+        }
+      }
+    },
+    "activity.criterion_deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium entfernt"
+          }
+        }
+      }
     }
   }
 }

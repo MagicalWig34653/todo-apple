@@ -118,13 +118,31 @@ struct TaskDetailView: View {
             set: { s in Task { await model.setStatus(s, app) } })
     }
 
+    @ViewBuilder private func statusLabel(_ s: TaskStatus) -> some View {
+        switch s {
+        case .open: Text("status.open")
+        case .inProgress: Text("status.in_progress")
+        case .inReview: Text("status.in_review")
+        case .done: Text("status.done")
+        }
+    }
+
+    @ViewBuilder private func priorityLabel(_ p: Int) -> some View {
+        switch p {
+        case 1: Text("priority.1")
+        case 2: Text("priority.2")
+        case 3: Text("priority.3")
+        default: Text("priority.0")
+        }
+    }
+
     var body: some View {
         Form {
             Section {
                 TextField("task.title", text: $title).onSubmit(saveText)
                 TextField("task.description", text: $text, axis: .vertical).lineLimit(2...8)
                 Picker("task.status", selection: statusBinding) {
-                    ForEach(TaskStatus.allCases, id: \.self) { Text(LocalizedStringKey("status.\($0.rawValue)")).tag($0) }
+                    ForEach(TaskStatus.allCases, id: \.self) { statusLabel($0).tag($0) }
                 }
             }
             planningSection
@@ -141,7 +159,7 @@ struct TaskDetailView: View {
                 Section("task.activity") {
                     ForEach(model.activity) { a in
                         VStack(alignment: .leading) {
-                            Text(verbatim: a.kind)
+                            activityText(a.kind)
                             HStack {
                                 if let name = a.actorName { Text(verbatim: name) }
                                 if let at = a.createdAt { Text(at, format: .dateTime.day().month().hour().minute()) }
@@ -167,7 +185,7 @@ struct TaskDetailView: View {
                 get: { model.planning.priority },
                 set: { model.planning.priority = $0; Task { await model.savePlanning(app) } })
             ) {
-                ForEach(0...3, id: \.self) { Text(LocalizedStringKey("priority.\($0)")).tag($0) }
+                ForEach(0...3, id: \.self) { priorityLabel($0).tag($0) }
             }
         }
     }
@@ -229,5 +247,26 @@ struct TaskDetailView: View {
                 .accessibilityLabel(Text("comment.send"))
             }
         }
+    }
+}
+
+/// Literal keys so the string catalog resolves them; unknown kinds from newer servers show the raw kind.
+@ViewBuilder func activityText(_ kind: String) -> some View {
+    switch kind {
+    case "task.created": Text("activity.task_created")
+    case "task.updated": Text("activity.task_updated")
+    case "task.status_changed": Text("activity.task_status_changed")
+    case "task.moved": Text("activity.task_moved")
+    case "task.planning_updated": Text("activity.task_planning_updated")
+    case "comment.created": Text("activity.comment_created")
+    case "comment.updated": Text("activity.comment_updated")
+    case "comment.deleted": Text("activity.comment_deleted")
+    case "agent.claimed": Text("activity.agent_claimed")
+    case "agent.answered": Text("activity.agent_answered")
+    case "agent.released": Text("activity.agent_released")
+    case "criterion.created": Text("activity.criterion_created")
+    case "criterion.updated": Text("activity.criterion_updated")
+    case "criterion.deleted": Text("activity.criterion_deleted")
+    default: Text(verbatim: kind)
     }
 }

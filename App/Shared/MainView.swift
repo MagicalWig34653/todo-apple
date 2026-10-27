@@ -43,7 +43,7 @@ struct MainView: View {
                 }
             }
         } detail: {
-            NavigationStack {
+            NavigationStack(path: $model.path) {
                 Group {
                     switch model.selection {
                     case .today: AgendaView(mode: .today)

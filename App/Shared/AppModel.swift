@@ -22,6 +22,8 @@ final class AppModel {
     var projects: [Project] = []
     var tasks: [TodoTask] = []
     var selection: SidebarItem? = nil
+    /// Detail navigation path (task details pushed on the detail stack).
+    var path: [TodoTask] = []
     var today: [PlanningTask] = []
     var upcoming: [PlanningTask] = []
     var teams: [Team] = []
@@ -29,7 +31,15 @@ final class AppModel {
     /// Localization key of a transient notice (for example after a version conflict).
     var noticeKey: String?
 
-    private let tokenStore = KeychainTokenStore()
+    #if DEBUG
+    // Unsigned simulator builds have no keychain access group; a debug token from the environment lives in memory.
+    private let tokenStore: any TokenStore = {
+        if let t = ProcessInfo.processInfo.environment["TODO_DEBUG_TOKEN"] { return InMemoryTokenStore(token: t) }
+        return KeychainTokenStore()
+    }()
+    #else
+    private let tokenStore: any TokenStore = KeychainTokenStore()
+    #endif
     private let passkey = PlatformPasskey()
 
     var client: APIClient? {
@@ -52,6 +62,10 @@ final class AppModel {
     var visibleTasks: [TodoTask] { tasks.filter { $0.projectID == selectedProjectID } }
 
     func start() async {
+        #if DEBUG
+        DebugLaunch.seedSession(model: self)
+        defer { Task { await DebugLaunch.navigate(model: self) } }
+        #endif
         guard let client, client.hasStoredSession() else { phase = .signedOut; await refreshCapabilities(); return }
         do {
             user = try await client.me()

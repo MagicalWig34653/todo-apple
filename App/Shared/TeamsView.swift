@@ -125,14 +125,14 @@ struct ShareView: View {
                             Image(systemName: g.principalType == .team ? "person.2" : "person")
                             Text(verbatim: name(of: g))
                             Spacer()
-                            Text(LocalizedStringKey("role.\(g.role.rawValue)")).foregroundStyle(.secondary)
+                            roleText(g.role).foregroundStyle(.secondary)
                         }
                         .swipeActions { Button("share.remove", role: .destructive) { Task { await remove(g) } } }
                     }
                 }
                 Section("share.add") {
                     Picker("share.role", selection: $role) {
-                        ForEach(ShareRole.allCases, id: \.self) { Text(LocalizedStringKey("role.\($0.rawValue)")).tag($0) }
+                        ForEach(ShareRole.allCases, id: \.self) { roleText($0).tag($0) }
                     }
                     ForEach(model.teams) { team in
                         Button { Task { await add(.team, team.id) } } label: { Label { Text(verbatim: team.name) } icon: { Image(systemName: "person.2") } }
@@ -188,5 +188,15 @@ struct ShareView: View {
         let version = model.projects.first { $0.id == project.id }?.version ?? project.version
         do { visibility = try await client.setInheritance(projectID: project.id, version: version, inherits: on); await model.reload() }
         catch { await model.handle(error); await reload() }
+    }
+}
+
+/// Literal keys so the string catalog resolves them (interpolated keys showed up unlocalized in pickers).
+@ViewBuilder func roleText(_ role: ShareRole) -> some View {
+    switch role {
+    case .read: Text("role.read")
+    case .comment: Text("role.comment")
+    case .edit: Text("role.edit")
+    case .manage: Text("role.manage")
     }
 }
