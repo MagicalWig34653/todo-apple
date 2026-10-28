@@ -267,6 +267,8 @@ final class AppModel {
             async let t = client.teams()
             async let i = client.teamInvitations()
             (teams, teamInvitations) = try await (t, i)
+        } catch APIError.transport {
+            // Offline: keep the last lists, no alert for a background refresh.
         } catch { await handle(error) }
     }
 
@@ -311,10 +313,25 @@ final class AppModel {
         } catch { await handle(error) }
     }
 
+    /// Task detail edits (title, description, status). With the sync engine they are optimistic and queued (they
+    /// also work offline); without it they go through REST. Returns the task as it should now be shown.
+    func updateTask(_ task: TodoTask, _ update: TaskUpdate) async -> TodoTask? {
+        guard let client else { return nil }
+        if await queueChange({ try await $0.updateTask(task.id, update) }) { return tasks.first { $0.id == task.id } ?? task }
+        do {
+            let updated = try await client.updateTask(task.id, version: task.version, update)
+            if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
+            await reloadAgenda()
+            return updated
+        } catch { await handle(error); return nil }
+    }
+
     /// Applies a server-confirmed task (for example after a detail edit) to the local lists.
     func apply(_ updated: TodoTask) {
-        if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
-        if let engine { Task { try? await engine.acceptServer(task: updated); await syncNow() } }
+        if let engine, !usesREST {
+            // Queued edits stay on top of the confirmed state, so republish from the engine instead of overwriting.
+            Task { try? await engine.acceptServer(task: updated); publish(await engine.snapshot()); await syncNow() }
+        } else if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
     }
 
     func deleteTask(_ task: TodoTask) async {

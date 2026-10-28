@@ -50,8 +50,18 @@ public struct SyncState: Sendable, Equatable {
     public var tasks: [UUID: TodoTask]
     public var cursor: String
     public var queue: [QueuedMutation]
+    /// Stable display order of tasks. The feed carries neither a position nor a creation time, so every task gets a
+    /// client-side rank when it is first seen (feed order for the first full pull, creation order for local creates).
+    /// Ranks survive updates and resyncs; they are device-local and may differ between devices.
+    public var ranks: [UUID: Int]
+    /// Next rank to hand out (not persisted; recomputed from `ranks` when the engine opens the store).
+    var nextRank = 1
 
-    public init(projects: [UUID: Project] = [:], tasks: [UUID: TodoTask] = [:], cursor: String = "c0", queue: [QueuedMutation] = []) {
+    public init(
+        projects: [UUID: Project] = [:], tasks: [UUID: TodoTask] = [:], cursor: String = "c0", queue: [QueuedMutation] = [],
+        ranks: [UUID: Int] = [:]
+    ) {
+        self.ranks = ranks
         self.projects = projects
         self.tasks = tasks
         self.cursor = cursor
@@ -70,6 +80,8 @@ public struct SyncBatch: Sendable, Equatable {
     public var queueUpserts: [QueuedMutation] = []
     /// Removed by mutationID (applied before `queueUpserts`, so an id change keeps the position).
     public var queueRemovals: [UUID] = []
+    public var rankUpserts: [UUID: Int] = [:]
+    public var rankDeletes: [UUID] = []
 
     public init() {}
 }
@@ -91,6 +103,8 @@ extension SyncState {
         for id in batch.projectDeletes { projects[id] = nil }
         for id in batch.taskDeletes { tasks[id] = nil }
         if let cursor = batch.cursor { self.cursor = cursor }
+        for (id, r) in batch.rankUpserts { ranks[id] = r }
+        for id in batch.rankDeletes { ranks[id] = nil }
         if !batch.queueRemovals.isEmpty { queue.removeAll { batch.queueRemovals.contains($0.id) } }
         for q in batch.queueUpserts {
             if let i = queue.firstIndex(where: { $0.id == q.id }) { queue[i] = q } else { queue.append(q) }

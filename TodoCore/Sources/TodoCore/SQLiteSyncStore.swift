@@ -25,6 +25,7 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, json BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, json BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS ranks (id TEXT PRIMARY KEY, rank INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS queue (mutation_id TEXT PRIMARY KEY, ord INTEGER NOT NULL, json BLOB NOT NULL);
             """)
     }
@@ -59,6 +60,9 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
             for (_, data) in try rows("SELECT mutation_id, json FROM queue ORDER BY ord") {
                 state.queue.append(try decode(QueuedMutation.self, data))
             }
+            for (id, rank) in try intRows("SELECT id, rank FROM ranks") {
+                if let uuid = UUID(uuidString: id) { state.ranks[uuid] = rank }
+            }
             if let cursor = try text("SELECT value FROM meta WHERE key = 'cursor'") { state.cursor = cursor }
             return state
         }
@@ -73,6 +77,12 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
                 for t in batch.taskUpserts { try upsert("tasks", t.id.uuidString, Self.encoder.encode(t)) }
                 for id in batch.projectDeletes { try run("DELETE FROM projects WHERE id = ?", [.text(id.uuidString)]) }
                 for id in batch.taskDeletes { try run("DELETE FROM tasks WHERE id = ?", [.text(id.uuidString)]) }
+                for (id, rank) in batch.rankUpserts {
+                    try run(
+                        "INSERT INTO ranks (id, rank) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET rank = excluded.rank",
+                        [.text(id.uuidString), .int(rank)])
+                }
+                for id in batch.rankDeletes { try run("DELETE FROM ranks WHERE id = ?", [.text(id.uuidString)]) }
                 if let cursor = batch.cursor {
                     try run("INSERT INTO meta (key, value) VALUES ('cursor', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [.text(cursor)])
                 }
@@ -92,7 +102,7 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
 
     public func wipe() throws {
         try lock.withLock {
-            try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM queue; DELETE FROM meta;")
+            try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM queue; DELETE FROM ranks; DELETE FROM meta;")
         }
     }
 
@@ -154,6 +164,19 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
             let count = Int(sqlite3_column_bytes(stmt, 1))
             let data = count > 0 ? Data(bytes: sqlite3_column_blob(stmt, 1), count: count) : Data()
             out.append((key, data))
+        }
+        return out
+    }
+
+    private func intRows(_ sql: String) throws -> [(String, Int)] {
+        let stmt = try prepare(sql, [])
+        defer { sqlite3_finalize(stmt) }
+        var out: [(String, Int)] = []
+        while true {
+            let rc = sqlite3_step(stmt)
+            if rc == SQLITE_DONE { break }
+            guard rc == SQLITE_ROW else { throw SyncStoreError.corrupt(String(cString: sqlite3_errmsg(db))) }
+            out.append((String(cString: sqlite3_column_text(stmt, 0)), Int(sqlite3_column_int64(stmt, 1))))
         }
         return out
     }

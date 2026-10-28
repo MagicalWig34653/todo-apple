@@ -16,6 +16,10 @@ final class TaskDetailModel {
 
     func load(_ app: AppModel) async {
         guard let client = app.client else { return }
+        // The text fields come from the local store (optimistic, works offline); planning, comments, labels and
+        // attachments are REST-only, so a failure here (typically offline) just leaves those sections empty.
+        let local = app.tasks.first { $0.id == task.id }
+        if let local { task = local }
         do {
             async let p = client.planning(taskID: task.id)
             async let c = client.comments(taskID: task.id)
@@ -24,10 +28,14 @@ final class TaskDetailModel {
             async let l = client.labels(taskID: task.id)
             async let al = client.labels()
             let planned = try await p
-            task = planned.task; planning = planned.planning
+            // Keep queued (not yet confirmed) edits visible instead of the older server state.
+            task = (app.pendingChanges > 0 ? app.tasks.first { $0.id == task.id } : nil) ?? planned.task
+            planning = planned.planning
             comments = try await c; activity = try await a.items; attachments = try await f
             labels = try await l.items; allLabels = try await al.items
             loaded = true
+        } catch APIError.transport {
+            // Offline: keep what the local store shows.
         } catch { await app.handle(error) }
     }
 
@@ -35,28 +43,24 @@ final class TaskDetailModel {
         guard let client = app.client else { return }
         do {
             let result = try await client.setPlanning(taskID: task.id, planning)
-            task = result.task; planning = result.planning
+            planning = result.planning
+            if app.pendingChanges == 0 { task = result.task }
+            app.apply(result.task)
             await app.reloadAgenda()
         } catch { await app.handle(error); await load(app) }
     }
 
     func saveText(title: String, description: String, _ app: AppModel) async {
-        guard let client = app.client else { return }
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title != task.title || description != task.description else { return }
-        do {
-            task = try await client.updateTask(task.id, version: task.version, TaskUpdate(title: title, description: description))
-            app.apply(task)
-        } catch { await app.handle(error); await load(app) }
+        if let updated = await app.updateTask(task, TaskUpdate(title: title, description: description)) { task = updated }
+        else { await load(app) }
     }
 
     func setStatus(_ status: TaskStatus, _ app: AppModel) async {
-        guard let client = app.client else { return }
-        do {
-            task = try await client.updateTask(task.id, version: task.version, TaskUpdate(status: status))
-            app.apply(task)
-            await app.reloadAgenda()
-        } catch { await app.handle(error); await load(app) }
+        guard status.rawValue != task.status else { return }
+        if let updated = await app.updateTask(task, TaskUpdate(status: status)) { task = updated }
+        else { await load(app) }
     }
 
     func addComment(_ text: String, _ app: AppModel) async {

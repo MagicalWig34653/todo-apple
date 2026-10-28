@@ -31,19 +31,7 @@ struct MainView: View {
                 }
             }
             .navigationTitle("app.title")
-            .safeAreaInset(edge: .bottom) {
-                if model.syncStatus == .offline || model.pendingChanges > 0 {
-                    HStack(spacing: 6) {
-                        Image(systemName: model.syncStatus == .offline ? "icloud.slash" : "arrow.triangle.2.circlepath")
-                        if model.syncStatus == .offline { Text("sync.offline") }
-                        if model.pendingChanges > 0 {
-                            Text(verbatim: String(model.pendingChanges))
-                            Text("sync.pending")
-                        }
-                    }
-                    .font(.caption).foregroundStyle(.secondary).padding(8)
-                }
-            }
+            .safeAreaInset(edge: .bottom) { SyncStatusBar() }
             .toolbar {
                 ToolbarItem {
                     Button { newProjectName = ""; newProjectParent = .some(nil) } label: { Label("project.add", systemImage: "plus") }
@@ -67,6 +55,7 @@ struct MainView: View {
                     }
                 }
                 .navigationDestination(for: TodoTask.self) { TaskDetailView(task: $0) }
+                .safeAreaInset(edge: .bottom) { SyncStatusBar() }
             }
         }
         .sheet(item: $shareProject) { ShareView(project: $0) }
@@ -86,6 +75,27 @@ struct MainView: View {
         }
         .alert(LocalizedStringKey(model.noticeKey ?? ""), isPresented: Binding(get: { model.noticeKey != nil }, set: { if !$0 { model.noticeKey = nil } })) {
             Button("ok") {}
+        }
+    }
+}
+
+/// Offline / pending-changes indicator; shown in the sidebar and under the detail stack (on iPhone only one is visible).
+struct SyncStatusBar: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if model.syncStatus == .offline || model.pendingChanges > 0 {
+            HStack(spacing: 6) {
+                Image(systemName: model.syncStatus == .offline ? "icloud.slash" : "arrow.triangle.2.circlepath")
+                if model.syncStatus == .offline { Text("sync.offline") }
+                if model.pendingChanges > 0 {
+                    Text(verbatim: String(model.pendingChanges))
+                    Text("sync.pending")
+                }
+            }
+            .font(.caption).foregroundStyle(.secondary).padding(8)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
         }
     }
 }

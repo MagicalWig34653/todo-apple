@@ -51,7 +51,24 @@ public actor SyncEngine {
         self.client = client
         self.store = store
         self.pageSize = pageSize
-        self.state = try store.load()
+        var loaded = try store.load()
+        // Caches written before ranks existed: rank the unranked tasks once, in the old alphabetical order.
+        loaded.nextRank = (loaded.ranks.values.max() ?? 0) + 1
+        let unranked = loaded.tasks.values.filter { loaded.ranks[$0.id] == nil }
+            .sorted { ($0.title.lowercased(), $0.id.uuidString) < ($1.title.lowercased(), $1.id.uuidString) }
+        if !unranked.isEmpty {
+            let before = loaded
+            for t in unranked { Self.assignRank(t.id, in: &loaded) }
+            try? store.commit(Self.diff(from: before, to: loaded))
+        }
+        self.state = loaded
+    }
+
+    /// Gives an entity its rank on first sight (see `SyncState.ranks`).
+    static func assignRank(_ id: UUID, in s: inout SyncState) {
+        guard s.ranks[id] == nil else { return }
+        s.ranks[id] = s.nextRank
+        s.nextRank += 1
     }
 
     // MARK: Reading
@@ -60,7 +77,12 @@ public actor SyncEngine {
         let (projects, tasks) = overlay()
         return SyncSnapshot(
             projects: projects.values.sorted { ($0.name.lowercased(), $0.id.uuidString) < ($1.name.lowercased(), $1.id.uuidString) },
-            tasks: tasks.values.sorted { ($0.title.lowercased(), $0.id.uuidString) < ($1.title.lowercased(), $1.id.uuidString) },
+            tasks: tasks.values.sorted { a, b in
+                // Stable first-seen order; alphabetical only as a tie-break for ranks that are missing.
+                let (ra, rb) = (state.ranks[a.id] ?? Int.max, state.ranks[b.id] ?? Int.max)
+                if ra != rb { return ra < rb }
+                return (a.title.lowercased(), a.id.uuidString) < (b.title.lowercased(), b.id.uuidString)
+            },
             pending: state.queue.filter { $0.status == .pending }.count,
             conflicts: state.queue.filter { $0.status == .conflict },
             rejected: state.queue.filter { $0.status == .rejected },
@@ -152,7 +174,10 @@ public actor SyncEngine {
             }
         }
         let order = (state.queue.map(\.order).max() ?? 0) + 1
-        try transact { $0.queue.append(QueuedMutation(mutation: m, order: order, chained: chained)) }
+        try transact {
+            $0.queue.append(QueuedMutation(mutation: m, order: order, chained: chained))
+            if m.type == .taskCreate { Self.assignRank(m.id, in: &$0) }
+        }
         return snapshot()
     }
 
@@ -161,6 +186,7 @@ public actor SyncEngine {
         try transact { s in
             if let old = s.tasks[task.id], old.version > task.version { return }
             s.tasks[task.id] = task
+            Self.assignRank(task.id, in: &s)
         }
     }
 
@@ -285,7 +311,10 @@ public actor SyncEngine {
             return
         }
         if let p = result.project, (s.projects[p.id]?.version ?? 0) <= p.version { s.projects[p.id] = p }
-        if let t = result.task, (s.tasks[t.id]?.version ?? 0) <= t.version { s.tasks[t.id] = t }
+        if let t = result.task, (s.tasks[t.id]?.version ?? 0) <= t.version {
+            s.tasks[t.id] = t
+            assignRank(t.id, in: &s)
+        }
     }
 
     private func pull(_ report: inout SyncReport) async throws {
@@ -353,7 +382,7 @@ public actor SyncEngine {
         case (.project, .upsert):
             if let p = change.project { s.projects[p.id] = p }
         case (.task, .upsert):
-            if let t = change.task { s.tasks[t.id] = t }
+            if let t = change.task { s.tasks[t.id] = t; assignRank(t.id, in: &s) }
         case (.project, .delete):
             removeProjectTree(change.entityID, projects: &s.projects, tasks: &s.tasks)
         case (.task, .delete):
@@ -382,6 +411,9 @@ public actor SyncEngine {
     private func transact(_ body: (inout SyncState) -> Void) throws {
         var next = state
         body(&next)
+        // Ranks live only as long as their task (confirmed or about to be created by a queued mutation).
+        let creating = Set(next.queue.filter { $0.mutation.type == .taskCreate }.map(\.mutation.id))
+        for id in next.ranks.keys where next.tasks[id] == nil && !creating.contains(id) { next.ranks[id] = nil }
         let batch = Self.diff(from: state, to: next)
         do { try store.commit(batch) } catch { throw SyncEngineError.store(String(describing: error)) }
         state = next
@@ -398,6 +430,8 @@ public actor SyncEngine {
         let newIDs = Set(new.queue.map(\.id))
         b.queueRemovals = old.queue.map(\.id).filter { !newIDs.contains($0) }
         b.queueUpserts = new.queue.filter { oldQueue[$0.id] != $0 }
+        for (id, r) in new.ranks where old.ranks[id] != r { b.rankUpserts[id] = r }
+        b.rankDeletes = old.ranks.keys.filter { new.ranks[$0] == nil }
         return b
     }
 }

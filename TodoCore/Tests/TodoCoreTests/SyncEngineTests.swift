@@ -470,4 +470,83 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(snap.cursor, "c2"); XCTAssertEqual(snap.pending, 1)
         XCTAssertEqual(snap.tasks.first?.status, "done")
     }
+
+    // MARK: Task order and detail edits
+
+    func testTaskOrderIsFirstSeenAndStableAcrossUpdatesAndResync() async throws {
+        let (a, b, c) = (UUID(), UUID(), UUID())
+        var round = 0
+        serve(feed: { [self] cur in
+            round += 1
+            if cur == "c0" && round == 1 { return page([upsertProject(1, pid), upsertTask(2, b, title: "Zeta"), upsertTask(3, a, title: "Alpha")], cursor: "c3") }
+            if cur == "c3" { return page([upsertTask(4, b, title: "Zeta edited", version: 2), upsertTask(5, c, title: "Mid")], cursor: "c5") }
+            // Resync: server lists c first now, the known order must still win.
+            return page([upsertProject(1, pid), upsertTask(6, c, title: "Mid"), upsertTask(7, a, title: "Alpha"), upsertTask(8, b, title: "Zeta edited", version: 2)], cursor: "c8")
+        })
+        let e = try engine()
+        _ = try await e.sync()
+        var snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [b, a], "first full pull keeps feed order, not alphabetical")
+        _ = try await e.sync()
+        snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [b, a, c], "an update does not move the task; new ones go last")
+        try await e.updateTask(a, TaskUpdate(title: "Aaa"))
+        snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [b, a, c], "optimistic edit keeps position")
+    }
+
+    func testLocallyCreatedTaskIsLastAndKeepsPositionAfterConfirmation() async throws {
+        let n = UUID()
+        serve(feed: { [self] c in c == "c0" ? page([upsertProject(1, pid), upsertTask(2, t1, title: "Zed")], cursor: "c2") : page([], cursor: c) },
+              mutation: { [self] m in mutationResult(m, task: taskJSON(UUID(uuidString: m["id"] as! String)!, title: "Aaa"), status: 201) })
+        let e = try engine()
+        _ = try await e.sync()
+        try await e.createTask(id: n, projectID: pid, title: "Aaa")
+        var snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [t1, n])
+        _ = try await e.sync()
+        snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [t1, n])
+    }
+
+    func testRanksPersistAndOldCachesAreRankedOnce() async throws {
+        let path = NSTemporaryDirectory() + "sync-\(UUID().uuidString).sqlite"
+        defer { for ext in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + ext) } }
+        // A cache from before ranks existed: tasks but no ranks.
+        let old = try SQLiteSyncStore(path: path)
+        var batch = SyncBatch()
+        batch.projectUpserts = [Project(id: pid, parentID: nil, name: "P", version: 1)]
+        batch.taskUpserts = [TodoTask(id: t2, projectID: pid, title: "B"), TodoTask(id: t1, projectID: pid, title: "A")]
+        try old.commit(batch)
+        let e = try engine(store: try SQLiteSyncStore(path: path))
+        var snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [t1, t2])
+        // Persisted: a restart sees the same ranks, and new tasks sort after them.
+        let n = UUID()
+        try await e.createTask(id: n, projectID: pid, title: "0 first alphabetically")
+        let e2 = try engine(store: try SQLiteSyncStore(path: path))
+        snap = await e2.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [t1, t2, n])
+    }
+
+    func testDetailEditsTitleDescriptionStatusAreOneQueuedUpdateEach() async throws {
+        serve(feed: { [self] c in c == "c0" ? page([upsertProject(1, pid), upsertTask(2, t1, title: "Old")], cursor: "c2") : page([], cursor: c) },
+              mutation: { _ in (-1, Data()) })
+        let e = try engine()
+        _ = try await e.sync()
+        try await e.updateTask(t1, TaskUpdate(title: "New", description: "Body"))
+        try await e.updateTask(t1, TaskUpdate(status: .inReview))
+        let report = try await e.sync()
+        XCTAssertTrue(report.offline)
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.pending, 2)
+        XCTAssertEqual(snap.tasks.first?.title, "New")
+        XCTAssertEqual(snap.tasks.first?.description, "Body")
+        XCTAssertEqual(snap.tasks.first?.status, "in_review")
+        let sent = mutationRequests
+        XCTAssertEqual(sent.first?["type"] as? String, "task.update")
+        XCTAssertEqual(sent.first?["title"] as? String, "New")
+        XCTAssertEqual(sent.first?["description"] as? String, "Body")
+        XCTAssertNil(sent.first?["status"])
+    }
 }
