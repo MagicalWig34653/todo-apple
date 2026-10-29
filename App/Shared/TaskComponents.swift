@@ -273,7 +273,6 @@ struct QuickAddButton: ViewModifier {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { show = true } label: { Label("task.add", systemImage: "plus") }
-                        .keyboardShortcut("n", modifiers: .command)
                         .help(Text("task.add"))
                 }
             }

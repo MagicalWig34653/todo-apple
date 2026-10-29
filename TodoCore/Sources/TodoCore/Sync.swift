@@ -18,6 +18,29 @@ public struct SyncChanges: Codable, Sendable, Equatable {
     /// Opaque (`c<number>`); pass it back unchanged. `c0` is the full state.
     public let cursor: String
     public let hasMore: Bool
+
+    public init(changes: [SyncChange], cursor: String, hasMore: Bool) {
+        self.changes = changes; self.cursor = cursor; self.hasMore = hasMore
+    }
+
+    private enum CodingKeys: String, CodingKey { case changes, cursor, hasMore }
+    private struct Probe: Decodable { let entityType: String }
+
+    /// Entries of entity types this client does not know (for example board `column` entries of newer servers) are
+    /// skipped instead of failing the whole page; the cursor still advances past them.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        cursor = try c.decode(String.self, forKey: .cursor)
+        hasMore = try c.decode(Bool.self, forKey: .hasMore)
+        var list = try c.nestedUnkeyedContainer(forKey: .changes)
+        var result: [SyncChange] = []
+        while !list.isAtEnd {
+            let item = try list.superDecoder()
+            let known = (try? Probe(from: item).entityType).flatMap(SyncChange.EntityType.init(rawValue:)) != nil
+            if known { result.append(try SyncChange(from: item)) }
+        }
+        changes = result
+    }
 }
 
 public enum SyncMutationType: String, Codable, Sendable {

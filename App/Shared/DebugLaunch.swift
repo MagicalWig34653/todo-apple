@@ -61,6 +61,9 @@ enum DebugLaunch {
         case "upcoming": model.selection = .upcoming
         case "search": model.selection = .search
         case "teams": model.selection = .teams
+        case "labels": model.selection = .labels
+        case "account": model.selection = .account
+        case "runner": model.selection = .runner
         default:
             if target.hasPrefix("project:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(8)) }) {
                 model.selectedProjectID = p.id

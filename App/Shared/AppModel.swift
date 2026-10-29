@@ -3,8 +3,9 @@ import Observation
 import TodoCore
 
 enum SidebarItem: Hashable {
-    case inbox, today, upcoming, search, teams
+    case inbox, today, upcoming, search, teams, labels, account, runner
     case project(UUID)
+    case label(UUID)
 }
 
 @MainActor @Observable

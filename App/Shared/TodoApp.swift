@@ -8,6 +8,9 @@ struct TodoApp: App {
         WindowGroup {
             RootView().environment(model).task { await model.start() }
         }
+        #if os(macOS)
+        .defaultSize(width: 1280, height: 820)
+        #endif
     }
 }
 

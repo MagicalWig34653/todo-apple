@@ -5,6 +5,7 @@ import TodoCore
 struct ProjectActions {
     var addProject: (UUID?) -> Void = { _ in }
     var share: (Project) -> Void = { _ in }
+    var addTask: () -> Void = {}
 }
 
 private struct ProjectActionsKey: EnvironmentKey { static let defaultValue = ProjectActions() }
@@ -22,6 +23,8 @@ struct MainView: View {
     @State private var newProjectParent: UUID??  // .some(nil) = new root project
     @State private var newProjectName = ""
     @State private var shareProject: Project?
+    @State private var prefs = ProjectPrefs()
+    @State private var showQuickAdd = false
 
     private var compact: Bool {
         #if os(iOS)
@@ -37,9 +40,12 @@ struct MainView: View {
         }
         .tint(.brand)
         .environment(meta)
+        .environment(prefs)
         .environment(\.projectActions, ProjectActions(
             addProject: { newProjectName = ""; newProjectParent = .some($0) },
-            share: { shareProject = $0 }))
+            share: { shareProject = $0 },
+            addTask: { showQuickAdd = true }))
+        .sheet(isPresented: $showQuickAdd) { QuickAddSheet(projectID: model.selectedProjectID, dueDate: nil).environment(model).environment(meta) }
         .task(id: TaskMeta.refreshKey(model)) { await meta.refresh(model) }
         .sheet(item: Binding(get: { model.path.last }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
@@ -150,174 +156,14 @@ struct PhoneTabs: View {
         case .today, nil: tab = 0
         case .upcoming: tab = 1
         case .search: tab = 2
-        case .inbox, .teams, .project:
+        case .inbox, .teams, .project, .labels, .label, .account, .runner:
             tab = 3
             if let item, browsePath.last != item { browsePath = [item] }
         }
     }
 }
 
-// MARK: Sidebar / Browse list
-
-struct SidebarList: View {
-    @Environment(AppModel.self) private var model
-    @Environment(TaskMeta.self) private var meta
-    @Environment(\.projectActions) private var actions
-    let linking: Bool
-    @State private var projectsExpanded = true
-    @State private var teamsExpanded = true
-
-    private var dayNumber: Int { Calendar.current.component(.day, from: Date()) }
-    private var inboxCount: Int { model.tasks.filter { !$0.isDone && meta.planning(for: $0.id)?.dueAt == nil }.count }
-
-    var body: some View {
-        @Bindable var model = model
-        List(selection: $model.selection) {
-            Section {
-                row(.inbox, "view.inbox", "tray", .priority(1), count: inboxCount)
-                row(.today, "view.today", "\(min(dayNumber, 50)).square", .dueToday, count: model.today.count + meta.overdue.count)
-                row(.upcoming, "view.upcoming", "calendar", .dueTomorrow)
-                row(.search, "view.search", "magnifyingglass", .secondary)
-            }
-            Section(isExpanded: $projectsExpanded) {
-                OutlineGroup(model.tree, children: \.children) { node in
-                    link(.project(node.id)) {
-                        Label { Text(verbatim: node.project.name) } icon: { ProjectDot(id: node.id, size: 10) }
-                    }
-                    .contextMenu {
-                        Button("project.addSub") { actions.addProject(node.id) }
-                        Button("project.share") { actions.share(node.project) }
-                        Button("project.delete", role: .destructive) { Task { await model.deleteProject(node.project) } }
-                    }
-                }
-                Button { actions.addProject(nil) } label: {
-                    Label("project.add", systemImage: "plus").foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            } header: { Text("projects.title") }
-            Section(isExpanded: $teamsExpanded) {
-                ForEach(model.teams) { team in
-                    Button { model.selection = .teams } label: {
-                        Label { Text(verbatim: team.name) } icon: { Image(systemName: "person.2.fill").foregroundStyle(Color.priority(1)) }
-                    }
-                    .buttonStyle(.plain)
-                }
-                row(.teams, "teams.all", "person.2", .secondary, count: model.teamInvitations.count)
-            } header: { Text("view.teams") }
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(Color.canvasRaised)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Text(model.user?.displayName ?? "")
-                    Button("logout", role: .destructive) { Task { await model.logout() } }
-                } label: { Label("account", systemImage: "person.crop.circle") }
-            }
-        }
-        .task { await model.reloadTeams() }
-    }
-
-    /// Sidebar rows select through the list; on iPhone (Browse tab) they push through NavigationLink.
-    @ViewBuilder private func link<Content: View>(_ item: SidebarItem, @ViewBuilder _ content: () -> Content) -> some View {
-        if linking { NavigationLink(value: item) { content() } } else { content().tag(item) }
-    }
-
-    private func row(_ item: SidebarItem, _ title: LocalizedStringKey, _ symbol: String, _ tint: Color, count: Int = 0) -> some View {
-        link(item) {
-            Label { Text(title) } icon: { Image(systemName: symbol).foregroundStyle(tint) }
-                .badge(count)
-        }
-    }
-}
-
-/// The screen for a sidebar / browse destination.
-struct SidebarScreen: View {
-    let item: SidebarItem?
-
-    var body: some View {
-        switch item {
-        case .inbox: InboxView()
-        case .today, nil: TodayView()
-        case .upcoming: UpcomingView()
-        case .search: SearchView()
-        case .teams: TeamsView()
-        case .project(let id): ProjectView(projectID: id)
-        }
-    }
-}
-
 // MARK: Project and Eingang lists
-
-struct ProjectView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.projectActions) private var actions
-    let projectID: UUID
-    @State private var showDone = false
-
-    private var project: Project? { model.projects.first { $0.id == projectID } }
-    private var open: [TodoTask] { model.tasks.filter { $0.projectID == projectID && !$0.isDone } }
-    private var done: [TodoTask] { model.tasks.filter { $0.projectID == projectID && $0.isDone } }
-    private var children: [Project] { model.projects.filter { $0.parentID == projectID } }
-
-    var body: some View {
-        List {
-            if !children.isEmpty {
-                Section {
-                    ForEach(children) { child in
-                        Button { model.selectedProjectID = child.id } label: {
-                            HStack(spacing: 8) {
-                                ProjectDot(id: child.id, size: 10)
-                                Text(verbatim: child.name)
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain).taskRowInsets()
-                    }
-                }
-            }
-            Section {
-                ForEach(open) { task in TaskRow(task: task, showProject: false).taskRowInsets() }
-            }
-            if !done.isEmpty {
-                Section {
-                    if showDone { ForEach(done) { task in TaskRow(task: task, showProject: false).taskRowInsets() } }
-                } header: {
-                    Button { withAnimation { showDone.toggle() } } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.right").rotationEffect(.degrees(showDone ? 90 : 0)).font(.caption.weight(.bold))
-                            Text("task.completed")
-                            Text(verbatim: String(done.count)).fontWeight(.regular)
-                            Spacer()
-                        }
-                        .font(.subheadline.weight(.bold)).foregroundStyle(.secondary).textCase(nil)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .taskListStyle()
-        .overlay { if project != nil && open.isEmpty && done.isEmpty && children.isEmpty { EmptyState(symbol: "tray", title: "project.empty", message: "project.emptyHint") } }
-        .overlay { if project == nil { EmptyState(symbol: "folder.badge.plus", title: "projects.none") } }
-        .navigationTitle(project?.name ?? "")
-        .toolbar {
-            if let project {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button { actions.addProject(project.id) } label: { Label("project.addSub", systemImage: "plus") }
-                        Button { actions.share(project) } label: { Label("project.share", systemImage: "person.badge.plus") }
-                        Button(role: .destructive) { Task { await model.deleteProject(project) } } label: { Label("project.delete", systemImage: "trash") }
-                    } label: { Label("project.more", systemImage: "ellipsis") }
-                }
-            }
-        }
-        .refreshable { await model.reload() }
-        .quickAdd(projectID: projectID)
-    }
-}
 
 /// "Eingang": open tasks that have no due date yet, across all projects.
 struct InboxView: View {

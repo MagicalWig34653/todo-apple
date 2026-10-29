@@ -415,6 +415,30 @@ final class LiveEtappe2Tests: XCTestCase {
         _ = try await a.inviteMember(teamID: team.id, userID: f.bobUser.id)
         try await f.bob.acceptTeamInvitation(teamID: team.id)
         _ = try await a.setGrant(projectID: haus.id, principalType: .team, principalID: team.id, role: .edit)
+        if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_BOARD"] == "1" {
+            // Board demo (needs a server with project columns): nested project with own columns and cards.
+            let privatP = try await a.createProject(name: "Privat")
+            let vibe = try await a.createProject(name: "Vibecoding", parentID: privatP.id)
+            _ = try await a.createProject(name: "Server", parentID: privatP.id)
+            let ideen = try await a.createColumn(projectID: vibe.id, name: "Ideen", color: "#EB8909")
+            let track = try await a.createColumn(projectID: vibe.id, name: "TimeTrack", color: "#2470E0")
+            let todo = try await a.createColumn(projectID: vibe.id, name: "Todo", color: "#44AD5C")
+            let fertig = try await a.createColumn(projectID: vibe.id, name: "Fertig", isDone: true)
+            let cards: [(UUID, String, String)] = [
+                (ideen.id, "Formular next gen", "Am Backend konfigurierbar, Frage-Antwort-Felder"), (ideen.id, "Tabletten Tracker", ""),
+                (ideen.id, "Paperless nachbauen", "lab-docs"), (ideen.id, "CDN mit UI", ""),
+                (track.id, "Ort loeschen in Swift App", ""), (track.id, "Standort Ankunft wird nicht erkannt, Abfahrt schon", ""),
+                (track.id, "Jetzt Sync Button fuer Kalender in Swift App", ""),
+                (todo.id, "Todoist UI Klon", ""), (todo.id, "Anwendungsfall", "Gerade alle Projekte in Spalten sortieren"),
+                (fertig.id, "Login mit Passkey", ""),
+            ]
+            for (i, c) in cards.enumerated() {
+                let t = try await a.createTask(projectID: vibe.id, title: c.1, description: c.2)
+                let moved = try await a.moveTask(t.id, version: t.version, toColumn: c.0)
+                if i == 0 { _ = try await a.setPlanning(taskID: moved.id, PlanningData(dueAt: now.addingTimeInterval(3600), priority: 2)); try await a.addLabel(blocker.id, toTask: moved.id) }
+                if i == 6 { try await a.addLabel(privat.id, toTask: moved.id) }
+            }
+        }
         let token = try XCTUnwrap(try f.adminStore.load())
         try JSONSerialization.data(withJSONObject: ["token": token, "displayName": f.adminUser.displayName]).write(to: URL(fileURLWithPath: out))
     }
