@@ -280,9 +280,10 @@ struct TaskDetailView: View {
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: p > 0 ? "flag.fill" : "flag").foregroundStyle(Color.priority(p))
-                    priorityLabel(p).foregroundStyle(.primary)
+                    priorityLabel(p)
                 }
             }
+            .tint(.primary)
         }
     }
 

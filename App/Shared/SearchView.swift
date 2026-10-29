@@ -43,7 +43,11 @@ struct SearchView: View {
         }
         .taskListStyle()
         .overlay { if searched && hits.isEmpty { ContentUnavailableView.search(text: query) } }
+        #if os(iOS)
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("search.prompt"))
+        #else
         .searchable(text: $query, prompt: Text("search.prompt"))
+        #endif
         .onSubmit(of: .search) { Task { await run() } }
         .onChange(of: query) { _, new in if new.isEmpty { searched = false; hits = [] } }
         .navigationTitle("view.search")

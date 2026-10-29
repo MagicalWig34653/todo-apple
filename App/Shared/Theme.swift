@@ -36,7 +36,7 @@ extension Color {
             Color(red: 0.42, green: 0.35, blue: 0.85), Color(red: 0.72, green: 0.32, blue: 0.78),
             Color(red: 0.88, green: 0.32, blue: 0.55), Color(red: 0.45, green: 0.45, blue: 0.48),
         ]
-        let sum = withUnsafeBytes(of: id.uuid) { $0.reduce(0) { ($0 &* 31 &+ Int($1)) & 0xFFFF } }
+        let sum = withUnsafeBytes(of: id.uuid) { $0.enumerated().reduce(0) { ($0 &* 131 &+ Int($1.element) &+ $1.offset) & 0xFFFFFF } }
         return palette[sum % palette.count]
     }
 }

@@ -67,7 +67,7 @@ struct QuickAddSheet: View {
             projectMenu
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.canvas)
         .presentationDetents([.height(300), .medium])
         .presentationDragIndicator(.visible)

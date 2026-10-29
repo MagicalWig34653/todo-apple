@@ -211,6 +211,7 @@ extension View {
     func taskListStyle() -> some View {
         self.listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .contentMargins(.bottom, 84, for: .scrollContent)
             .background(Color.canvas)
     }
 
