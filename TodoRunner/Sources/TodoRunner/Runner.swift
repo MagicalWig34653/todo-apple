@@ -183,6 +183,9 @@ public actor Runner {
     }
 
     private func handleOwnershipLoss(_ id: UUID) async {
+        // A heartbeat can be in flight while the result is published (actor reentrancy): the server then answers
+        // 410 run_ended for a run this runner already closed cleanly. Nothing to fence or confirm.
+        guard let phase = runs[id]?.phase, phase != .closed else { return }
         if let process = runs[id]?.process { await provider.stop(process) }
         // A human stop reports 410 "local stop required": confirm it instead of treating it as lost.
         if let list = try? await server.runs(), let remote = list.first(where: { $0.id == id }),
@@ -249,6 +252,12 @@ public actor Runner {
             } catch let error as RunnerServerError where error.isOwnershipLoss {
                 await loseLease(id, reason: "Publish rejected (\(error)).")
                 return
+            } catch RunnerServerError.badRequest(let reason) where step != .fail && step != .stop {
+                // A permanent rejection will not heal by retrying: report the run as failed instead of looping.
+                mutate(id) {
+                    $0.outbox = [.fail]; $0.afterOutbox = .closed
+                    $0.note = "Server rejected \(step) (\(reason)); reporting failure."
+                }
             } catch { lastError = "Publish deferred: \(error)"; return }
         }
         if let run = runs[id], run.outbox.isEmpty, run.phase != .leaseLost, let after = run.afterOutbox {
@@ -362,7 +371,7 @@ public actor Runner {
             case .failure: outbox = [.fail]
             case .success(let result) where result.isError: outbox = [.fail]
             case .success(let result):
-                if let question = result.question {
+                if let question = result.question.map(Self.serverText) {
                     let options = Array(result.options.prefix(20)).map { String($0.prefix(500)) }
                     outbox = [.checkpoint(Checkpoint(contextRevision: run.contextRevision, sessionReference: reference,
                                                      nextStep: "Waiting for human answer: \(question)")),
@@ -372,12 +381,20 @@ public actor Runner {
                     let limitation = run.job.mode == .clarify ? "Clarification only; no files changed." : "Runner did not execute checks itself."
                     outbox = [.checkpoint(Checkpoint(contextRevision: run.contextRevision, sessionReference: reference,
                                                      nextStep: "Awaiting human review.")),
-                              .submit(RunResult(summary: result.text, limitations: [limitation]))]
+                              .submit(RunResult(summary: Self.serverText(result.text), limitations: [limitation]))]
                 }
             }
         }
         mutate(id) { $0.outbox = outbox; $0.afterOutbox = after; $0.note = "Process ended; publishing result." }
         await flushOutbox(id)
+    }
+
+    /// The server rejects blank text and anything over 4000 characters (400); an oversized or empty agent answer
+    /// must not make the publication retry forever.
+    static func serverText(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "(no text returned by the agent)" }
+        return trimmed.count <= 4000 ? trimmed : String(trimmed.prefix(3980)) + "\n[truncated]"
     }
 
     private func tryResume(_ id: UUID) async {

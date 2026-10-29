@@ -67,6 +67,31 @@ import Testing
         #expect(await eventually(runner) { await server.count("submit") == 1 })
     }
 
+    @Test func oversizedOrEmptyAgentTextIsNormalisedForTheServerLimits() async throws {
+        let (f, server, provider, _, _) = try await setup(jobs: 2); defer { f.cleanup() }
+        let runner = try makeRunner(f, server: server, provider: provider)
+        try await runner.tick()
+        await provider.finish(await provider.lastPID(), AgentResult(text: String(repeating: "x", count: 9000)))
+        #expect(await eventually(runner) { await server.count("submit") == 1 })
+        let summary = try #require(await server.submitted.first?.summary)
+        #expect(summary.count <= 4000 && summary.hasSuffix("[truncated]"))
+        #expect(await eventually(runner) { await provider.requests.count == 2 })
+        await provider.finish(await provider.lastPID(), AgentResult(text: "  \n"))
+        #expect(await eventually(runner) { await server.count("submit") == 2 })
+        #expect(await server.submitted.last?.summary.isEmpty == false)
+    }
+
+    @Test func permanentlyRejectedPublicationReportsFailureInsteadOfLoopingForever() async throws {
+        let (f, server, provider, _, _) = try await setup(); defer { f.cleanup() }
+        await server.set(writeError: .badRequest("invalid_agent_text"), for: "submit")
+        let runner = try makeRunner(f, server: server, provider: provider)
+        try await runner.tick()
+        await provider.finish(await provider.lastPID(), AgentResult(text: "Done."))
+        #expect(await eventually(runner) { await server.count("fail") == 1 })
+        #expect(await server.count("submit") == 1)   // tried once, not on every tick
+        #expect(await runner.snapshot().first?.phase == .closed)
+    }
+
     @Test func errorResultFailsRunAndFreesFolder() async throws {
         let (f, server, provider, _, _) = try await setup(jobs: 2); defer { f.cleanup() }
         let runner = try makeRunner(f, server: server, provider: provider)
