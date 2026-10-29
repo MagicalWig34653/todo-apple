@@ -104,11 +104,14 @@ final class TaskDetailModel {
 
 struct TaskDetailView: View {
     @Environment(AppModel.self) private var app
+    @Environment(TaskMeta.self) private var meta
+    @Environment(\.dismiss) private var dismiss
     @State private var model: TaskDetailModel
     @State private var title: String
     @State private var text: String
     @State private var newComment = ""
     @State private var newLabel = ""
+    @State private var pickingDate = false
 
     init(task: TodoTask) {
         _model = State(initialValue: TaskDetailModel(task: task))
@@ -133,24 +136,27 @@ struct TaskDetailView: View {
 
     @ViewBuilder private func priorityLabel(_ p: Int) -> some View {
         switch p {
-        case 1: Text("priority.1")
-        case 2: Text("priority.2")
-        case 3: Text("priority.3")
-        default: Text("priority.0")
+        case 3: Text("priority.p1")
+        case 2: Text("priority.p2")
+        case 1: Text("priority.p3")
+        default: Text("priority.p4")
         }
     }
 
+    private var project: Project? { app.projects.first { $0.id == model.task.projectID } }
+
     var body: some View {
-        Form {
+        List {
+            header
             Section {
-                TextField("task.title", text: $title).onSubmit(saveText)
-                TextField("task.description", text: $text, axis: .vertical).lineLimit(2...8)
-                Picker("task.status", selection: statusBinding) {
-                    ForEach(TaskStatus.allCases, id: \.self) { statusLabel($0).tag($0) }
-                }
+                projectRow
+                dueRow
+                if pickingDate { datePickerRow }
+                priorityRow
+                labelsRow
+                statusRow
             }
-            planningSection
-            labelsSection
+            .listRowBackground(Color.canvas)
             commentsSection
             AttachmentsSection(taskID: model.task.id, attachments: $model.attachments)
             if !model.activity.isEmpty {
@@ -167,67 +173,185 @@ struct TaskDetailView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .navigationTitle(model.task.title)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.canvas)
+        .navigationTitle("")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("done") { saveText(); app.path = []; dismiss() } }
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) {
+                    Task { await app.deleteTask(model.task); app.path = []; dismiss() }
+                } label: { Label("task.delete", systemImage: "trash") }
+            }
+        }
         .task { await model.load(app); title = model.task.title; text = model.task.description }
         .onDisappear { saveText() }
     }
 
-    private func saveText() { Task { await model.saveText(title: title, description: text, app) } }
+    // MARK: header (checkbox, title, description)
 
-    @ViewBuilder private var planningSection: some View {
-        Section("task.planning") {
-            optionalDate("task.due", \.dueAt)
-            optionalDate("task.planned", \.plannedAt)
-            Picker("task.priority", selection: Binding(
-                get: { model.planning.priority },
-                set: { model.planning.priority = $0; Task { await model.savePlanning(app) } })
-            ) {
-                ForEach(0...3, id: \.self) { priorityLabel($0).tag($0) }
+    private var header: some View {
+        HStack(alignment: .top, spacing: 8) {
+            TaskCheckbox(checked: model.task.isDone, priority: model.planning.priority) {
+                Task { await model.setStatus(model.task.isDone ? .open : .done, app) }
+                Haptics.success()
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("task.title", text: $title, axis: .vertical)
+                    .font(.title3.weight(.semibold))
+                    .strikethrough(model.task.isDone)
+                    .onSubmit(saveText)
+                TextField("task.description", text: $text, axis: .vertical)
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1...8)
+            }
+            .padding(.top, 8)
+        }
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.canvas)
+    }
+
+    // MARK: property rows
+
+    private func propertyRow<Value: View>(_ icon: String, _ label: LocalizedStringKey, @ViewBuilder value: () -> Value) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).frame(width: 22).foregroundStyle(.secondary)
+            Text(label).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            value().multilineTextAlignment(.trailing)
+        }
+        .font(.subheadline)
+        .frame(minHeight: 34)
+        .contentShape(Rectangle())
+    }
+
+    private var projectRow: some View {
+        Menu {
+            ForEach(app.projects) { p in
+                Button { moveTask(to: p.id) } label: { Label(p.name, systemImage: p.id == model.task.projectID ? "checkmark" : "circle.fill") }
+            }
+        } label: {
+            propertyRow("folder", "task.project") {
+                HStack(spacing: 6) {
+                    ProjectDot(id: model.task.projectID)
+                    Text(verbatim: project?.name ?? "").foregroundStyle(.primary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var dueRow: some View {
+        let due = model.planning.dueAt
+        return propertyRow("calendar", "task.due") {
+            Menu {
+                Button("due.today") { setDue(DueFormat.today()) }
+                Button("due.tomorrow") { setDue(DueFormat.tomorrow()) }
+                Button("due.weekend") { setDue(DueFormat.weekend()) }
+                Button("due.nextWeek") { setDue(DueFormat.nextWeek()) }
+                Button("due.pick") { if model.planning.dueAt == nil { setDue(DueFormat.tomorrow()) }; withAnimation { pickingDate.toggle() } }
+                if due != nil { Button("due.none", role: .destructive) { pickingDate = false; setDue(nil) } }
+            } label: {
+                if let due {
+                    Text(verbatim: DueFormat.text(due)).foregroundStyle(DueFormat.style(due).color)
+                } else {
+                    Text("due.none")
+                }
             }
         }
     }
 
-    private func optionalDate(_ label: LocalizedStringKey, _ keyPath: WritableKeyPath<PlanningData, Date?>) -> some View {
-        let binding = Binding<Date?>(
-            get: { model.planning[keyPath: keyPath] },
-            set: { model.planning[keyPath: keyPath] = $0; Task { await model.savePlanning(app) } })
-        return HStack {
-            Toggle(label, isOn: Binding(
-                get: { binding.wrappedValue != nil },
-                set: { binding.wrappedValue = $0 ? Calendar.current.startOfDay(for: Date()).addingTimeInterval(9 * 3600) : nil }))
-            if let date = binding.wrappedValue {
-                DatePicker("", selection: Binding(get: { date }, set: { binding.wrappedValue = $0 }))
-                    .labelsHidden()
+    private var datePickerRow: some View {
+        DatePicker("", selection: Binding(get: { model.planning.dueAt ?? DueFormat.tomorrow() }, set: { setDue($0) }),
+                   displayedComponents: [.date, .hourAndMinute])
+            .datePickerStyle(.graphical).labelsHidden()
+    }
+
+    private var priorityRow: some View {
+        let p = model.planning.priority
+        return propertyRow("flag", "task.priority") {
+            Menu {
+                ForEach([3, 2, 1, 0], id: \.self) { v in
+                    Button { setPriority(v) } label: { Label { priorityLabel(v) } icon: { Image(systemName: v == p ? "checkmark" : "flag.fill") } }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: p > 0 ? "flag.fill" : "flag").foregroundStyle(Color.priority(p))
+                    priorityLabel(p).foregroundStyle(.primary)
+                }
             }
         }
     }
 
-    @ViewBuilder private var labelsSection: some View {
-        Section("task.labels") {
-            ForEach(model.allLabels) { label in
-                Button { Task { await model.toggleLabel(label, app) } } label: {
-                    HStack {
-                        Text(verbatim: label.name)
-                        Spacer()
-                        if model.labels.contains(where: { $0.id == label.id }) { Image(systemName: "checkmark") }
+    private var labelsRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            propertyRow("tag", "task.labels") {
+                Menu {
+                    ForEach(model.allLabels) { l in
+                        Button { Task { await model.toggleLabel(l, app); await meta.refresh(app) } } label: {
+                            Label(l.name, systemImage: model.labels.contains(where: { $0.id == l.id }) ? "checkmark" : "tag")
+                        }
+                    }
+                } label: {
+                    if model.labels.isEmpty { Text("label.add") } else {
+                        HStack { ForEach(model.labels) { LabelChip(name: $0.name) } }
                     }
                 }
-                .buttonStyle(.plain)
             }
-            TextField("label.new", text: $newLabel).onSubmit {
+            TextField("label.new", text: $newLabel).font(.footnote).onSubmit {
                 let name = newLabel; newLabel = ""
-                Task { await model.createLabel(name, app) }
+                Task { await model.createLabel(name, app); await meta.refresh(app) }
             }
+            .padding(.leading, 34)
         }
     }
 
+    private var statusRow: some View {
+        propertyRow("circle.dashed", "task.status") {
+            Picker("task.status", selection: statusBinding) {
+                ForEach(TaskStatus.allCases, id: \.self) { statusLabel($0).tag($0) }
+            }
+            .labelsHidden().tint(.primary)
+        }
+    }
+
+    private func setDue(_ date: Date?) {
+        model.planning.dueAt = date
+        Task { await model.savePlanning(app); await meta.refresh(app) }
+    }
+
+    private func setPriority(_ p: Int) {
+        Haptics.tap()
+        model.planning.priority = p
+        Task { await model.savePlanning(app); await meta.refresh(app) }
+    }
+
+    private func moveTask(to projectID: UUID) {
+        guard projectID != model.task.projectID, let client = app.client else { return }
+        Task {
+            do {
+                model.task = try await client.updateTask(model.task.id, version: model.task.version, TaskUpdate(projectID: projectID))
+                app.apply(model.task)
+            } catch { await app.handle(error) }
+        }
+    }
+
+    private func saveText() { Task { await model.saveText(title: title, description: text, app) } }
+
     @ViewBuilder private var commentsSection: some View {
-        Section("task.comments") {
+        Section {
             ForEach(model.comments) { c in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: c.authorName ?? "?").font(.caption).foregroundStyle(.secondary)
-                    Text(verbatim: c.body)
+                HStack(alignment: .top, spacing: 10) {
+                    Text(verbatim: String((c.authorName ?? "?").prefix(1)).uppercased())
+                        .font(.caption.weight(.bold)).foregroundStyle(.white)
+                        .frame(width: 26, height: 26).background(Color.project(c.authorID), in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(verbatim: c.body).font(.subheadline)
+                    }
                 }
                 .swipeActions {
                     if c.authorID == app.user?.id {
@@ -240,11 +364,12 @@ struct TaskDetailView: View {
                 Button {
                     let t = newComment; newComment = ""
                     Task { await model.addComment(t, app) }
-                } label: { Image(systemName: "paperplane") }
+                } label: { Image(systemName: "arrow.up.circle.fill").font(.title2).foregroundStyle(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.brand) }
+                .buttonStyle(.plain)
                 .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel(Text("comment.send"))
             }
-        }
+        } header: { SectionHeaderLabel(title: "task.comments", count: model.comments.isEmpty ? nil : model.comments.count) }
     }
 }
 

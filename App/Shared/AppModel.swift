@@ -3,7 +3,7 @@ import Observation
 import TodoCore
 
 enum SidebarItem: Hashable {
-    case today, upcoming, search, teams
+    case inbox, today, upcoming, search, teams
     case project(UUID)
 }
 
@@ -301,6 +301,19 @@ final class AppModel {
         guard let client, let pid = selectedProjectID, !title.isEmpty else { return }
         if await queueChange({ try await $0.createTask(projectID: pid, title: title) }) { return }
         do { tasks.append(try await client.createTask(projectID: pid, title: title)) } catch { await handle(error) }
+    }
+
+    /// Creates a task in `projectID` without changing the selection and returns its id (quick-add then sets
+    /// planning and labels, which are REST-only). nil if the task could not be created.
+    func createTask(projectID: UUID, title: String) async -> UUID? {
+        let title = title.trimmingCharacters(in: .whitespaces)
+        guard let client, !title.isEmpty else { return nil }
+        let id = UUID()
+        if await queueChange({ try await $0.createTask(id: id, projectID: projectID, title: title) }) {
+            return tasks.contains { $0.id == id } ? id : nil
+        }
+        do { let t = try await client.createTask(projectID: projectID, title: title); tasks.append(t); return t.id }
+        catch { await handle(error); return nil }
     }
 
     func toggle(_ task: TodoTask) async {

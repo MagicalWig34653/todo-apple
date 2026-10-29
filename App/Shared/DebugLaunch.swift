@@ -6,6 +6,9 @@ import TodoCore
 /// (`SIMCTL_CHILD_TODO_DEBUG_SERVER`, `..._TOKEN`, `..._SELECT`). Never compiled into release/TestFlight builds.
 @MainActor
 enum DebugLaunch {
+    /// `TODO_DEBUG_QUICKADD=1` opens the quick-add sheet on launch (screenshots).
+    static var openQuickAdd: Bool { ProcessInfo.processInfo.environment["TODO_DEBUG_QUICKADD"] == "1" }
+
     private static var env: [String: String] { ProcessInfo.processInfo.environment }
 
     static func seedSession(model: AppModel) {
@@ -53,6 +56,7 @@ enum DebugLaunch {
         await model.reloadTeams()
         defer { Task { await runActions(model: model) } }
         switch target {
+        case "inbox": model.selection = .inbox
         case "today": model.selection = .today
         case "upcoming": model.selection = .upcoming
         case "search": model.selection = .search

@@ -427,7 +427,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heute ist nichts fällig"
+            "value": "Alles erledigt für heute"
           }
         }
       }
@@ -1238,6 +1238,326 @@
           "stringUnit": {
             "state": "translated",
             "value": "Eine Änderung wurde vom Server abgelehnt und verworfen."
+          }
+        }
+      }
+    },
+    "due.today": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heute"
+          }
+        }
+      }
+    },
+    "due.tomorrow": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Morgen"
+          }
+        }
+      }
+    },
+    "due.yesterday": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestern"
+          }
+        }
+      }
+    },
+    "due.weekend": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wochenende"
+          }
+        }
+      }
+    },
+    "due.nextWeek": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächste Woche"
+          }
+        }
+      }
+    },
+    "due.none": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Datum"
+          }
+        }
+      }
+    },
+    "due.pick": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datum wählen"
+          }
+        }
+      }
+    },
+    "task.schedule": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verschieben"
+          }
+        }
+      }
+    },
+    "task.add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe hinzufügen"
+          }
+        }
+      }
+    },
+    "task.completed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erledigt"
+          }
+        }
+      }
+    },
+    "task.project": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt"
+          }
+        }
+      }
+    },
+    "quickAdd.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was ist zu tun?"
+          }
+        }
+      }
+    },
+    "quickAdd.notes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschreibung"
+          }
+        }
+      }
+    },
+    "label.none": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Labels"
+          }
+        }
+      }
+    },
+    "label.add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Label hinzufügen"
+          }
+        }
+      }
+    },
+    "priority.p1": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priorität 1"
+          }
+        }
+      }
+    },
+    "priority.p2": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priorität 2"
+          }
+        }
+      }
+    },
+    "priority.p3": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priorität 3"
+          }
+        }
+      }
+    },
+    "priority.p4": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priorität 4"
+          }
+        }
+      }
+    },
+    "browse.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durchsuchen"
+          }
+        }
+      }
+    },
+    "view.inbox": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingang"
+          }
+        }
+      }
+    },
+    "teams.all": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Teams"
+          }
+        }
+      }
+    },
+    "project.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Projekt ist leer"
+          }
+        }
+      }
+    },
+    "project.emptyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tippe auf Plus, um die erste Aufgabe zu erfassen."
+          }
+        }
+      }
+    },
+    "project.more": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr"
+          }
+        }
+      }
+    },
+    "inbox.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingang ist leer"
+          }
+        }
+      }
+    },
+    "inbox.emptyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgaben ohne Datum landen hier, bis du sie einplanst."
+          }
+        }
+      }
+    },
+    "agenda.overdue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überfällig"
+          }
+        }
+      }
+    },
+    "agenda.reschedule": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf heute legen"
+          }
+        }
+      }
+    },
+    "agenda.todayHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genieße den freien Tag oder plane etwas Neues."
+          }
+        }
+      }
+    },
+    "agenda.dayEmpty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nichts geplant"
+          }
+        }
+      }
+    },
+    "notice.quickAddOffline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufgabe ist angelegt. Datum, Priorität und Labels kannst du setzen, sobald du wieder online bist."
           }
         }
       }
