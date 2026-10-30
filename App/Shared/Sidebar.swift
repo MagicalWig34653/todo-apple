@@ -6,7 +6,6 @@ import TodoCore
 struct SidebarList: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
-    @Environment(ProjectPrefs.self) private var prefs
     @Environment(\.projectActions) private var actions
     let linking: Bool
     @State private var projectsExpanded = true
@@ -20,7 +19,7 @@ struct SidebarList: View {
     private var openCounts: [UUID: Int] {
         Dictionary(grouping: model.tasks.filter { !$0.isDone }, by: \.projectID).mapValues(\.count)
     }
-    private var favoriteProjects: [Project] { prefs.favorites.compactMap { id in model.projects.first { $0.id == id } } }
+    private var favoriteProjects: [Project] { model.favoriteProjects }
 
     var body: some View {
         @Bindable var model = model
@@ -53,6 +52,7 @@ struct SidebarList: View {
                 if moreExpanded {
                     row(.teams, "view.teams", "person.2", .secondary, count: model.teamInvitations.count).padding(.leading, 12)
                     row(.account, "view.account", "gearshape", .secondary).padding(.leading, 12)
+                    row(.activity, "view.activity", "clock.arrow.circlepath", .secondary).padding(.leading, 12)
                     row(.runner, "view.runner", "terminal", .secondary).padding(.leading, 12)
                 }
             }
@@ -71,6 +71,12 @@ struct SidebarList: View {
                 OutlineGroup(model.tree, children: \.children) { node in
                     link(.project(node.id)) { projectLabel(node.project, count: counts[node.id] ?? 0) }
                         .contextMenu { projectMenu(node.project) }
+                        .draggable(BoardDrag(kind: .project, id: node.id))
+                        .modifier(ProjectDropTarget(project: node.project))
+                }
+                .onDrop(of: [.json], isTargeted: nil) { _ in false }
+                if !model.tree.isEmpty {
+                    RootDropZone()
                 }
                 if model.tree.isEmpty {
                     Text("projects.none").font(.subheadline).foregroundStyle(.secondary)
@@ -118,7 +124,7 @@ struct SidebarList: View {
 
     private func projectLabel(_ p: Project, count: Int) -> some View {
         HStack(spacing: 8) {
-            Text(verbatim: "#").font(.headline).foregroundStyle(Color.project(p.id)).frame(width: 14)
+            Text(verbatim: "#").font(.headline).foregroundStyle(model.projectColor(p.id)).frame(width: 14)
             Text(verbatim: p.name).lineLimit(1)
             Spacer(minLength: 4)
             if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
@@ -126,8 +132,8 @@ struct SidebarList: View {
     }
 
     @ViewBuilder private func projectMenu(_ p: Project) -> some View {
-        Button { prefs.toggleFavorite(p.id) } label: {
-            Label(prefs.isFavorite(p.id) ? "project.unfavorite" : "project.favorite", systemImage: prefs.isFavorite(p.id) ? "star.slash" : "star")
+        Button { Task { await model.toggleFavorite(p) } } label: {
+            Label(p.isFavorite ? "project.unfavorite" : "project.favorite", systemImage: p.isFavorite ? "star.slash" : "star")
         }
         Button { actions.addProject(p.id) } label: { Label("project.addSub", systemImage: "plus") }
         Button { actions.share(p) } label: { Label("project.share", systemImage: "person.badge.plus") }
@@ -250,7 +256,8 @@ struct SidebarScreen: View {
         case .labels: LabelsView()
         case .label(let id): LabelTasksView(labelID: id)
         case .account: AccountView()
-        case .runner: RunnerInfoView()
+        case .runner: AgentsView()
+        case .activity: ActivityView()
         case .project(let id): ProjectView(projectID: id).id(id)
         }
     }
@@ -325,11 +332,42 @@ struct AccountView: View {
     }
 }
 
-struct RunnerInfoView: View {
+/// Drop target on a sidebar project row: upper quarter = before, lower quarter = after, middle = into (child).
+struct ProjectDropTarget: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let project: Project
+    @State private var zone: ProjectDropZone?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .top) { if zone == .before { line } }
+            .overlay(alignment: .bottom) { if zone == .after { line } }
+            .background(zone == .into ? Color.brand.opacity(0.15) : Color.clear)
+            .dropDestination(for: BoardDrag.self) { items, location in
+                guard let drag = items.first, drag.kind == .project else { return false }
+                let z = Self.zone(at: location.y)
+                Task { await model.dropProject(drag.id, on: project, zone: z) }
+                return true
+            } isTargeted: { targeted in if !targeted { zone = nil } else if zone == nil { zone = .into } }
+    }
+
+    private var line: some View { Rectangle().fill(Color.brand).frame(height: 2) }
+
+    static func zone(at y: CGFloat) -> ProjectDropZone { y < 10 ? .before : (y > 26 ? .after : .into) }
+}
+
+/// Dropping here makes a project a top-level project at the end.
+struct RootDropZone: View {
+    @Environment(AppModel.self) private var model
+    @State private var targeted = false
     var body: some View {
-        EmptyState(symbol: "terminal", title: "runner.title", message: "runner.info")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.canvas)
-            .navigationTitle("view.runner")
+        Text("projects.dropRoot").font(.caption).foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .background(targeted ? Color.brand.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+            .dropDestination(for: BoardDrag.self) { items, _ in
+                guard let drag = items.first, drag.kind == .project else { return false }
+                Task { await model.moveProject(drag.id, toParent: nil, at: nil) }
+                return true
+            } isTargeted: { targeted = $0 }
     }
 }

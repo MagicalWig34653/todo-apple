@@ -7,8 +7,11 @@ import Foundation
 // pulls the feed from the stored cursor. The user-visible state is `confirmed + pending queue`.
 
 public struct SyncSnapshot: Sendable, Equatable {
+    /// In the viewer's order: own sibling position first, then creation time and name.
     public var projects: [Project]
     public var tasks: [TodoTask]
+    /// Board columns of all projects, ordered by project and position.
+    public var columns: [ProjectColumn]
     /// Mutations that are still waiting to be sent.
     public var pending: Int
     /// Queue entries stopped by a 409 `version_conflict`; resolve with `SyncEngine.resolveConflict`.
@@ -74,39 +77,62 @@ public actor SyncEngine {
     // MARK: Reading
 
     public func snapshot() -> SyncSnapshot {
-        let (projects, tasks) = overlay()
+        let (projects, tasks, columns) = overlay()
         return SyncSnapshot(
-            projects: projects.values.sorted { ($0.name.lowercased(), $0.id.uuidString) < ($1.name.lowercased(), $1.id.uuidString) },
+            projects: projects.values.sorted(by: Self.siblingOrder),
             tasks: tasks.values.sorted { a, b in
                 // Stable first-seen order; alphabetical only as a tie-break for ranks that are missing.
                 let (ra, rb) = (state.ranks[a.id] ?? Int.max, state.ranks[b.id] ?? Int.max)
                 if ra != rb { return ra < rb }
                 return (a.title.lowercased(), a.id.uuidString) < (b.title.lowercased(), b.id.uuidString)
             },
+            columns: columns.values.sorted { ($0.projectID.uuidString, $0.position, $0.id.uuidString) < ($1.projectID.uuidString, $1.position, $1.id.uuidString) },
             pending: state.queue.filter { $0.status == .pending }.count,
             conflicts: state.queue.filter { $0.status == .conflict },
             rejected: state.queue.filter { $0.status == .rejected },
             cursor: state.cursor)
     }
 
+    /// Own sibling order of the viewer (ADR 0012): positioned first, then creation time, name and id.
+    static func siblingOrder(_ a: Project, _ b: Project) -> Bool {
+        let (pa, pb) = (a.position ?? Int.max, b.position ?? Int.max)
+        if pa != pb { return pa < pb }
+        let (ca, cb) = (a.createdAt ?? .distantFuture, b.createdAt ?? .distantFuture)
+        if ca != cb { return ca < cb }
+        return (a.name.lowercased(), a.id.uuidString) < (b.name.lowercased(), b.id.uuidString)
+    }
+
     /// Confirmed state plus pending mutations. Entities with a stopped (conflict/rejected) mutation show the server
     /// state; later mutations on them stay queued but invisible until the user resolves the stop.
-    private func overlay() -> (projects: [UUID: Project], tasks: [UUID: TodoTask]) {
+    private func overlay() -> (projects: [UUID: Project], tasks: [UUID: TodoTask], columns: [UUID: ProjectColumn]) {
         var projects = state.projects
         var tasks = state.tasks
+        var columns = state.columns
         let blocked = blockedIDs()
         for q in state.queue where q.status == .pending && !blocked.contains(q.mutation.id) {
             let m = q.mutation
             switch m.type {
             case .projectCreate:
-                if projects[m.id] == nil { projects[m.id] = Project(id: m.id, parentID: m.parentID, name: m.name ?? "", version: 1) }
-            case .projectUpdate:
-                if let p = projects[m.id] {
-                    let parent = m.moveToRoot == true ? nil : (m.parentID ?? p.parentID)
-                    projects[m.id] = Project(id: p.id, parentID: parent, name: m.name ?? p.name, version: p.version)
+                if projects[m.id] == nil {
+                    projects[m.id] = Project(
+                        id: m.id, parentID: m.parentID, name: m.name ?? "", version: 1,
+                        description: m.description.flatMap { $0.isEmpty ? nil : $0 }, color: m.color.flatMap { $0.isEmpty ? nil : $0 })
                 }
+            case .projectUpdate:
+                if var p = projects[m.id] {
+                    p.parentID = m.moveToRoot == true ? nil : (m.parentID ?? p.parentID)
+                    p.name = m.name ?? p.name
+                    if let d = m.description { p.description = d.isEmpty ? nil : d }
+                    if let c = m.color { p.color = c.isEmpty ? nil : c }
+                    projects[m.id] = p
+                }
+            case .projectPosition:
+                guard projects[m.id] != nil, let index = m.index else { break }
+                let reparent = m.moveToRoot == true || m.parentID != nil
+                let parent: UUID?? = reparent ? .some(m.moveToRoot == true ? nil : m.parentID) : nil
+                Self.place(project: m.id, parent: parent, index: index, in: &projects)
             case .projectDelete:
-                Self.removeProjectTree(m.id, projects: &projects, tasks: &tasks)
+                Self.removeProjectTree(m.id, projects: &projects, tasks: &tasks, columns: &columns)
             case .taskCreate:
                 if tasks[m.id] == nil, let pid = m.projectID {
                     tasks[m.id] = TodoTask(id: m.id, projectID: pid, title: m.title ?? "", description: m.description ?? "", status: m.status ?? "open", version: 1)
@@ -115,13 +141,82 @@ public actor SyncEngine {
                 if let t = tasks[m.id] {
                     tasks[m.id] = TodoTask(
                         id: t.id, projectID: m.projectID ?? t.projectID, title: m.title ?? t.title,
-                        description: m.description ?? t.description, status: m.status ?? t.status, version: t.version)
+                        description: m.description ?? t.description, status: m.status ?? t.status, version: t.version,
+                        columnID: t.columnID, boardPosition: t.boardPosition)
                 }
             case .taskDelete:
                 tasks[m.id] = nil
+            case .taskMoveColumn:
+                Self.place(task: m.id, in: m.columnID.flatMap { columns[$0] }, at: m.index, tasks: &tasks)
+            case .columnCreate:
+                if columns[m.id] == nil, let pid = m.projectID {
+                    var list = columns.values.filter { $0.projectID == pid }.sorted { $0.position < $1.position }
+                    let column = ProjectColumn(
+                        id: m.id, projectID: pid, name: m.name ?? "", color: m.color.flatMap { $0.isEmpty ? nil : $0 },
+                        isDone: m.isDone ?? false, position: list.count, version: 1)
+                    list.insert(column, at: min(max(m.index ?? list.count, 0), list.count))
+                    for (i, var c) in list.enumerated() { c.position = i; columns[c.id] = c }
+                }
+            case .columnUpdate:
+                if var c = columns[m.id] {
+                    if let n = m.name { c.name = n }
+                    if let color = m.color { c.color = color.isEmpty ? nil : color }
+                    if let d = m.isDone { c.isDone = d }
+                    columns[c.id] = c
+                    if let index = m.index {
+                        var list = columns.values.filter { $0.projectID == c.projectID && $0.id != c.id }.sorted { $0.position < $1.position }
+                        list.insert(c, at: min(max(index, 0), list.count))
+                        for (i, var x) in list.enumerated() { x.position = i; columns[x.id] = x }
+                    }
+                }
+            case .columnDelete:
+                guard let c = columns[m.id] else { break }
+                let remaining = columns.values.filter { $0.projectID == c.projectID && $0.id != c.id }.sorted { $0.position < $1.position }
+                var target: ProjectColumn?
+                if let raw = m.moveTo {
+                    target = UUID(uuidString: raw).flatMap { id in remaining.first { $0.id == id } }
+                } else {
+                    target = remaining.first
+                }
+                for t in tasks.values.filter({ $0.columnID == c.id }).sorted(by: { ($0.boardPosition, $0.id.uuidString) < ($1.boardPosition, $1.id.uuidString) }) {
+                    Self.place(task: t.id, in: target, at: nil, tasks: &tasks)
+                }
+                columns[c.id] = nil
+                for (i, var x) in remaining.enumerated() { x.position = i; columns[x.id] = x }
             }
         }
-        return (projects, tasks)
+        return (projects, tasks, columns)
+    }
+
+    /// Mirrors the server's board placement: dense positions in the target, done column completes, other column reopens.
+    private static func place(task id: UUID, in target: ProjectColumn?, at index: Int?, tasks: inout [UUID: TodoTask]) {
+        guard let t = tasks[id] else { return }
+        var status = t.status
+        if let target {
+            if target.isDone && status != TaskStatus.done.rawValue { status = TaskStatus.done.rawValue }
+            else if !target.isDone && status == TaskStatus.done.rawValue { status = TaskStatus.open.rawValue }
+        }
+        var others = tasks.values.filter { $0.projectID == t.projectID && $0.columnID == target?.id && $0.id != id }
+            .sorted { ($0.boardPosition, $0.id.uuidString) < ($1.boardPosition, $1.id.uuidString) }
+        let at = min(max(index ?? others.count, 0), others.count)
+        others.insert(t, at: at)
+        for (i, o) in others.enumerated() {
+            tasks[o.id] = TodoTask(
+                id: o.id, projectID: o.projectID, title: o.title, description: o.description,
+                status: o.id == id ? status : o.status, version: o.version, columnID: target?.id, boardPosition: i)
+        }
+    }
+
+    /// Mirrors `project.position`: the sibling group of the (new) parent gets dense positions 0..n-1.
+    /// `parent`: nil = keep the current one; `.some(nil)` = root; `.some(id)` = that parent.
+    private static func place(project id: UUID, parent: UUID??, index: Int, in projects: inout [UUID: Project]) {
+        guard var p = projects[id] else { return }
+        func effectiveParent(_ q: Project) -> UUID? { q.parentID.flatMap { projects[$0] != nil ? $0 : nil } }
+        let newParent: UUID? = parent.map { $0 } ?? effectiveParent(p)
+        if parent != nil { p.parentID = newParent }
+        var siblings = projects.values.filter { $0.id != id && effectiveParent($0) == newParent }.sorted(by: siblingOrder)
+        siblings.insert(p, at: min(max(index, 0), siblings.count))
+        for (i, var s) in siblings.enumerated() { s.position = i; projects[s.id] = s }
     }
 
     /// Entities that have a queue entry stopped by a conflict or rejection.
@@ -132,13 +227,52 @@ public actor SyncEngine {
     // MARK: Local writes (optimistic, queued)
 
     @discardableResult
-    public func createProject(id: UUID = UUID(), name: String, parentID: UUID? = nil) throws -> SyncSnapshot {
-        try enqueue(SyncMutation(type: .projectCreate, id: id, name: name, parentID: parentID))
+    public func createProject(id: UUID = UUID(), name: String, parentID: UUID? = nil, color: String? = nil) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .projectCreate, id: id, name: name, parentID: parentID, color: color))
     }
 
     @discardableResult
     public func updateProject(_ id: UUID, _ update: ProjectUpdate) throws -> SyncSnapshot {
-        try enqueue(SyncMutation(type: .projectUpdate, id: id, name: update.name, parentID: update.parentID, moveToRoot: update.moveToRoot))
+        try enqueue(
+            SyncMutation(
+                type: .projectUpdate, id: id, name: update.name, parentID: update.parentID, moveToRoot: update.moveToRoot,
+                description: update.description, color: update.color))
+    }
+
+    /// Places a project among its siblings. `.keep` is the personal order only; `.root`/`.parent` also change the
+    /// shared tree (needs the `manage` role; the project version is taken at send time).
+    @discardableResult
+    public func moveProject(_ id: UUID, index: Int, parent: ProjectParentChange = .keep) throws -> SyncSnapshot {
+        var m = SyncMutation(type: .projectPosition, id: id, index: index)
+        switch parent {
+        case .keep: break
+        case .root: m.moveToRoot = true
+        case .parent(let p): m.parentID = p
+        }
+        return try enqueue(m)
+    }
+
+    @discardableResult
+    public func createColumn(id: UUID = UUID(), projectID: UUID, name: String, color: String? = nil, isDone: Bool? = nil, index: Int? = nil) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .columnCreate, id: id, name: name, projectID: projectID, color: color, isDone: isDone, index: index))
+    }
+
+    /// `color == ""` clears the colour; `index` reorders.
+    @discardableResult
+    public func updateColumn(_ id: UUID, name: String? = nil, color: String? = nil, isDone: Bool? = nil, index: Int? = nil) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .columnUpdate, id: id, name: name, color: color, isDone: isDone, index: index))
+    }
+
+    /// The tasks go to `moveTo` (nil = the first remaining column; `.some(nil)` is not representable, use `toUnassigned`).
+    @discardableResult
+    public func deleteColumn(_ id: UUID, moveTo: UUID? = nil, toUnassigned: Bool = false) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .columnDelete, id: id, moveTo: toUnassigned ? "none" : moveTo?.uuidString.lowercased()))
+    }
+
+    /// Moves a task into a board column (nil = "Ohne Spalte") at `index` (nil = end).
+    @discardableResult
+    public func moveTask(_ id: UUID, toColumn columnID: UUID?, index: Int? = nil) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .taskMoveColumn, id: id, index: index, columnID: columnID))
     }
 
     @discardableResult
@@ -160,18 +294,34 @@ public actor SyncEngine {
     @discardableResult
     public func deleteTask(_ id: UUID) throws -> SyncSnapshot { try enqueue(SyncMutation(type: .taskDelete, id: id)) }
 
+    static func isCreate(_ type: SyncMutationType) -> Bool { type == .projectCreate || type == .taskCreate || type == .columnCreate }
+
+    /// Mutations that carry the entity version (a `project.position` only when it also changes the parent).
+    static func needsVersion(_ m: SyncMutation) -> Bool {
+        switch m.type {
+        case .projectCreate, .taskCreate, .columnCreate: false
+        case .projectPosition: m.moveToRoot == true || m.parentID != nil
+        default: true
+        }
+    }
+
+    private func confirmedVersion(_ id: UUID) -> Int? {
+        state.projects[id]?.version ?? state.tasks[id]?.version ?? state.columns[id]?.version
+    }
+
     private func enqueue(_ template: SyncMutation) throws -> SyncSnapshot {
         var m = template
-        let touchesExisting = m.type != .projectCreate && m.type != .taskCreate
-        let chained = state.queue.contains { $0.mutation.id == m.id }
-        if touchesExisting {
+        var chained = state.queue.contains { $0.mutation.id == m.id }
+        if !Self.isCreate(m.type) {
             if chained {
                 m.version = nil
-            } else if let v = state.projects[m.id]?.version ?? state.tasks[m.id]?.version {
-                m.version = v
+            } else if confirmedVersion(m.id) != nil {
+                if Self.needsVersion(m) { m.version = confirmedVersion(m.id) }
             } else {
                 throw SyncEngineError.unknownEntity(m.id)
             }
+            // Board columns change version whenever a neighbour moves; their edits are not conflict-sensitive.
+            if m.type == .columnUpdate || m.type == .columnDelete { m.version = nil; chained = true }
         }
         let order = (state.queue.map(\.order).max() ?? 0) + 1
         try transact {
@@ -194,6 +344,17 @@ public actor SyncEngine {
         try transact { s in
             if let old = s.projects[project.id], old.version > project.version { return }
             s.projects[project.id] = project
+        }
+    }
+
+    /// Takes the account's favourite list (answer of `PUT/GET /v1/me/favorites`) into the cached projects.
+    public func applyFavorites(_ entries: [FavoriteEntry]) throws {
+        let byProject = Dictionary(entries.map { ($0.projectID, $0.position) }, uniquingKeysWith: { a, _ in a })
+        try transact { s in
+            for id in s.projects.keys {
+                s.projects[id]?.isFavorite = byProject[id] != nil
+                s.projects[id]?.favoritePosition = byProject[id]
+            }
         }
     }
 
@@ -220,7 +381,7 @@ public actor SyncEngine {
     public func dismiss(_ mutationID: UUID) throws -> SyncSnapshot {
         try transact { s in
             guard let q = s.queue.first(where: { $0.id == mutationID && $0.status != .pending }) else { return }
-            let isCreate = q.mutation.type == .projectCreate || q.mutation.type == .taskCreate
+            let isCreate = Self.isCreate(q.mutation.type)
             s.queue.removeAll { $0.id == mutationID || (isCreate && $0.mutation.id == q.mutation.id) }
         }
         return snapshot()
@@ -259,9 +420,7 @@ public actor SyncEngine {
     private func flush(_ report: inout SyncReport) async throws {
         while let next = nextSendable() {
             var m = next.mutation
-            if next.chained, m.type != .projectCreate, m.type != .taskCreate {
-                m.version = state.projects[m.id]?.version ?? state.tasks[m.id]?.version
-            }
+            if next.chained, !Self.isCreate(m.type), Self.needsVersion(m) { m.version = confirmedVersion(m.id) }
             do {
                 let result = try await client.applyMutation(m)
                 try transact { s in
@@ -306,10 +465,12 @@ public actor SyncEngine {
 
     private static func confirm(_ result: SyncMutationResult, into s: inout SyncState) {
         if result.deleted {
-            removeProjectTree(result.id, projects: &s.projects, tasks: &s.tasks)
+            removeProjectTree(result.id, projects: &s.projects, tasks: &s.tasks, columns: &s.columns)
             s.tasks[result.id] = nil
+            s.columns[result.id] = nil
             return
         }
+        if let c = result.column, (s.columns[c.id]?.version ?? 0) <= c.version { s.columns[c.id] = c }
         if let p = result.project, (s.projects[p.id]?.version ?? 0) <= p.version { s.projects[p.id] = p }
         if let t = result.task, (s.tasks[t.id]?.version ?? 0) <= t.version {
             s.tasks[t.id] = t
@@ -356,6 +517,7 @@ public actor SyncEngine {
             try transact { s in
                 s.projects = [:]
                 s.tasks = [:]
+                s.columns = [:]
                 for change in all { Self.apply(change, to: &s) }
                 s.cursor = cursor
             }
@@ -383,14 +545,20 @@ public actor SyncEngine {
             if let p = change.project { s.projects[p.id] = p }
         case (.task, .upsert):
             if let t = change.task { s.tasks[t.id] = t; assignRank(t.id, in: &s) }
+        case (.column, .upsert):
+            if let c = change.column { s.columns[c.id] = c }
         case (.project, .delete):
-            removeProjectTree(change.entityID, projects: &s.projects, tasks: &s.tasks)
+            removeProjectTree(change.entityID, projects: &s.projects, tasks: &s.tasks, columns: &s.columns)
         case (.task, .delete):
             s.tasks[change.entityID] = nil
+        case (.column, .delete):
+            s.columns[change.entityID] = nil
         }
     }
 
-    private static func removeProjectTree(_ id: UUID, projects: inout [UUID: Project], tasks: inout [UUID: TodoTask]) {
+    private static func removeProjectTree(
+        _ id: UUID, projects: inout [UUID: Project], tasks: inout [UUID: TodoTask], columns: inout [UUID: ProjectColumn]
+    ) {
         guard projects[id] != nil else { return }
         var doomed: Set<UUID> = [id]
         var grew = true
@@ -403,6 +571,7 @@ public actor SyncEngine {
         }
         for pid in doomed { projects[pid] = nil }
         for (tid, t) in tasks where doomed.contains(t.projectID) { tasks[tid] = nil }
+        for (cid, c) in columns where doomed.contains(c.projectID) { columns[cid] = nil }
     }
 
     // MARK: Persistence
@@ -425,6 +594,8 @@ public actor SyncEngine {
         for (id, t) in new.tasks where old.tasks[id] != t { b.taskUpserts.append(t) }
         b.projectDeletes = old.projects.keys.filter { new.projects[$0] == nil }
         b.taskDeletes = old.tasks.keys.filter { new.tasks[$0] == nil }
+        for (id, c) in new.columns where old.columns[id] != c { b.columnUpserts.append(c) }
+        b.columnDeletes = old.columns.keys.filter { new.columns[$0] == nil }
         if old.cursor != new.cursor { b.cursor = new.cursor }
         let oldQueue = Dictionary(uniqueKeysWithValues: old.queue.map { ($0.id, $0) })
         let newIDs = Set(new.queue.map(\.id))

@@ -25,9 +25,15 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, json BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, json BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, json BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS ranks (id TEXT PRIMARY KEY, rank INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS queue (mutation_id TEXT PRIMARY KEY, ord INTEGER NOT NULL, json BLOB NOT NULL);
             """)
+        // Caches written before columns/project details were part of the feed lack them: restart the feed at c0 once.
+        // The full pull replaces the cached entities, the offline queue is kept.
+        if try text("SELECT value FROM meta WHERE key = 'schema'") != "2" {
+            try exec("DELETE FROM meta WHERE key = 'cursor'; INSERT INTO meta (key, value) VALUES ('schema', '2') ON CONFLICT(key) DO UPDATE SET value = excluded.value;")
+        }
     }
 
     deinit { sqlite3_close(db) }
@@ -57,6 +63,10 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
                 let t = try decode(TodoTask.self, data)
                 state.tasks[t.id] = t
             }
+            for (_, data) in try rows("SELECT id, json FROM columns") {
+                let c = try decode(ProjectColumn.self, data)
+                state.columns[c.id] = c
+            }
             for (_, data) in try rows("SELECT mutation_id, json FROM queue ORDER BY ord") {
                 state.queue.append(try decode(QueuedMutation.self, data))
             }
@@ -72,9 +82,11 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
         try lock.withLock {
             try exec("BEGIN IMMEDIATE")
             do {
-                if batch.replaceEntities { try exec("DELETE FROM projects; DELETE FROM tasks;") }
+                if batch.replaceEntities { try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM columns;") }
                 for p in batch.projectUpserts { try upsert("projects", p.id.uuidString, Self.encoder.encode(p)) }
                 for t in batch.taskUpserts { try upsert("tasks", t.id.uuidString, Self.encoder.encode(t)) }
+                for c in batch.columnUpserts { try upsert("columns", c.id.uuidString, Self.encoder.encode(c)) }
+                for id in batch.columnDeletes { try run("DELETE FROM columns WHERE id = ?", [.text(id.uuidString)]) }
                 for id in batch.projectDeletes { try run("DELETE FROM projects WHERE id = ?", [.text(id.uuidString)]) }
                 for id in batch.taskDeletes { try run("DELETE FROM tasks WHERE id = ?", [.text(id.uuidString)]) }
                 for (id, rank) in batch.rankUpserts {
@@ -102,7 +114,7 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
 
     public func wipe() throws {
         try lock.withLock {
-            try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM queue; DELETE FROM ranks; DELETE FROM meta;")
+            try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM columns; DELETE FROM queue; DELETE FROM ranks; DELETE FROM meta;")
         }
     }
 

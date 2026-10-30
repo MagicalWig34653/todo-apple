@@ -113,15 +113,17 @@ public struct APIClient: Sendable {
         try await send("GET", "v1/projects")
     }
 
-    public func createProject(name: String, parentID: UUID? = nil) async throws -> Project {
-        try await send("POST", "v1/projects", body: CreateProjectBody(name: name, parentID: parentID))
+    public func createProject(name: String, parentID: UUID? = nil, description: String? = nil, color: String? = nil) async throws -> Project {
+        try await send("POST", "v1/projects", body: CreateProjectBody(name: name, parentID: parentID, description: description, color: color))
     }
 
     /// Throws `APIError.versionConflict` if `version` is stale.
     public func updateProject(_ id: UUID, version: Int, _ update: ProjectUpdate) async throws -> Project {
         try await send(
             "PATCH", "v1/projects/\(id.uuidString)",
-            body: UpdateProjectBody(version: version, name: update.name, parentID: update.parentID, moveToRoot: update.moveToRoot))
+            body: UpdateProjectBody(
+                version: version, name: update.name, parentID: update.parentID, moveToRoot: update.moveToRoot,
+                description: update.description, color: update.color))
     }
 
     public func deleteProject(_ id: UUID) async throws {

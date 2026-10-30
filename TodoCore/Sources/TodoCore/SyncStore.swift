@@ -48,6 +48,8 @@ public struct QueuedMutation: Codable, Sendable, Equatable, Identifiable {
 public struct SyncState: Sendable, Equatable {
     public var projects: [UUID: Project]
     public var tasks: [UUID: TodoTask]
+    /// Board columns of the projects (ADR 0011); the feed delivers them as `column` entities.
+    public var columns: [UUID: ProjectColumn]
     public var cursor: String
     public var queue: [QueuedMutation]
     /// Stable display order of tasks. The feed carries neither a position nor a creation time, so every task gets a
@@ -59,9 +61,10 @@ public struct SyncState: Sendable, Equatable {
 
     public init(
         projects: [UUID: Project] = [:], tasks: [UUID: TodoTask] = [:], cursor: String = "c0", queue: [QueuedMutation] = [],
-        ranks: [UUID: Int] = [:]
+        ranks: [UUID: Int] = [:], columns: [UUID: ProjectColumn] = [:]
     ) {
         self.ranks = ranks
+        self.columns = columns
         self.projects = projects
         self.tasks = tasks
         self.cursor = cursor
@@ -69,13 +72,15 @@ public struct SyncState: Sendable, Equatable {
     }
 }
 
-/// One atomic write. `replaceEntities` first removes all confirmed projects/tasks (full resync); the queue is kept.
+/// One atomic write. `replaceEntities` first removes all confirmed projects/tasks/columns (full resync); the queue is kept.
 public struct SyncBatch: Sendable, Equatable {
     public var replaceEntities = false
     public var projectUpserts: [Project] = []
     public var taskUpserts: [TodoTask] = []
     public var projectDeletes: [UUID] = []
     public var taskDeletes: [UUID] = []
+    public var columnUpserts: [ProjectColumn] = []
+    public var columnDeletes: [UUID] = []
     public var cursor: String?
     public var queueUpserts: [QueuedMutation] = []
     /// Removed by mutationID (applied before `queueUpserts`, so an id change keeps the position).
@@ -97,11 +102,13 @@ public protocol SyncStore: Sendable {
 /// Applies a batch to a state value. Shared by `InMemorySyncStore` and tests.
 extension SyncState {
     mutating func apply(_ batch: SyncBatch) {
-        if batch.replaceEntities { projects = [:]; tasks = [:] }
+        if batch.replaceEntities { projects = [:]; tasks = [:]; columns = [:] }
         for p in batch.projectUpserts { projects[p.id] = p }
         for t in batch.taskUpserts { tasks[t.id] = t }
         for id in batch.projectDeletes { projects[id] = nil }
         for id in batch.taskDeletes { tasks[id] = nil }
+        for c in batch.columnUpserts { columns[c.id] = c }
+        for id in batch.columnDeletes { columns[id] = nil }
         if let cursor = batch.cursor { self.cursor = cursor }
         for (id, r) in batch.rankUpserts { ranks[id] = r }
         for id in batch.rankDeletes { ranks[id] = nil }

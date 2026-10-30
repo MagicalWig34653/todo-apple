@@ -351,7 +351,10 @@ final class LiveEtappe2Tests: XCTestCase {
         // Paging: small page size must still drain everything.
         let paged = try await f.admin.syncAll(from: "c0", pageSize: 2)
         let full = try await f.admin.syncAll()
-        XCTAssertEqual(paged.changes.map(\.seq), full.changes.map(\.seq))
+        // Within one page an entity changed several times is delivered once (latest state); across small pages earlier
+        // upserts of the same entity appear too, so compare the entities, not the sequence numbers.
+        XCTAssertEqual(Set(paged.changes.map(\.entityID)), Set(full.changes.map(\.entityID)))
+        XCTAssertEqual(paged.cursor, full.cursor)
 
         do { _ = try await f.admin.syncChanges(cursor: "garbage"); XCTFail() }
         catch { XCTAssertEqual(error as? APIError, .invalidInput(reason: "invalid_cursor")) }
@@ -376,6 +379,14 @@ final class LiveEtappe2Tests: XCTestCase {
         let haus = try await a.createProject(name: "Umzug")
         let kueche = try await a.createProject(name: "Kueche", parentID: haus.id)
         let arbeit = try await a.createProject(name: "Website-Relaunch")
+        if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_STATE"] == "1" {
+            // ADR 0012 demo: colours, description, favourite, project comment (server with project-state).
+            _ = try await a.updateProject(haus.id, version: haus.version, ProjectUpdate(description: "Alles rund um den Umzug im Mai.", color: "#EB8909"))
+            _ = try await a.updateProject(arbeit.id, version: arbeit.version, ProjectUpdate(color: "#6B59D9"))
+            _ = try await a.setFavorite(arbeit.id)
+            _ = try await a.addProjectComment(haus.id, body: "Kartons bis Freitag besorgen, Umzugswagen ist reserviert.")
+            _ = try await a.addProjectComment(haus.id, body: "Danke, ich kuemmere mich um die Kueche.")
+        }
         let blocker = try await a.createLabel(name: "dringend")
         _ = try await a.createLabel(name: "zuhause")
         let t1 = try await a.createTask(projectID: kueche.id, title: "Angebote fuer Arbeitsplatte einholen", description: "Mindestens drei Anbieter vergleichen.")

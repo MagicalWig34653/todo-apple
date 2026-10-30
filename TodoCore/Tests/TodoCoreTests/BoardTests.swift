@@ -86,11 +86,12 @@ final class BoardTests: XCTestCase {
         do { _ = try await client.board(projectID: pid); XCTFail() } catch { XCTAssertEqual(error as? APIError, .notFound) }
     }
 
-    func testSyncFeedSkipsUnknownColumnEntries() throws {
-        let json = #"{"changes":[{"seq":1,"entityType":"column","entityID":"\#(cid)","kind":"upsert","column":\#(columnJSON)},{"seq":2,"entityType":"task","entityID":"\#(tid)","kind":"upsert","task":\#(taskJSON)}],"cursor":"c2","hasMore":false}"#
+    func testSyncFeedDecodesColumnEntriesAndSkipsUnknownEntityTypes() throws {
+        let json = #"{"changes":[{"seq":1,"entityType":"column","entityID":"\#(cid)","kind":"upsert","column":\#(columnJSON)},{"seq":2,"entityType":"widget","entityID":"\#(cid)","kind":"upsert"},{"seq":3,"entityType":"task","entityID":"\#(tid)","kind":"upsert","task":\#(taskJSON)}],"cursor":"c3","hasMore":false}"#
         let feed = try JSONDecoder().decode(SyncChanges.self, from: Data(json.utf8))
-        XCTAssertEqual(feed.changes.count, 1)
-        XCTAssertEqual(feed.changes.first?.entityID, tid)
-        XCTAssertEqual(feed.cursor, "c2")
+        XCTAssertEqual(feed.changes.count, 2)
+        XCTAssertEqual(feed.changes.first?.column?.name, "Ideen")
+        XCTAssertEqual(feed.changes.last?.task?.columnID, cid)
+        XCTAssertEqual(feed.cursor, "c3")
     }
 }

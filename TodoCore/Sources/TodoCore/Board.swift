@@ -122,3 +122,37 @@ extension APIClient {
         try await send("PUT", "v1/tasks/\(id.uuidString.lowercased())/column", body: MoveTaskBody(version: version, columnID: columnID, index: index))
     }
 }
+
+extension Board {
+    /// Builds the board of a project from synced data (columns and tasks of the sync store), the same shape as
+    /// `GET /v1/projects/:id/board`: own columns (plus the tasks without column) or, without columns, virtual status
+    /// columns. `statusNames` maps `open`/`in_progress`/`in_review`/`done` to the display names of the virtual columns.
+    public static func local(
+        projectID: UUID, columns: [ProjectColumn], tasks: [TodoTask], statusNames: [String: String] = [:]
+    ) -> Board {
+        let mine = tasks.filter { $0.projectID == projectID }
+        let own = columns.filter { $0.projectID == projectID }.sorted { ($0.position, $0.id.uuidString) < ($1.position, $1.id.uuidString) }
+        func ordered(_ list: [TodoTask]) -> [TodoTask] {
+            list.sorted { ($0.boardPosition, $0.id.uuidString) < ($1.boardPosition, $1.id.uuidString) }
+        }
+        if own.isEmpty {
+            let defs: [(String, Bool)] = [("open", false), ("in_progress", false), ("in_review", false), ("done", true)]
+            let cols = defs.enumerated().map { i, d in
+                BoardColumn(
+                    id: nil, key: d.0, name: statusNames[d.0] ?? d.0, isDone: d.1, position: i,
+                    tasks: ordered(mine.filter { $0.status == d.0 }))
+            }
+            return Board(projectID: projectID, mode: Mode.status.rawValue, columns: cols)
+        }
+        let ids = Set(own.map(\.id))
+        let cols = own.map { c in
+            BoardColumn(
+                id: c.id, name: c.name, color: c.color, isDone: c.isDone, position: c.position, version: c.version,
+                tasks: ordered(mine.filter { $0.columnID == c.id }))
+        }
+        // A task pointing at a column we do not know (yet) is shown as unassigned rather than lost.
+        return Board(
+            projectID: projectID, mode: Mode.columns.rawValue, columns: cols,
+            unassigned: ordered(mine.filter { $0.columnID == nil || !ids.contains($0.columnID!) }))
+    }
+}

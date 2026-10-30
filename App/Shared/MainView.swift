@@ -23,7 +23,6 @@ struct MainView: View {
     @State private var newProjectParent: UUID??  // .some(nil) = new root project
     @State private var newProjectName = ""
     @State private var shareProject: Project?
-    @State private var prefs = ProjectPrefs()
     @State private var showQuickAdd = false
 
     private var compact: Bool {
@@ -40,7 +39,6 @@ struct MainView: View {
         }
         .tint(.brand)
         .environment(meta)
-        .environment(prefs)
         .environment(\.projectActions, ProjectActions(
             addProject: { newProjectName = ""; newProjectParent = .some($0) },
             share: { shareProject = $0 },
@@ -156,7 +154,7 @@ struct PhoneTabs: View {
         case .today, nil: tab = 0
         case .upcoming: tab = 1
         case .search: tab = 2
-        case .inbox, .teams, .project, .labels, .label, .account, .runner:
+        case .inbox, .teams, .project, .labels, .label, .account, .runner, .activity:
             tab = 3
             if let item, browsePath.last != item { browsePath = [item] }
         }

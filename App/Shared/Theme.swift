@@ -141,7 +141,8 @@ enum DueFormat {
 struct ProjectDot: View {
     let id: UUID?
     var size: CGFloat = 9
-    var body: some View { Circle().fill(Color.project(id)).frame(width: size, height: size) }
+    @Environment(AppModel.self) private var model
+    var body: some View { Circle().fill(model.projectColor(id)).frame(width: size, height: size) }
 }
 
 struct LabelChip: View {

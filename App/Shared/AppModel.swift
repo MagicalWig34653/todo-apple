@@ -3,7 +3,7 @@ import Observation
 import TodoCore
 
 enum SidebarItem: Hashable {
-    case inbox, today, upcoming, search, teams, labels, account, runner
+    case inbox, today, upcoming, search, teams, labels, account, runner, activity
     case project(UUID)
     case label(UUID)
 }
@@ -22,6 +22,12 @@ final class AppModel {
     // Data
     var projects: [Project] = []
     var tasks: [TodoTask] = []
+    /// Board columns of all projects (from the sync store; empty with the REST fallback, where boards are fetched).
+    var columns: [ProjectColumn] = []
+    /// Per-account display settings per project (server state, ADR 0012), with local edits not yet sent on top.
+    var displayPrefs: [UUID: ProjectDisplayPrefs] = [:]
+    var pendingPrefs: [UUID: ProjectPrefsPatch] = [:]
+    var prefsFlushing = false
     var selection: SidebarItem? = nil
     /// Detail navigation path (task details pushed on the detail stack).
     var path: [TodoTask] = []
@@ -39,8 +45,9 @@ final class AppModel {
     var pendingChanges = 0
     /// First unresolved `version_conflict` (the user decides: keep mine / use server).
     var conflict: QueuedMutation?
-    private var engine: SyncEngine?
-    private var syncLoop: Task<Void, Never>?
+    var engine: SyncEngine?
+    var hasEngine: Bool { engine != nil && !usesREST }
+    var syncLoop: Task<Void, Never>?
     /// True when the sync feed is unavailable and everything goes through REST like before the sync engine.
     private(set) var usesREST = false
     private static let syncInterval: Duration = .seconds(30)
@@ -145,7 +152,7 @@ final class AppModel {
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
         Self.cachedUser = nil
-        user = nil; projects = []; tasks = []; today = []; upcoming = []; teams = []; teamInvitations = []; selection = nil
+        user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; selection = nil
         phase = .signedOut
         await refreshCapabilities()
     }
@@ -170,9 +177,10 @@ final class AppModel {
         syncLoop?.cancel()
         guard let client, let user, let path = storePath(for: user),
             let store = try? SQLiteSyncStore(path: path), let engine = try? SyncEngine(client: client, store: store)
-        else { usesREST = true; await reloadREST(); return }
+        else { usesREST = true; loadPrefsCache(); await reloadREST(); await refreshServerState(); return }
         self.engine = engine
         usesREST = false
+        loadPrefsCache()
         await publish(await engine.snapshot())
         await syncNow()
         selectDefaultIfNeeded()
@@ -185,9 +193,10 @@ final class AppModel {
         }
     }
 
-    private func publish(_ snap: SyncSnapshot) {
+    func publish(_ snap: SyncSnapshot) {
         projects = snap.projects
         tasks = snap.tasks
+        columns = snap.columns
         pendingChanges = snap.pending
         conflict = snap.conflicts.first
     }
@@ -212,7 +221,7 @@ final class AppModel {
             publish(snap)
             syncStatus = report.offline ? .offline : .idle
             selectDefaultIfNeeded()
-            if !report.offline { await reloadAgenda() }
+            if !report.offline { await reloadAgenda(); await refreshServerState() }
         } catch APIError.unauthorized {
             await logout(); errorKey = "error.sessionExpired"
         } catch {
@@ -229,7 +238,7 @@ final class AppModel {
         await syncNow()
     }
 
-    private func queueChange(_ change: (SyncEngine) async throws -> SyncSnapshot) async -> Bool {
+    func queueChange(_ change: (SyncEngine) async throws -> SyncSnapshot) async -> Bool {
         guard let engine, !usesREST else { return false }
         do { publish(try await change(engine)) } catch { noticeKey = "error.generic"; return true }
         Task { await syncNow() }
@@ -250,6 +259,7 @@ final class AppModel {
                 selection = .today
             }
             await reloadAgenda()
+            await refreshServerState()
         } catch { await handle(error) }
     }
 

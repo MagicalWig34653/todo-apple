@@ -5,14 +5,15 @@ import TodoCore
 struct ProjectView: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
-    @Environment(ProjectPrefs.self) private var prefs
     @Environment(\.projectActions) private var actions
     let projectID: UUID
     @State private var board: BoardModel
     @State private var showOptions = false
+    @State private var showComments = false
     @State private var title = ""
     @State private var descriptionText = ""
     @FocusState private var titleFocus: Bool
+    @FocusState private var descriptionFocus: Bool
 
     init(projectID: UUID) {
         self.projectID = projectID
@@ -20,8 +21,8 @@ struct ProjectView: View {
     }
 
     private var project: Project? { model.projects.first { $0.id == projectID } }
-    private var options: ProjectPrefs.Options { prefs.options(for: projectID) }
-    private var mode: ProjectPrefs.ViewMode { ProjectPrefs.ViewMode(rawValue: options.mode) ?? .list }
+    private var options: ProjectDisplayPrefs { model.prefs(for: projectID) }
+    private var mode: ProjectDisplayPrefs.View { options.viewMode }
     private var children: [Project] { model.projects.filter { $0.parentID == projectID } }
     private var ancestors: [Project] {
         var chain: [Project] = []
@@ -34,7 +35,8 @@ struct ProjectView: View {
     private var refreshKey: Int {
         var h = Hasher()
         h.combine(projectID)
-        for t in model.tasks where t.projectID == projectID { h.combine(t.id); h.combine(t.version); h.combine(t.status) }
+        for t in model.tasks where t.projectID == projectID { h.combine(t.id); h.combine(t.version); h.combine(t.status); h.combine(t.columnID); h.combine(t.boardPosition) }
+        for c in model.columns where c.projectID == projectID { h.combine(c) }
         return h.finalize()
     }
 
@@ -59,7 +61,9 @@ struct ProjectView: View {
         #endif
         .toolbar { toolbarContent }
         .task(id: refreshKey) { await board.load(model) }
-        .onAppear { title = project?.name ?? ""; descriptionText = prefs.description(for: projectID) }
+        .onAppear { title = project?.name ?? ""; descriptionText = project?.description ?? "" }
+        .onChange(of: project?.description) { _, new in if !descriptionFocus { descriptionText = new ?? "" } }
+        .sheet(isPresented: $showComments) { ProjectCommentsView(projectID: projectID).environment(model) }
         .onChange(of: project?.name) { _, new in if !titleFocus { title = new ?? "" } }
         .refreshable { await model.reload() }
         .quickAdd(projectID: projectID)
@@ -72,10 +76,15 @@ struct ProjectView: View {
                 .onSubmit { commitTitle(project) }
                 .onChange(of: titleFocus) { _, f in if !f { commitTitle(project) } }
             TextField("project.descriptionPlaceholder", text: $descriptionText, axis: .vertical)
-                .font(.body).foregroundStyle(.secondary).textFieldStyle(.plain).lineLimit(1...4)
-                .onChange(of: descriptionText) { _, t in prefs.setDescription(t, for: projectID) }
+                .font(.body).foregroundStyle(.secondary).textFieldStyle(.plain).lineLimit(1...4).focused($descriptionFocus)
+                .onChange(of: descriptionFocus) { _, f in if !f { commitDescription(project) } }
         }
         .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
+    }
+
+    private func commitDescription(_ project: Project) {
+        let t = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t != (project.description ?? "") { Task { await model.updateProject(project, ProjectUpdate(description: t)) } }
     }
 
     private func commitTitle(_ project: Project) {
@@ -91,17 +100,23 @@ struct ProjectView: View {
         #endif
         if let project {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button { showComments = true } label: { Label("project.comments", systemImage: "bubble.left") }
                 Button { actions.share(project) } label: { Label("project.share", systemImage: "person.badge.plus") }
                 Button { showOptions = true } label: { Label("project.display", systemImage: mode == .board ? "rectangle.split.3x1" : "list.bullet") }
                     .popover(isPresented: $showOptions, arrowEdge: .bottom) {
                         DisplayOptions(projectID: projectID, hasColumns: board.hasOwnColumns || mode == .board)
-                            .environment(prefs)
                             .presentationCompactAdaptation(.popover)
                     }
                 Menu {
-                    Button { prefs.toggleFavorite(projectID) } label: {
-                        Label(prefs.isFavorite(projectID) ? "project.unfavorite" : "project.favorite", systemImage: prefs.isFavorite(projectID) ? "star.slash" : "star")
+                    Button { Task { await model.toggleFavorite(project) } } label: {
+                        Label(project.isFavorite ? "project.unfavorite" : "project.favorite", systemImage: project.isFavorite ? "star.slash" : "star")
                     }
+                    Menu {
+                        ForEach(Color.columnPalette, id: \.hex) { entry in
+                            Button { Task { await model.setProjectColor(project, hex: entry.hex) } } label: { Label(LocalizedStringKey("color.\(entry.name)"), systemImage: "circle.fill") }
+                        }
+                        Button { Task { await model.setProjectColor(project, hex: "") } } label: { Label("color.none", systemImage: "circle.slash") }
+                    } label: { Label("project.color", systemImage: "paintpalette") }
                     Button { actions.addProject(project.id) } label: { Label("project.addSub", systemImage: "plus") }
                     Divider()
                     Button(role: .destructive) { Task { await model.deleteProject(project) } } label: { Label("project.delete", systemImage: "trash") }
@@ -124,34 +139,37 @@ struct ProjectView: View {
 }
 
 struct DisplayOptions: View {
-    @Environment(ProjectPrefs.self) private var prefs
+    @Environment(AppModel.self) private var model
     let projectID: UUID
     let hasColumns: Bool
 
     var body: some View {
-        func binding<T>(_ kp: WritableKeyPath<ProjectPrefs.Options, T>) -> Binding<T> {
-            Binding(get: { prefs.options(for: projectID)[keyPath: kp] }, set: { v in var o = prefs.options(for: projectID); o[keyPath: kp] = v; prefs.setOptions(o, for: projectID) })
+        let p = model.prefs(for: projectID)
+        func binding<T>(_ get: @escaping (ProjectDisplayPrefs) -> T, _ patch: @escaping (T) -> ProjectPrefsPatch) -> Binding<T> {
+            Binding(get: { get(model.prefs(for: projectID)) }, set: { model.setPrefs(patch($0), for: projectID) })
         }
         return VStack(alignment: .leading, spacing: 14) {
-            Picker("display.layout", selection: binding(\.mode)) {
-                Label("display.list", systemImage: "list.bullet").tag(ProjectPrefs.ViewMode.list.rawValue)
-                Label("display.board", systemImage: "rectangle.split.3x1").tag(ProjectPrefs.ViewMode.board.rawValue)
+            Picker("display.layout", selection: binding(\.view, { ProjectPrefsPatch(view: $0) })) {
+                Label("display.list", systemImage: "list.bullet").tag(ProjectDisplayPrefs.View.list.rawValue)
+                Label("display.board", systemImage: "rectangle.split.3x1").tag(ProjectDisplayPrefs.View.board.rawValue)
             }
             .pickerStyle(.segmented)
-            Picker("display.sort", selection: binding(\.sort)) {
-                Text("sort.manual").tag(ProjectPrefs.Sort.manual.rawValue)
-                Text("sort.name").tag(ProjectPrefs.Sort.name.rawValue)
-                Text("sort.due").tag(ProjectPrefs.Sort.due.rawValue)
-                Text("sort.priority").tag(ProjectPrefs.Sort.priority.rawValue)
+            Picker("display.sort", selection: binding(\.sort, { ProjectPrefsPatch(sort: $0) })) {
+                Text("sort.manual").tag(ProjectDisplayPrefs.Sort.manual.rawValue)
+                Text("sort.name").tag(ProjectDisplayPrefs.Sort.title.rawValue)
+                Text("sort.due").tag(ProjectDisplayPrefs.Sort.due.rawValue)
+                Text("sort.priority").tag(ProjectDisplayPrefs.Sort.priority.rawValue)
             }
-            Picker("display.group", selection: binding(\.group)) {
-                Text("group.none").tag(ProjectPrefs.Group.none.rawValue)
-                Text("group.column").tag(ProjectPrefs.Group.column.rawValue)
-                Text("group.priority").tag(ProjectPrefs.Group.priority.rawValue)
+            Picker("display.group", selection: binding(\.grouping, { ProjectPrefsPatch(grouping: $0) })) {
+                Text("group.none").tag(ProjectDisplayPrefs.Grouping.none.rawValue)
+                Text("group.column").tag(ProjectDisplayPrefs.Grouping.column.rawValue)
+                Text("group.priority").tag(ProjectDisplayPrefs.Grouping.priority.rawValue)
+                Text("group.due").tag(ProjectDisplayPrefs.Grouping.due.rawValue)
             }
-            Toggle("display.completed", isOn: binding(\.showCompleted))
+            Toggle("display.completed", isOn: binding(\.showCompleted, { ProjectPrefsPatch(showCompleted: $0) }))
         }
         .padding(16).frame(minWidth: 300)
+        .id(p.revision)
     }
 }
 
@@ -161,7 +179,7 @@ struct ProjectListView: View {
     @Environment(TaskMeta.self) private var meta
     let projectID: UUID
     let board: BoardModel
-    let options: ProjectPrefs.Options
+    let options: ProjectDisplayPrefs
     @State private var doneExpanded = false
 
     private var children: [Project] { model.projects.filter { $0.parentID == projectID } }
@@ -170,9 +188,9 @@ struct ProjectListView: View {
     private var done: [TodoTask] { sorted(mine.filter(\.isDone)) }
 
     private func sorted(_ tasks: [TodoTask]) -> [TodoTask] {
-        switch ProjectPrefs.Sort(rawValue: options.sort) ?? .manual {
+        switch options.sortMode {
         case .manual: return tasks
-        case .name: return tasks.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .title: return tasks.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .due: return tasks.sorted { (meta.planning(for: $0.id)?.dueAt ?? .distantFuture) < (meta.planning(for: $1.id)?.dueAt ?? .distantFuture) }
         case .priority: return tasks.sorted { (meta.planning(for: $0.id)?.priority ?? 0) > (meta.planning(for: $1.id)?.priority ?? 0) }
         }
@@ -181,7 +199,7 @@ struct ProjectListView: View {
     private struct Group: Identifiable { let id: String; let title: Text?; let tasks: [TodoTask] }
 
     private var groups: [Group] {
-        switch ProjectPrefs.Group(rawValue: options.group) ?? .none {
+        switch options.groupMode {
         case .none: return [Group(id: "all", title: nil, tasks: open)]
         case .column:
             let cols = board.columns.map { c -> Group in
@@ -190,6 +208,13 @@ struct ProjectListView: View {
                 return Group(id: c.stableID, title: t, tasks: open.filter { ids.contains($0.id) })
             }
             return cols.filter { !$0.tasks.isEmpty }
+        case .due:
+            let cal = Calendar.current
+            let byDay = Dictionary(grouping: open) { t in meta.planning(for: t.id)?.dueAt.map { cal.startOfDay(for: $0) } }
+            let days = byDay.keys.compactMap { $0 }.sorted()
+            let dated = days.map { d in Group(id: "d\(d.timeIntervalSince1970)", title: Text(verbatim: DueFormat.text(d)), tasks: byDay[d] ?? []) }
+            let none = byDay[nil].map { [Group(id: "nodate", title: Text("due.none"), tasks: $0)] } ?? []
+            return dated + none
         case .priority:
             return [3, 2, 1, 0].map { p in
                 Group(id: "p\(p)", title: p == 0 ? Text("priority.0") : Text(LocalizedStringKey("priority.\(p)")),

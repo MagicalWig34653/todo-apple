@@ -121,6 +121,8 @@ struct BoardColumnView: View {
             case .column:
                 guard column.isReal else { return false }
                 Task { await board.moveColumn(drag.id, before: column, model) }
+            case .project:
+                return false
             }
             return true
         } isTargeted: { targeted = $0 }

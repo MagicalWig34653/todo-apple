@@ -3,7 +3,7 @@ import TodoCore
 
 /// Drag payload for cards and columns (one Transferable type; `kind` tells them apart).
 struct BoardDrag: Codable, Transferable, Hashable {
-    enum Kind: String, Codable { case task, column }
+    enum Kind: String, Codable { case task, column, project }
     let kind: Kind
     let id: UUID
     static var transferRepresentation: some TransferRepresentation { CodableRepresentation(contentType: .json) }
@@ -38,7 +38,19 @@ final class BoardModel {
 
     // MARK: Loading
 
+    static func statusNames() -> [String: String] {
+        ["open": String(localized: "board.status.open"), "in_progress": String(localized: "board.status.inProgress"),
+         "in_review": String(localized: "board.status.inReview"), "done": String(localized: "board.status.done")]
+    }
+
     func load(_ app: AppModel) async {
+        // With the sync engine the board is built from the local store (columns and card positions are synced), so it
+        // also works offline and shows optimistic edits at once.
+        if app.hasEngine {
+            board = Board.local(projectID: projectID, columns: app.columns, tasks: app.tasks, statusNames: Self.statusNames())
+            loadFailed = false
+            return
+        }
         guard let client = app.client else { return }
         if unsupported { board = Self.localBoard(projectID, app.tasks); return }
         do {
@@ -67,8 +79,7 @@ final class BoardModel {
 
     /// Moves a card to `column` at `index` (nil = end).
     func move(taskID: UUID, to column: BoardColumn, index: Int?, _ app: AppModel) async {
-        guard var board, let client = app.client else { return }
-        // Locate and remove locally (optimistic).
+        guard var board else { return }
         var task: TodoTask?
         for i in board.columns.indices { if let j = board.columns[i].tasks.firstIndex(where: { $0.id == taskID }) { task = board.columns[i].tasks.remove(at: j) } }
         if let j = board.unassigned.firstIndex(where: { $0.id == taskID }) { task = board.unassigned.remove(at: j) }
@@ -80,17 +91,14 @@ final class BoardModel {
             board.columns[k].tasks.insert(task, at: min(index ?? board.columns[k].tasks.count, board.columns[k].tasks.count))
         }
         self.board = board
-        do {
-            if virtualStatus || unsupported {
-                // Status mode: a drop changes the status (works offline through the sync queue).
-                if let key = column.key, let status = TaskStatus(rawValue: key), task.status != key {
-                    _ = await app.updateTask(task, TaskUpdate(status: status))
-                }
-            } else {
-                let updated = try await client.moveTask(taskID, version: task.version, toColumn: Self.isUnassigned(column) ? nil : column.id, index: index)
-                app.apply(updated)
+        if virtualStatus || unsupported {
+            // Status mode: a drop changes the status (works offline through the sync queue).
+            if let key = column.key, let status = TaskStatus(rawValue: key), task.status != key {
+                _ = await app.updateTask(task, TaskUpdate(status: status))
             }
-        } catch { await app.handle(error) }
+        } else {
+            await app.moveTask(task, toColumn: Self.isUnassigned(column) ? nil : column.id, index: index)
+        }
         await load(app)
     }
 
@@ -98,27 +106,32 @@ final class BoardModel {
 
     func addColumn(name: String, _ app: AppModel) async {
         let name = name.trimmingCharacters(in: .whitespaces)
-        guard let client = app.client, !name.isEmpty, !unsupported else { return }
-        do { _ = try await client.createColumn(projectID: projectID, name: name) } catch { await app.handle(error) }
+        guard !name.isEmpty, !unsupported else { return }
+        await app.createColumn(projectID: projectID, name: name)
         await load(app)
     }
 
     func applyStatusTemplate(_ app: AppModel) async {
         guard let client = app.client, !unsupported else { return }
-        do { _ = try await client.applyColumnTemplate(projectID: projectID, source: "status") } catch { await app.handle(error) }
+        if app.hasEngine {
+            // Same result as the server template, as offline-capable column creations (the tasks keep their status
+            // and the server places them in the matching column on the next sync).
+            await app.createColumn(projectID: projectID, name: String(localized: "board.status.open"))
+            await app.createColumn(projectID: projectID, name: String(localized: "board.status.inProgress"))
+            await app.createColumn(projectID: projectID, name: String(localized: "board.status.done"), isDone: true)
+        } else {
+            do { _ = try await client.applyColumnTemplate(projectID: projectID, source: "status") } catch { await app.handle(error) }
+        }
         await load(app)
     }
 
     func update(_ column: BoardColumn, name: String? = nil, color: String? = nil, isDone: Bool? = nil, index: Int? = nil, _ app: AppModel) async {
-        guard let client = app.client, let id = column.id, let version = column.version else { return }
-        do { _ = try await client.updateColumn(projectID: projectID, columnID: id, version: version, name: name, color: color, isDone: isDone, index: index) }
-        catch { await app.handle(error) }
+        await app.updateColumn(column, projectID: projectID, name: name, color: color, isDone: isDone, index: index)
         await load(app)
     }
 
     func delete(_ column: BoardColumn, _ app: AppModel) async {
-        guard let client = app.client, let id = column.id else { return }
-        do { try await client.deleteColumn(projectID: projectID, columnID: id, version: column.version) } catch { await app.handle(error) }
+        await app.deleteColumn(column, projectID: projectID)
         await load(app)
     }
 
@@ -133,21 +146,14 @@ final class BoardModel {
         await update(column, index: to, app)
     }
 
-    /// Adds a task to a column: created on the server and moved into the column; offline it lands in the project without column.
+    /// Adds a task to a column. With the sync engine this is create + move, both queued (offline-capable).
     func addTask(title: String, in column: BoardColumn, _ app: AppModel) async {
         let title = title.trimmingCharacters(in: .whitespaces)
         guard !title.isEmpty else { return }
-        if let client = app.client, !unsupported, hasOwnColumns, let columnID = column.id {
-            do {
-                let created = try await client.createTask(projectID: projectID, title: title)
-                let moved = try await client.moveTask(created.id, version: created.version, toColumn: columnID)
-                app.apply(moved)
-                await load(app)
-                return
-            } catch APIError.transport {} catch { await app.handle(error); return }
-        }
         guard let id = await app.createTask(projectID: projectID, title: title) else { return }
-        if let key = column.key, let status = TaskStatus(rawValue: key), status != .open, let t = app.tasks.first(where: { $0.id == id }) {
+        if hasOwnColumns, let columnID = column.id, let t = app.tasks.first(where: { $0.id == id }) {
+            await app.moveTask(t, toColumn: columnID, index: nil)
+        } else if let key = column.key, let status = TaskStatus(rawValue: key), status != .open, let t = app.tasks.first(where: { $0.id == id }) {
             _ = await app.updateTask(t, TaskUpdate(status: status))
         }
         await load(app)

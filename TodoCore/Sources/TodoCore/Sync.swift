@@ -3,7 +3,7 @@ import Foundation
 // MARK: Sync (contracts/sync.yaml)
 
 public struct SyncChange: Codable, Sendable, Equatable {
-    public enum EntityType: String, Codable, Sendable { case project, task }
+    public enum EntityType: String, Codable, Sendable { case project, task, column }
     public enum Kind: String, Codable, Sendable { case upsert, delete }
     public let seq: Int
     public let entityType: EntityType
@@ -11,6 +11,8 @@ public struct SyncChange: Codable, Sendable, Equatable {
     public let kind: Kind
     public let project: Project?
     public let task: TodoTask?
+    /// Set for `entityType == .column` upserts (board columns, ADR 0011).
+    public let column: ProjectColumn?
 }
 
 public struct SyncChanges: Codable, Sendable, Equatable {
@@ -26,7 +28,7 @@ public struct SyncChanges: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey { case changes, cursor, hasMore }
     private struct Probe: Decodable { let entityType: String }
 
-    /// Entries of entity types this client does not know (for example board `column` entries of newer servers) are
+    /// Entries of entity types this client does not know are
     /// skipped instead of failing the whole page; the cursor still advances past them.
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -46,6 +48,8 @@ public struct SyncChanges: Codable, Sendable, Equatable {
 public enum SyncMutationType: String, Codable, Sendable {
     case projectCreate = "project.create", projectUpdate = "project.update", projectDelete = "project.delete"
     case taskCreate = "task.create", taskUpdate = "task.update", taskDelete = "task.delete"
+    case projectPosition = "project.position", taskMoveColumn = "task.move_column"
+    case columnCreate = "column.create", columnUpdate = "column.update", columnDelete = "column.delete"
 }
 
 /// Idempotent client mutation. Keep the same `mutationID` when retrying; use a new one for a new change.
@@ -62,11 +66,22 @@ public struct SyncMutation: Codable, Sendable, Equatable {
     public var title: String?
     public var description: String?
     public var status: String?
+    /// project.create/update and column.create/update: `#RRGGBB` ("" clears).
+    public var color: String?
+    /// column.create/update.
+    public var isDone: Bool?
+    /// 0-based target position: project.position, task.move_column, column.create/update.
+    public var index: Int?
+    /// column.delete: `"none"` or a column UUID; nil = first remaining column.
+    public var moveTo: String?
+    /// task.move_column: target column; nil = "Ohne Spalte".
+    public var columnID: UUID?
 
     public init(
         mutationID: UUID = UUID(), type: SyncMutationType, id: UUID, version: Int? = nil, name: String? = nil,
         parentID: UUID? = nil, moveToRoot: Bool? = nil, projectID: UUID? = nil, title: String? = nil,
-        description: String? = nil, status: String? = nil
+        description: String? = nil, status: String? = nil, color: String? = nil, isDone: Bool? = nil,
+        index: Int? = nil, moveTo: String? = nil, columnID: UUID? = nil
     ) {
         self.mutationID = mutationID
         self.type = type
@@ -79,6 +94,11 @@ public struct SyncMutation: Codable, Sendable, Equatable {
         self.title = title
         self.description = description
         self.status = status
+        self.color = color
+        self.isDone = isDone
+        self.index = index
+        self.moveTo = moveTo
+        self.columnID = columnID
     }
 }
 
@@ -89,12 +109,13 @@ public struct SyncMutationResult: Codable, Sendable, Equatable {
     public let deleted: Bool
     public let project: Project?
     public let task: TodoTask?
+    public let column: ProjectColumn?
     public let cursor: String
     /// True if the server answered 201 (entity created by this mutation).
     public var created: Bool { _created }
     var _created = false
 
-    private enum CodingKeys: String, CodingKey { case mutationID, type, id, deleted, project, task, cursor }
+    private enum CodingKeys: String, CodingKey { case mutationID, type, id, deleted, project, task, column, cursor }
 }
 
 extension APIClient {

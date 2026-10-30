@@ -42,16 +42,54 @@ public struct InvitationResponse: Codable, Sendable, Equatable {
 // MARK: Projects and tasks
 
 public struct Project: Codable, Sendable, Equatable, Identifiable {
-    public let id: UUID
-    public let parentID: UUID?
-    public let name: String
-    public let version: Int
+    public var id: UUID
+    public var parentID: UUID?
+    public var name: String
+    public var version: Int
+    /// Shared project description (nil = none).
+    public var description: String?
+    /// `#RRGGBB` or nil (no colour chosen).
+    public var color: String?
+    public var createdAt: Date?
+    /// The viewer's own sibling order (dense 0..n-1, ADR 0012); nil for projects that were never positioned.
+    public var position: Int?
+    /// The viewer's favourite flag and its order among the favourites.
+    public var isFavorite: Bool
+    public var favoritePosition: Int?
 
-    public init(id: UUID, parentID: UUID?, name: String, version: Int) {
+    public init(
+        id: UUID, parentID: UUID?, name: String, version: Int, description: String? = nil, color: String? = nil,
+        createdAt: Date? = nil, position: Int? = nil, isFavorite: Bool = false, favoritePosition: Int? = nil
+    ) {
         self.id = id
         self.parentID = parentID
         self.name = name
         self.version = version
+        self.description = description
+        self.color = color
+        self.createdAt = createdAt
+        self.position = position
+        self.isFavorite = isFavorite
+        self.favoritePosition = favoritePosition
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, parentID, name, version, description, color, createdAt, position, isFavorite, favoritePosition
+    }
+
+    /// Older servers omit the ADR 0012 fields.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        parentID = try c.decodeIfPresent(UUID.self, forKey: .parentID)
+        name = try c.decode(String.self, forKey: .name)
+        version = try c.decode(Int.self, forKey: .version)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        color = try c.decodeIfPresent(String.self, forKey: .color)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        position = try c.decodeIfPresent(Int.self, forKey: .position)
+        isFavorite = try c.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        favoritePosition = try c.decodeIfPresent(Int.self, forKey: .favoritePosition)
     }
 }
 
@@ -70,14 +108,36 @@ public struct TodoTask: Codable, Sendable, Equatable, Hashable, Identifiable {
     /// Raw server value; unknown values from newer servers stay readable.
     public let status: String
     public let version: Int
+    /// Board column of the project (nil = "Ohne Spalte" or a project without own columns) and the position in it.
+    public var columnID: UUID?
+    public var boardPosition: Int
 
-    public init(id: UUID, projectID: UUID, title: String, description: String = "", status: String = "open", version: Int = 1) {
+    public init(
+        id: UUID, projectID: UUID, title: String, description: String = "", status: String = "open", version: Int = 1,
+        columnID: UUID? = nil, boardPosition: Int = 0
+    ) {
         self.id = id
         self.projectID = projectID
         self.title = title
         self.description = description
         self.status = status
         self.version = version
+        self.columnID = columnID
+        self.boardPosition = boardPosition
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, projectID, title, description, status, version, columnID, boardPosition }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        projectID = try c.decode(UUID.self, forKey: .projectID)
+        title = try c.decode(String.self, forKey: .title)
+        description = try c.decode(String.self, forKey: .description)
+        status = try c.decode(String.self, forKey: .status)
+        version = try c.decode(Int.self, forKey: .version)
+        columnID = try c.decodeIfPresent(UUID.self, forKey: .columnID)
+        boardPosition = try c.decodeIfPresent(Int.self, forKey: .boardPosition) ?? 0
     }
 
     public var isDone: Bool { status == TaskStatus.done.rawValue }
@@ -103,11 +163,19 @@ public struct ProjectUpdate: Sendable, Equatable {
     public var name: String?
     public var parentID: UUID?
     public var moveToRoot: Bool?
+    /// nil = unchanged, "" = clear.
+    public var description: String?
+    /// nil = unchanged, "" = clear, otherwise `#RRGGBB`.
+    public var color: String?
 
-    public init(name: String? = nil, parentID: UUID? = nil, moveToRoot: Bool? = nil) {
+    public init(
+        name: String? = nil, parentID: UUID? = nil, moveToRoot: Bool? = nil, description: String? = nil, color: String? = nil
+    ) {
         self.name = name
         self.parentID = parentID
         self.moveToRoot = moveToRoot
+        self.description = description
+        self.color = color
     }
 }
 
@@ -115,12 +183,14 @@ public struct ProjectUpdate: Sendable, Equatable {
 
 struct PasswordLoginBody: Encodable { let username: String; let password: String }
 struct RegisterBeginBody: Encodable { let token: String; let displayName: String }
-struct CreateProjectBody: Encodable { let name: String; let parentID: UUID? }
+struct CreateProjectBody: Encodable { let name: String; let parentID: UUID?; let description: String?; let color: String? }
 struct UpdateProjectBody: Encodable {
     let version: Int
     let name: String?
     let parentID: UUID?
     let moveToRoot: Bool?
+    let description: String?
+    let color: String?
 }
 struct CreateTaskBody: Encodable { let projectID: UUID; let title: String; let description: String? }
 struct UpdateTaskBody: Encodable {
