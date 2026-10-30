@@ -27,7 +27,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Server prüfen"
+            "value": "Verbindung prüfen"
           }
         }
       }
@@ -57,7 +57,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Erste Einrichtung: Gib den Einrichtungs-Token des Servers ein."
+            "value": "Dieser Server ist noch leer. Gib den Einrichtungs-Token ein, den du bei der Installation erhalten hast, und lege dein erstes Konto mit einem Passkey an."
           }
         }
       }
@@ -67,7 +67,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gib den Einladungs-Token ein, den du erhalten hast."
+            "value": "Gib den Code aus deiner Einladung ein und wähle einen Namen. Dein Konto wird mit einem Passkey abgesichert."
           }
         }
       }
@@ -77,7 +77,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Token"
+            "value": "Einrichtungs- oder Einladungscode"
           }
         }
       }
@@ -97,7 +97,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Passkey anlegen"
+            "value": "Konto mit Passkey erstellen"
           }
         }
       }
@@ -137,7 +137,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mit Passwort anmelden"
+            "value": "Anmelden"
           }
         }
       }
@@ -317,7 +317,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Server ist nicht erreichbar."
+            "value": "Der Server ist nicht erreichbar. Prüfe deine Internetverbindung und die Server-Adresse."
           }
         }
       }
@@ -327,7 +327,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Server-Adresse ist ungültig."
+            "value": "Diese Server-Adresse sieht nicht richtig aus. Sie muss mit https:// oder http:// beginnen."
           }
         }
       }
@@ -337,7 +337,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anmeldung fehlgeschlagen."
+            "value": "Die Anmeldung hat nicht funktioniert. Prüfe deine Angaben und versuche es erneut."
           }
         }
       }
@@ -357,7 +357,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Anmeldung mit Passwort ist auf diesem Server deaktiviert."
+            "value": "Dieser Server erlaubt keine Anmeldung mit Passwort."
           }
         }
       }
@@ -367,7 +367,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Passkey konnte nicht verwendet werden."
+            "value": "Die Passkey-Anmeldung wurde abgebrochen oder ist fehlgeschlagen. Versuche es noch einmal."
           }
         }
       }
@@ -387,7 +387,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ungültige Eingabe."
+            "value": "Der Code ist ungültig oder abgelaufen. Prüfe deine Eingabe."
           }
         }
       }
@@ -407,7 +407,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etwas ist schiefgelaufen."
+            "value": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
           }
         }
       }
@@ -2238,6 +2238,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lokale Mac-Runner führen Claude-Code-Aufträge aus. Die Verwaltung in der App folgt; bis dahin werden Runner über die Kommandozeile gekoppelt."
+          }
+        }
+      }
+    },
+    "login.tagline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Aufgaben und Projekte, in Ruhe geplant."
+          }
+        }
+      }
+    },
+    "login.passkey.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meldet dich mit Face ID, Touch ID oder deinem Gerätecode an."
+          }
+        }
+      }
+    },
+    "login.register": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto erstellen"
+          }
+        }
+      }
+    },
+    "login.passwordOption": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Passwort anmelden"
+          }
+        }
+      }
+    },
+    "login.password.explain": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Server erlaubt zusätzlich die Anmeldung mit Benutzername und Passwort."
+          }
+        }
+      }
+    },
+    "login.server.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet die Server-Einstellungen."
+          }
+        }
+      }
+    },
+    "login.server.explain": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib die Adresse deines Todo-Servers ein und prüfe die Verbindung."
+          }
+        }
+      }
+    },
+    "login.serverURL.placeholder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://todo.example.de"
+          }
+        }
+      }
+    },
+    "login.status.unknown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nicht geprüft"
+          }
+        }
+      }
+    },
+    "login.status.checking": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung wird geprüft …"
+          }
+        }
+      }
+    },
+    "login.status.ok": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbunden"
+          }
+        }
+      }
+    },
+    "login.status.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht erreichbar"
+          }
+        }
+      }
+    },
+    "login.close": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
           }
         }
       }

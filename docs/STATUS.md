@@ -126,3 +126,9 @@ Naechster Schritt: Interaktionen am Geraet/Mac pruefen (Drag&Drop, Spaltenmenue)
 ## Checkpoint TestFlight-Upload (30.10.2026)
 - TodoCore-Tests vorab: `xcodebuild test -scheme TodoCore -destination platform=macOS`: 76 Tests, 11 uebersprungen (Live), 0 Fehler.
 - Upload (Todoist-Struktur: Sidebar, Board): Version 0.1.0, Build 2610300601, `scripts/testflight-archive.sh` mit `TODO_UPLOAD=1`: ARCHIVE SUCCEEDED, EXPORT SUCCEEDED, "Upload succeeded". Delivery UUID (buildUpload-ID in den Xcode-Distribution-Logs) `a01c41ca-e1e3-40f4-87cb-68526dc874bf`; keine Fehler/Warnungen in den Logs. Verarbeitung in App Store Connect und Zuweisung an die Testgruppe stehen noch aus (nicht geprueft).
+
+## Checkpoint 30.10.2026 (Login-Redesign)
+- `App/Shared/LoginView.swift` neu: Logo-Mark (drei verschachtelte Karten + Haken, Brand-Rot, SwiftUI-Vektor), Titel "Todo", zentrierte Karte (max. 460 pt, iPhone volle Breite), roter Primaerbutton "Mit Passkey anmelden" (Key-Symbol, Ladezustand), Textbuttons "Konto erstellen" und "Mit Passwort anmelden" (nur wenn `capabilities.password`). Server als Zeile mit Statuspunkt, Bearbeiten im Sheet inkl. Verbindungspruefung (`/health/ready` + Capabilities) mit klarem Status. Registrierungs- und Passwort-Sheet mit Fokusfolge/Submit-Labels. Auth-Logik (`AppModel`) unveraendert; freundlichere deutsche Fehlertexte in `Localizable.xcstrings`; Accessibility-Labels/Hints.
+- DEBUG-only: `SIMCTL_CHILD_TODO_DEBUG_LOGIN_SHEET=server|register|password` oeffnet ein Sheet fuer Screenshots.
+- Geprueft: TodoCore-Tests 76 (11 uebersprungen), 0 Fehler; Builds iOS/macOS/watchOS ok. Screenshots `docs/screenshots/login-*.png` (iPhone 18 Pro, iPad Pro 13, hell/dunkel; Registrierung, Server-Sheet) angesehen.
+- Nicht geprueft: Passwort-Sheet und Wiederherstellung (kein Recovery-Flow im Client vorhanden, daher kein Button), macOS-Laufzeitansicht, grosse Dynamic-Type-Stufen, echte Passkey-Zeremonie, Tastaturverhalten im Simulator.
