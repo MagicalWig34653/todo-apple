@@ -47,3 +47,6 @@ Offen in App Store Connect: Verarbeitung abwarten (Mail/TestFlight-Tab), Build i
 
 ## Upload Steuerzentrale (30.10.2026)
 iOS: Version 0.1.0, Build 2610301841, "Upload succeeded", Delivery UUID `8ce50dc8-5b74-40da-a570-cab8833dc967` (Stand 810e44d, Steuerzentrale Kanban/Liste). macOS: Archiv gebaut (Build 2610301841), Export/Upload SCHEITERT: `App record with bundle identifier "de.linolaske.todo.mac" not found on App Store Connect`. Der Nutzer muss den macOS-App-Eintrag anlegen, danach `TODO_UPLOAD=1 scripts/testflight-archive-mac.sh` erneut ausfuehren.
+
+## Upload Recovery-Flow (30.10.2026)
+iOS: Version 0.1.0, Build 2610302241, "Upload succeeded", Delivery UUID `f1f92ba9-5146-4e27-85a6-3a7a002692ef` (Stand e0a2018: Recovery-Anmeldung, Passkey-Fehlertexte, Steuerzentrale, Server-State). macOS nicht hochgeladen (App-Eintrag `de.linolaske.todo.mac` fehlt). Verarbeitung in App Store Connect nicht geprueft.
