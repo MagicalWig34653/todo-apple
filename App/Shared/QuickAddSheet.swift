@@ -103,6 +103,9 @@ struct QuickAddSheet: View {
                 project = projectID ?? model.projects.first(where: { $0.name == "Eingang" })?.id ?? model.projects.first?.id
             }
             if due == nil { due = dueDate }
+            #if DEBUG
+            if let text = ProcessInfo.processInfo.environment["TODO_DEBUG_QUICKADD_TEXT"] { title = text }
+            #endif
             focused = true
         }
     }

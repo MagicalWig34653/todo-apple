@@ -299,7 +299,7 @@ struct LabelsView: View {
             } header: { SectionHeaderLabel(title: "task.labels") }
         }
         .taskListStyle()
-        .overlay { if meta.allLabels.isEmpty { EmptyState(symbol: "tag", title: "labels.empty", message: "labels.emptyHint") } }
+        .overlay { if meta.allLabels.isEmpty { EmptyState(symbol: "tag", title: "labels.empty", message: "labels.emptyHint", tint: .tileTeal) } }
         .navigationTitle("view.labels")
     }
 }

@@ -75,7 +75,7 @@ struct ProjectView: View {
     private func header(_ project: Project) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             TextField("project.name", text: $title)
-                .font(.system(size: 30, weight: .bold)).textFieldStyle(.plain).focused($titleFocus)
+                .font(.screenTitle).textFieldStyle(.plain).focused($titleFocus)
                 .onSubmit { commitTitle(project) }
                 .onChange(of: titleFocus) { _, f in if !f { commitTitle(project) } }
             TextField("project.descriptionPlaceholder", text: $descriptionText, axis: .vertical)
@@ -188,7 +188,7 @@ struct ProjectListView: View {
 
     private var children: [Project] { model.projects.filter { $0.parentID == projectID } }
     private var mine: [TodoTask] { model.tasks.filter { $0.projectID == projectID } }
-    private var open: [TodoTask] { sorted(mine.filter { !$0.isDone }) }
+    private var open: [TodoTask] { sorted(mine.filter { !$0.isDone && !meta.isSubtask($0.id) }) }
     private var done: [TodoTask] { sorted(mine.filter(\.isDone)) }
 
     private func sorted(_ tasks: [TodoTask]) -> [TodoTask] {
@@ -233,10 +233,12 @@ struct ProjectListView: View {
                 Section {
                     ForEach(children) { child in
                         Button { model.selectedProjectID = child.id } label: {
-                            HStack(spacing: 8) {
-                                Text(verbatim: "#").font(.headline).foregroundStyle(Color.project(child.id))
-                                Text(verbatim: child.name)
+                            HStack(spacing: Space.m) {
+                                IconTile(symbol: "folder.fill", tint: model.projectColor(child.id), size: 26)
+                                Text(verbatim: child.name).font(.body.weight(.medium))
                                 Spacer()
+                                let n = model.tasks.filter { $0.projectID == child.id && !$0.isDone }.count
+                                if n > 0 { CountBadge(count: n) }
                                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                             }
                             .contentShape(Rectangle())
@@ -249,7 +251,7 @@ struct ProjectListView: View {
                 Section {
                     ForEach(g.tasks) { TaskRow(task: $0, showProject: false).taskRowInsets() }
                 } header: {
-                    if let t = g.title { t.font(.subheadline.weight(.bold)).foregroundStyle(.primary).textCase(nil) }
+                    if let t = g.title { t.font(.sectionTitle).foregroundStyle(.primary).textCase(nil) }
                 }
             }
             if !done.isEmpty {
@@ -270,6 +272,6 @@ struct ProjectListView: View {
             }
         }
         .taskListStyle()
-        .overlay { if open.isEmpty && done.isEmpty && children.isEmpty { EmptyState(symbol: "tray", title: "project.empty", message: "project.emptyHint") } }
+        .overlay { if open.isEmpty && done.isEmpty && children.isEmpty { EmptyState(symbol: "checklist", title: "project.empty", message: "project.emptyHint", tint: model.projectColor(projectID)) } }
     }
 }

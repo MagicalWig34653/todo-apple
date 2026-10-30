@@ -14,7 +14,7 @@ struct SearchView: View {
                 Section {
                     ForEach(model.projects) { p in
                         Button { model.selectedProjectID = p.id } label: {
-                            HStack(spacing: 10) { ProjectDot(id: p.id, size: 10); Text(verbatim: p.name); Spacer() }.contentShape(Rectangle())
+                            HStack(spacing: Space.m) { IconTile(symbol: "folder.fill", tint: model.projectColor(p.id), size: 26); Text(verbatim: p.name).font(.body.weight(.medium)); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }.contentShape(Rectangle())
                         }
                         .buttonStyle(.plain).taskRowInsets()
                     }
