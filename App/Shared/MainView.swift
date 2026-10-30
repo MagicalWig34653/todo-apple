@@ -154,7 +154,7 @@ struct PhoneTabs: View {
         case .today, nil: tab = 0
         case .upcoming: tab = 1
         case .search: tab = 2
-        case .inbox, .teams, .project, .labels, .label, .account, .runner, .activity:
+        case .inbox, .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:
             tab = 3
             if let item, browsePath.last != item { browsePath = [item] }
         }

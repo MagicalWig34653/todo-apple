@@ -7,6 +7,7 @@ struct SidebarList: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
     @Environment(\.projectActions) private var actions
+    @Environment(\.scenePhase) private var scenePhase
     let linking: Bool
     @State private var projectsExpanded = true
     @State private var favoritesExpanded = true
@@ -43,6 +44,7 @@ struct SidebarList: View {
                 row(.inbox, "view.inbox", "tray", .secondary, count: inboxCount)
                 row(.today, "view.today", "\(min(dayNumber, 50)).square", .secondary, count: model.today.count + meta.overdue.count)
                 row(.upcoming, "view.upcoming", "calendar", .secondary)
+                row(.commandCenter, "view.commandCenter", "rectangle.3.group", .secondary, count: model.attentionCount)
                 row(.labels, "view.labels", "square.grid.2x2", .secondary)
                 Button { withAnimation { moreExpanded.toggle() } } label: {
                     Label { Text("view.more") } icon: { Image(systemName: "ellipsis").foregroundStyle(.secondary) }
@@ -119,7 +121,8 @@ struct SidebarList: View {
             .buttonStyle(.plain)
         }
         .sheet(isPresented: $showHelp) { HelpView() }
-        .task { await model.reloadTeams() }
+        .task { await model.reloadTeams(); await model.refreshCommandSummary() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await model.refreshCommandSummary() } } }
     }
 
     private func projectLabel(_ p: Project, count: Int) -> some View {
@@ -258,6 +261,8 @@ struct SidebarScreen: View {
         case .account: AccountView()
         case .runner: AgentsView()
         case .activity: ActivityView()
+        case .commandCenter: CommandCenterView(projectID: nil)
+        case .projectCommandCenter(let id): CommandCenterView(projectID: id).id(id)
         case .project(let id): ProjectView(projectID: id).id(id)
         }
     }

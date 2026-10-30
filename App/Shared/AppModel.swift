@@ -3,8 +3,9 @@ import Observation
 import TodoCore
 
 enum SidebarItem: Hashable {
-    case inbox, today, upcoming, search, teams, labels, account, runner, activity
+    case inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
     case project(UUID)
+    case projectCommandCenter(UUID)
     case label(UUID)
 }
 
@@ -152,7 +153,7 @@ final class AppModel {
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
         Self.cachedUser = nil
-        user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; selection = nil
+        user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; selection = nil
         phase = .signedOut
         await refreshCapabilities()
     }
@@ -270,6 +271,18 @@ final class AppModel {
         async let u = client.upcoming()
         if let t = try? await t { today = t }
         if let u = try? await u { upcoming = u }
+    }
+
+    /// Open questions and pending reviews across the account (badge on the command-center entry).
+    var commandSummary: CommandSummary?
+    var attentionCount: Int { (commandSummary?.openQuestions ?? 0) + (commandSummary?.pendingReviews ?? 0) }
+
+    /// Light fetch (summary only); failures keep the last value because this is a background refresh.
+    func refreshCommandSummary() async {
+        guard let client else { return }
+        var options = CommandCenterOptions(view: .list)
+        options.limit = 1; options.updatesLimit = 0
+        if let center = try? await client.commandCenter(options) { commandSummary = center.summary }
     }
 
     func reloadTeams() async {

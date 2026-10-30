@@ -104,6 +104,7 @@ struct ProjectView: View {
         if let project {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button { showComments = true } label: { Label("project.comments", systemImage: "bubble.left") }
+                Button { model.selection = .projectCommandCenter(projectID) } label: { Label("cc.title", systemImage: "rectangle.3.group") }
                 Button { actions.share(project) } label: { Label("project.share", systemImage: "person.badge.plus") }
                 Button { showOptions = true } label: { Label("project.display", systemImage: mode == .board ? "rectangle.split.3x1" : "list.bullet") }
                     .popover(isPresented: $showOptions, arrowEdge: .bottom) {

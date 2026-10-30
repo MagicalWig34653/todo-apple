@@ -65,8 +65,11 @@ enum DebugLaunch {
         case "account": model.selection = .account
         case "runner": model.selection = .runner
         case "activity": model.selection = .activity
+        case "commandcenter": model.selection = .commandCenter
         default:
-            if target.hasPrefix("project:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(8)) }) {
+            if target.hasPrefix("cc:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(3)) }) {
+                model.selection = .projectCommandCenter(p.id)
+            } else if target.hasPrefix("project:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(8)) }) {
                 model.selectedProjectID = p.id
             } else if target.hasPrefix("task:"), let t = model.tasks.first(where: { $0.title == String(target.dropFirst(5)) }) {
                 model.selectedProjectID = t.projectID
