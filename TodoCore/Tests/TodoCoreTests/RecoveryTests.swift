@@ -65,6 +65,9 @@ final class RecoveryTests: XCTestCase {
         XCTAssertEqual(
             PasskeyFailure.classify(code: 1004, description: "Application with identifier A is not associated with domain d").kind,
             .notAssociated)
+        let real = "Unable to verify webcredentials association of J2DU2P47XW.de.linolaske.todo with domain todo.linolaske.de. Please try again in a few seconds."
+        XCTAssertEqual(PasskeyFailure.classify(code: 1004, description: real).kind, .notAssociated)
+        XCTAssertEqual(PasskeyFailure.classify(code: 1004, description: real).detail, real)
         XCTAssertEqual(PasskeyFailure.classify(code: 1003, description: "").kind, .notHandled)
         XCTAssertEqual(PasskeyFailure.classify(code: 1005, description: "").kind, .notInteractive)
         XCTAssertEqual(PasskeyFailure.classify(code: 1002, description: "").kind, .invalidResponse)

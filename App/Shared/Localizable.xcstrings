@@ -1877,7 +1877,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese App-Version ist nicht mit der Domain %@ verknüpft (Associated Domains). Das ist ein Einrichtungsfehler der App, nicht deines Kontos. Installiere die aktuelle Version oder melde den Fehler."
+            "value" : "Das Gerät konnte die Verknüpfung dieser App mit %@ noch nicht bestätigen (Associated Domains). Das ist keine Passkey-Frage. Prüfe, dass das Gerät online ist, warte einige Minuten, starte das Gerät neu bzw. installiere die App neu und versuche es erneut."
           }
         }
       }

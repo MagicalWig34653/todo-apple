@@ -76,7 +76,7 @@ public struct PasskeyFailure: Error, Equatable, Sendable {
         case 1003: kind = .notHandled
         case 1004:
             let text = description.lowercased()
-            kind = text.contains("associated") || text.contains("not associated") ? .notAssociated : .failed
+            kind = ["association", "webcredentials", "associated", "verify"].contains { text.contains($0) } ? .notAssociated : .failed
         case 1005: kind = .notInteractive
         case 1010: kind = .notConfigured
         default: kind = .unknown

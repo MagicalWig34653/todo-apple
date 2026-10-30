@@ -193,7 +193,7 @@ final class AppModel {
     /// Small raw-cause line for support/diagnosis; nil when the localized text says everything.
     static func detail(for error: Error) -> String? {
         switch error as? APIError {
-        case .passkey(let f): "ASAuthorizationError \(f.code) \u{00B7} \(String(f.detail.prefix(200)))"
+        case .passkey(let f): "ASAuthorizationError \(f.code) \u{00B7} \(f.detail)"
         case .passkeyFailed(let text): String(text.prefix(200))
         case .server(let status, let reason): "HTTP \(status)" + (reason.map { " \u{00B7} \($0)" } ?? "")
         case .transport(let text): String(text.prefix(200))
