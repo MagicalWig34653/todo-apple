@@ -7,11 +7,11 @@ struct ScreenHeader: View {
     var subtitle: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.largeTitle.weight(.bold))
-            if let subtitle { Text(verbatim: subtitle).font(.subheadline).foregroundStyle(.secondary) }
+            Text(title).font(.screenTitle)
+            if let subtitle { Text(verbatim: subtitle).font(.subheadline.weight(.medium)).foregroundStyle(.secondary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.canvas)
     }
@@ -25,9 +25,14 @@ struct TodayView: View {
     private var overdue: [PlanningTask] { meta.overdue }
     private var today: [PlanningTask] { model.today.sorted { ($0.planning.dueAt ?? .distantFuture) < ($1.planning.dueAt ?? .distantFuture) } }
 
+    private var summary: String {
+        let n = overdue.count + today.count
+        return n == 0 ? "" : " · " + String(localized: "agenda.openCount \(n)")
+    }
+
     var body: some View {
         List {
-            ScreenHeader(title: "view.today", subtitle: Date().formatted(.dateTime.weekday(.wide).day().month(.wide)))
+            ScreenHeader(title: "view.today", subtitle: Date().formatted(.dateTime.weekday(.wide).day().month(.wide)) + summary)
             if !overdue.isEmpty {
                 Section {
                     ForEach(overdue) { TaskRow(task: $0.task).taskRowInsets() }
@@ -36,6 +41,7 @@ struct TodayView: View {
                         SectionHeaderLabel(title: "agenda.overdue", count: overdue.count, tint: .dueOverdue)
                         Button("agenda.reschedule") { Task { for p in overdue { await meta.schedule(p.task, to: DueFormat.today(), model) } } }
                             .font(.caption.weight(.semibold)).foregroundStyle(Color.brand).textCase(nil)
+                            .padding(.horizontal, Space.s + 2).padding(.vertical, 4).background(Color.brand.opacity(0.1), in: Capsule()).buttonStyle(.plain)
                     }
                 }
             }
@@ -48,7 +54,12 @@ struct TodayView: View {
             }
         }
         .taskListStyle()
-        .overlay { if overdue.isEmpty && today.isEmpty { EmptyState(symbol: "sun.max", title: "agenda.todayEmpty", message: "agenda.todayHint") } }
+        .overlay {
+            if overdue.isEmpty && today.isEmpty {
+                if model.agendaLoaded { EmptyState(symbol: "sun.max", title: "agenda.todayEmpty", message: "agenda.todayHint", tint: .tileOrange) }
+                else { SkeletonRows().frame(maxHeight: .infinity, alignment: .top).padding(.top, 120) }
+            }
+        }
         .toolbarTitleDisplayMode(.inline)
         .navigationTitle("view.today")
         .refreshable { await model.reloadAgenda() }
@@ -124,7 +135,7 @@ struct WeekStrip: View {
             HStack(spacing: 6) {
                 ForEach(days, id: \.self) { day in
                     let isSelected = cal.isDate(day, inSameDayAs: selected)
-                    Button { Haptics.tap(); selected = day; onSelect(day) } label: {
+                    Button { Haptics.select(); selected = day; onSelect(day) } label: {
                         VStack(spacing: 4) {
                             Text(day.formatted(.dateTime.weekday(.narrow))).font(.caption2.weight(.medium))
                                 .foregroundStyle(isSelected ? Color.white.opacity(0.9) : Color.secondary)
@@ -133,7 +144,8 @@ struct WeekStrip: View {
                             Circle().fill(hasTasks(day) ? (isSelected ? Color.white : Color.brand) : Color.clear).frame(width: 4, height: 4)
                         }
                         .frame(width: 44, height: 62)
-                        .background(isSelected ? Color.brand : Color.clear, in: RoundedRectangle(cornerRadius: 14))
+                        .background(isSelected ? Color.brand : (cal.isDateInToday(day) ? Color.brand.opacity(0.1) : Color.clear), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                        .shadow(color: isSelected ? Color.brand.opacity(0.3) : .clear, radius: 6, y: 3)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

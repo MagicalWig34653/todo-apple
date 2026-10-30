@@ -96,7 +96,8 @@ struct AttachmentsSection: View {
     @State private var importing = false
 
     var body: some View {
-        Section("task.attachments") {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text("task.attachments").font(.sectionTitle)
             ForEach(attachments) { a in
                 Button { Task { await model.open(a, app) } } label: {
                     HStack {
@@ -116,7 +117,7 @@ struct AttachmentsSection: View {
             HStack {
                 PhotosPicker(selection: $pickedPhoto, matching: .images) { Label("attachment.addPhoto", systemImage: "photo.badge.plus") }
                 Spacer()
-                Button { importing = true } label: { Label("attachment.addFile", systemImage: "paperclip") }
+                Button { importing = true } label: { Label("attachment.addFile", systemImage: "paperclip") }.buttonStyle(.plain)
                 if model.uploading { ProgressView() }
             }
             .disabled(model.uploading)
@@ -124,6 +125,8 @@ struct AttachmentsSection: View {
                 Text(LocalizedStringKey(key)).font(.caption).foregroundStyle(.red)
             }
         }
+        .font(.subheadline)
+        .padding(Space.m)
         .onChange(of: pickedPhoto) { _, item in
             guard let item else { return }
             pickedPhoto = nil
@@ -161,7 +164,7 @@ private struct AttachmentThumbnail: View {
             }
         }
         .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
         .accessibilityHidden(true)
         .task(id: attachment.id) {
             guard attachment.isImage, let client = app.client,

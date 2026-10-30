@@ -16,7 +16,7 @@ struct SidebarList: View {
     @State private var showHelp = false
 
     private var dayNumber: Int { Calendar.current.component(.day, from: Date()) }
-    private var inboxCount: Int { model.tasks.filter { !$0.isDone && meta.planning(for: $0.id)?.dueAt == nil }.count }
+    private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
     private var openCounts: [UUID: Int] {
         Dictionary(grouping: model.tasks.filter { !$0.isDone }, by: \.projectID).mapValues(\.count)
     }
@@ -33,6 +33,7 @@ struct SidebarList: View {
                         Text("task.add").font(.body.weight(.semibold)).foregroundStyle(Color.brand)
                         Spacer()
                     }
+                    .padding(.vertical, 4)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -40,22 +41,27 @@ struct SidebarList: View {
                 .listRowBackground(Color.clear)
             }
             Section {
-                row(.search, "view.search", "magnifyingglass", .secondary)
-                row(.inbox, "view.inbox", "tray", .secondary, count: inboxCount)
-                row(.today, "view.today", "\(min(dayNumber, 50)).square", .secondary, count: model.today.count + meta.overdue.count)
-                row(.upcoming, "view.upcoming", "calendar", .secondary)
-                row(.commandCenter, "view.commandCenter", "rectangle.3.group", .secondary, count: model.attentionCount)
-                row(.labels, "view.labels", "square.grid.2x2", .secondary)
+                row(.search, "view.search", "magnifyingglass", .tileGray)
+                row(.inbox, "view.inbox", "tray.fill", .tileBlue, count: inboxCount)
+                row(.today, "view.today", "sun.max.fill", .tileGreen, count: model.today.count + meta.overdue.count)
+                row(.upcoming, "view.upcoming", "calendar", .tileOrange)
+                row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple, count: model.attentionCount, badgeTint: .brand)
+                row(.labels, "view.labels", "tag.fill", .tileTeal)
                 Button { withAnimation { moreExpanded.toggle() } } label: {
-                    Label { Text("view.more") } icon: { Image(systemName: "ellipsis").foregroundStyle(.secondary) }
-                        .contentShape(Rectangle())
+                    HStack(spacing: Space.m) {
+                        IconTile(symbol: "ellipsis", tint: .tileGray, size: 26)
+                        Text("view.more").font(.body.weight(.medium))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.tertiary).rotationEffect(.degrees(moreExpanded ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 if moreExpanded {
-                    row(.teams, "view.teams", "person.2", .secondary, count: model.teamInvitations.count).padding(.leading, 12)
-                    row(.account, "view.account", "gearshape", .secondary).padding(.leading, 12)
-                    row(.activity, "view.activity", "clock.arrow.circlepath", .secondary).padding(.leading, 12)
-                    row(.runner, "view.runner", "terminal", .secondary).padding(.leading, 12)
+                    row(.teams, "view.teams", "person.2.fill", .tileBlue, count: model.teamInvitations.count, badgeTint: .brand).padding(.leading, 12)
+                    row(.account, "view.account", "gearshape.fill", .tileGray).padding(.leading, 12)
+                    row(.activity, "view.activity", "clock.arrow.circlepath", .tileOrange).padding(.leading, 12)
+                    row(.runner, "view.runner", "terminal.fill", .tilePurple).padding(.leading, 12)
                 }
             }
             if !favoriteProjects.isEmpty {
@@ -127,10 +133,10 @@ struct SidebarList: View {
 
     private func projectLabel(_ p: Project, count: Int) -> some View {
         HStack(spacing: 8) {
-            Text(verbatim: "#").font(.headline).foregroundStyle(model.projectColor(p.id)).frame(width: 14)
+            Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(model.projectColor(p.id)).frame(width: 18)
             Text(verbatim: p.name).lineLimit(1)
             Spacer(minLength: 4)
-            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.tertiary).monospacedDigit() }
         }
     }
 
@@ -148,13 +154,15 @@ struct SidebarList: View {
         if linking { NavigationLink(value: item) { content() } } else { content().tag(item) }
     }
 
-    private func row(_ item: SidebarItem, _ title: LocalizedStringKey, _ symbol: String, _ tint: Color, count: Int = 0) -> some View {
+    private func row(_ item: SidebarItem, _ title: LocalizedStringKey, _ symbol: String, _ tint: Color, count: Int = 0, badgeTint: Color = .secondary) -> some View {
         link(item) {
-            HStack {
-                Label { Text(title) } icon: { Image(systemName: symbol).foregroundStyle(tint) }
+            HStack(spacing: Space.m) {
+                IconTile(symbol: symbol, tint: tint, size: 26)
+                Text(title).font(.body.weight(.medium))
                 Spacer(minLength: 4)
-                if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+                if count > 0 { CountBadge(count: count, tint: badgeTint) }
             }
+            .padding(.vertical, 1)
         }
     }
 }

@@ -88,9 +88,15 @@ struct SyncStatusBar: View {
                     Text("sync.pending")
                 }
             }
-            .font(.caption).foregroundStyle(.secondary).padding(8)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(model.syncStatus == .offline ? Color.tileOrange : Color.secondary)
+            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 0.5))
+            .padding(.bottom, Space.xs)
             .frame(maxWidth: .infinity)
-            .background(.bar)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .accessibilityElement(children: .combine)
         }
     }
 }
@@ -118,32 +124,41 @@ struct SplitLayout: View {
 
 struct PhoneTabs: View {
     @Environment(AppModel.self) private var model
-    @State private var tab = 0
+    @Environment(TaskMeta.self) private var meta
+    @State private var tab = 1
     @State private var browsePath: [SidebarItem] = []
+
+    private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
 
     var body: some View {
         TabView(selection: $tab) {
+            NavigationStack { InboxView() }
+                .tabItem { Label("view.inbox", systemImage: "tray") }.tag(0)
+                .badge(inboxCount)
             NavigationStack { TodayView() }
-                .tabItem { Label("view.today", systemImage: "calendar") }.tag(0)
+                .tabItem { Label("view.today", systemImage: "sun.max") }.tag(1)
+                .badge(model.today.count + meta.overdue.count)
             NavigationStack { UpcomingView() }
-                .tabItem { Label("view.upcoming", systemImage: "calendar.badge.clock") }.tag(1)
+                .tabItem { Label("view.upcoming", systemImage: "calendar") }.tag(2)
             NavigationStack { SearchView() }
-                .tabItem { Label("view.search", systemImage: "magnifyingglass") }.tag(2)
+                .tabItem { Label("view.search", systemImage: "magnifyingglass") }.tag(3)
             NavigationStack(path: $browsePath) {
                 SidebarList(linking: true)
                     .navigationTitle("browse.title")
                     .navigationDestination(for: SidebarItem.self) { SidebarScreen(item: $0) }
             }
-            .tabItem { Label("browse.title", systemImage: "square.grid.2x2") }.tag(3)
+            .tabItem { Label("browse.title", systemImage: "square.grid.2x2") }.tag(4)
+            .badge(model.attentionCount)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { SyncStatusBar() }
         .onAppear { syncFromSelection(model.selection) }
         .onChange(of: model.selection) { _, new in syncFromSelection(new) }
         .onChange(of: tab) { _, new in
             switch new {
-            case 0: model.selection = .today
-            case 1: model.selection = .upcoming
-            case 2: model.selection = .search
+            case 0: model.selection = .inbox
+            case 1: model.selection = .today
+            case 2: model.selection = .upcoming
+            case 3: model.selection = .search
             default: break
             }
         }
@@ -151,11 +166,12 @@ struct PhoneTabs: View {
 
     private func syncFromSelection(_ item: SidebarItem?) {
         switch item {
-        case .today, nil: tab = 0
-        case .upcoming: tab = 1
-        case .search: tab = 2
-        case .inbox, .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:
-            tab = 3
+        case .inbox: tab = 0
+        case .today, nil: tab = 1
+        case .upcoming: tab = 2
+        case .search: tab = 3
+        case .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:
+            tab = 4
             if let item, browsePath.last != item { browsePath = [item] }
         }
     }
@@ -168,14 +184,16 @@ struct InboxView: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
 
-    private var items: [TodoTask] { model.tasks.filter { !$0.isDone && meta.planning(for: $0.id)?.dueAt == nil } }
+    private var items: [TodoTask] { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil } }
 
     var body: some View {
         List {
+            ScreenHeader(title: "view.inbox", subtitle: items.isEmpty ? nil : String(localized: "agenda.openCount \(items.count)"))
             ForEach(items) { TaskRow(task: $0).taskRowInsets() }
         }
         .taskListStyle()
-        .overlay { if items.isEmpty { EmptyState(symbol: "tray", title: "inbox.empty", message: "inbox.emptyHint") } }
+        .overlay { if items.isEmpty { EmptyState(symbol: "tray", title: "inbox.empty", message: "inbox.emptyHint", tint: .tileBlue) } }
+        .toolbarTitleDisplayMode(.inline)
         .navigationTitle("view.inbox")
         .refreshable { await model.reload() }
         .quickAdd()

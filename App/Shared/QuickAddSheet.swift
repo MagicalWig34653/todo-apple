@@ -16,20 +16,39 @@ struct QuickAddSheet: View {
     @State private var priority = 0
     @State private var project: UUID?
     @State private var labelIDs: Set<UUID> = []
+    @State private var recurrence: RecurrenceRule.Frequency?
+    @State private var labelTokens: [String] = []
+    @State private var recognized: [String] = []
+    /// Chips the user set by hand win over what the text parser finds.
+    @State private var dueTouched = false
+    @State private var priorityTouched = false
+    @State private var projectTouched = false
     @State private var pickingDate = false
     @State private var saving = false
     @FocusState private var focused: Bool
 
     private var chosenProject: Project? { model.projects.first { $0.id == project } }
-    private var canSave: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty && project != nil && !saving }
+    private var parsedTitle: String { QuickAddParser.parse(title).title }
+    private var canSave: Bool { !parsedTitle.isEmpty && project != nil && !saving }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             TextField("quickAdd.title", text: $title)
-                .font(.title3.weight(.medium))
+                .font(.system(.title3, design: .rounded).weight(.semibold))
                 .focused($focused)
                 .submitLabel(.done)
                 .onSubmit { if canSave { save() } }
+                .onChange(of: title) { _, new in applyParse(new) }
+                .accessibilityIdentifier("quickAddTitle")
+            if !recognized.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles").foregroundStyle(Color.tileOrange)
+                    Text("quickAdd.recognized")
+                    Text(verbatim: recognized.joined(separator: " · ")).fontWeight(.semibold)
+                }
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .transition(.opacity)
+            }
             TextField("quickAdd.notes", text: $notes, axis: .vertical)
                 .font(.subheadline).foregroundStyle(.secondary).lineLimit(1...3)
 
@@ -43,7 +62,7 @@ struct QuickAddSheet: View {
                     }
                     .buttonStyle(.plain)
                     .popover(isPresented: $pickingDate) {
-                        DatePicker("", selection: Binding(get: { due ?? DueFormat.tomorrow() }, set: { due = $0 }), displayedComponents: [.date, .hourAndMinute])
+                        DatePicker("", selection: Binding(get: { due ?? DueFormat.tomorrow() }, set: { dueTouched = true; due = $0 }), displayedComponents: [.date, .hourAndMinute])
                             .datePickerStyle(.graphical).labelsHidden().padding()
                             .presentationCompactAdaptation(.popover)
                     }
@@ -57,11 +76,14 @@ struct QuickAddSheet: View {
                 Button { save() } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 40, height: 40)
                         .background(canSave ? Color.brand : Color.brand.opacity(0.35), in: Circle())
+                        .shadow(color: canSave ? Color.brand.opacity(0.35) : .clear, radius: 6, y: 3)
                 }
-                .buttonStyle(.plain).disabled(!canSave)
+                .buttonStyle(PressableStyle()).disabled(!canSave)
+                .keyboardShortcut(.return, modifiers: .command)
                 .accessibilityLabel(Text("task.add"))
+                .accessibilityIdentifier("quickAddSave")
             }
             Divider()
             projectMenu
@@ -69,7 +91,8 @@ struct QuickAddSheet: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.canvas)
-        .presentationDetents([.height(300), .medium])
+        .animation(.easeOut(duration: 0.2), value: recognized)
+        .presentationDetents([.height(330), .medium])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         #if os(macOS)
@@ -97,6 +120,7 @@ struct QuickAddSheet: View {
         let active = due.map { Calendar.current.isDate($0, inSameDayAs: date) } ?? false
         return Button {
             Haptics.tap()
+            dueTouched = true
             due = active ? nil : date
         } label: {
             chip(icon: icon, text: nil, key: key, active: active, tint: DueFormat.style(date).color == .secondary ? .brand : DueFormat.style(date).color)
@@ -111,15 +135,16 @@ struct QuickAddSheet: View {
         }
         .font(.footnote.weight(.medium))
         .foregroundStyle(active ? tint : Color.secondary)
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(active ? tint.opacity(0.12) : Color.clear, in: Capsule())
+        .padding(.horizontal, 11).padding(.vertical, 7)
+        .background(active ? tint.opacity(0.13) : Color.canvasRaised, in: Capsule())
         .overlay(Capsule().strokeBorder(active ? tint.opacity(0.5) : Color.hairline, lineWidth: 1))
+        .contentShape(Capsule())
     }
 
     private var priorityMenu: some View {
         Menu {
             ForEach([3, 2, 1, 0], id: \.self) { p in
-                Button { priority = p } label: {
+                Button { priorityTouched = true; priority = p } label: {
                     Label { priorityName(p) } icon: { Image(systemName: priority == p ? "checkmark" : "flag.fill") }
                 }
             }
@@ -148,7 +173,7 @@ struct QuickAddSheet: View {
     private var projectMenu: some View {
         Menu {
             ForEach(flatProjects(), id: \.0.id) { entry in
-                Button { project = entry.0.id } label: {
+                Button { projectTouched = true; project = entry.0.id } label: {
                     Label(String(repeating: "  ", count: entry.1) + entry.0.name, systemImage: project == entry.0.id ? "checkmark" : "circle.fill")
                 }
             }
@@ -183,24 +208,50 @@ struct QuickAddSheet: View {
         switch p { case 3: "priority.p1"; case 2: "priority.p2"; default: "priority.p3" }
     }
 
+    // MARK: natural language
+
+    private func applyParse(_ text: String) {
+        let parsed = QuickAddParser.parse(text)
+        recognized = parsed.recognized
+        if !dueTouched { due = parsed.due ?? dueDate }
+        if !priorityTouched { priority = parsed.priority ?? 0 }
+        recurrence = parsed.recurrence
+        labelTokens = parsed.labelTokens
+        if !projectTouched {
+            if let token = parsed.projectToken?.lowercased(),
+               let match = model.projects.first(where: { $0.name.lowercased().hasPrefix(token) }) {
+                project = match.id
+            } else {
+                project = projectID ?? model.projects.first(where: { $0.name == "Eingang" })?.id ?? model.projects.first?.id
+            }
+        }
+    }
+
     // MARK: save
 
     private func save() {
         guard canSave, let projectID = project else { return }
         saving = true
-        let text = title, description = notes, due = due, priority = priority, labels = labelIDs
+        let text = parsedTitle, description = notes, due = due, priority = priority, labels = labelIDs
+        let repeating = recurrence, newLabelNames = labelTokens
         Task {
             guard let id = await model.createTask(projectID: projectID, title: text) else { saving = false; return }
             Haptics.success()
             dismiss()
-            let needsServer = due != nil || priority > 0 || !labels.isEmpty || !description.isEmpty
+            let needsServer = due != nil || priority > 0 || !labels.isEmpty || !description.isEmpty || !newLabelNames.isEmpty || repeating != nil
             guard needsServer, let client = model.client else { return }
             // Planning and labels are REST-only: the task has to reach the server first.
             await model.syncNow()
             if model.pendingChanges > 0 { model.noticeKey = "notice.quickAddOffline"; return }
             do {
-                if due != nil || priority > 0 { _ = try await client.setPlanning(taskID: id, PlanningData(dueAt: due, priority: priority)) }
+                if due != nil || priority > 0 || repeating != nil {
+                    _ = try await client.setPlanning(taskID: id, PlanningData(dueAt: due, priority: priority, recurrence: repeating.map { RecurrenceRule(frequency: $0) }))
+                }
                 for l in labels { try await client.addLabel(l, toTask: id) }
+                for name in newLabelNames {
+                    if let known = meta.allLabels.first(where: { $0.name.lowercased() == name.lowercased() }) { try await client.addLabel(known.id, toTask: id) }
+                    else { let l = try await client.createLabel(name: name); try await client.addLabel(l.id, toTask: id) }
+                }
                 if !description.isEmpty, let t = model.tasks.first(where: { $0.id == id }) {
                     let updated = try await client.updateTask(id, version: t.version, TaskUpdate(description: description))
                     model.apply(updated)

@@ -335,7 +335,11 @@ final class AppModel {
         async let u = client.upcoming()
         if let t = try? await t { today = t }
         if let u = try? await u { upcoming = u }
+        agendaLoaded = true
     }
+
+    /// False until the first agenda load finished (lists show skeleton rows instead of an empty state).
+    var agendaLoaded = false
 
     /// Open questions and pending reviews across the account (badge on the command-center entry).
     var commandSummary: CommandSummary?

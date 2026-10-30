@@ -42,6 +42,18 @@ extension Color {
 }
 
 enum Haptics {
+    static func select() {
+        #if os(iOS)
+        UISelectionFeedbackGenerator().selectionChanged()
+        #endif
+    }
+
+    static func warning() {
+        #if os(iOS)
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        #endif
+    }
+
     static func tap() {
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -136,7 +148,91 @@ enum DueFormat {
     }
 }
 
-// MARK: Small views
+// MARK: Design system tokens
+
+/// Spacing scale (points). Use these instead of literals so rhythm stays consistent.
+enum Space {
+    static let xxs: CGFloat = 2, xs: CGFloat = 4, s: CGFloat = 8, m: CGFloat = 12, l: CGFloat = 16, xl: CGFloat = 24, xxl: CGFloat = 32
+}
+
+/// Corner radii.
+enum Radius {
+    static let s: CGFloat = 8, m: CGFloat = 12, l: CGFloat = 18, xl: CGFloat = 26
+}
+
+/// Type scale. Rounded design for headings gives the app its own voice; all styles scale with Dynamic Type.
+extension Font {
+    static let screenTitle = Font.system(.largeTitle, design: .rounded).weight(.bold)
+    static let sectionTitle = Font.system(.subheadline, design: .rounded).weight(.bold)
+    static let rowTitle = Font.system(.body, design: .default).weight(.regular)
+    static let rowMeta = Font.system(.caption, design: .default).weight(.medium)
+    static let detailTitle = Font.system(.title2, design: .rounded).weight(.bold)
+}
+
+/// Tinted tile colors for sidebar and property icons (fixed hues that work on light and dark).
+extension Color {
+    static let tileBlue = Color(red: 0.20, green: 0.48, blue: 0.95)
+    static let tileGreen = Color(red: 0.20, green: 0.70, blue: 0.40)
+    static let tileOrange = Color(red: 0.96, green: 0.58, blue: 0.12)
+    static let tilePurple = Color(red: 0.52, green: 0.38, blue: 0.90)
+    static let tileTeal = Color(red: 0.12, green: 0.68, blue: 0.72)
+    static let tileGray = Color(red: 0.50, green: 0.52, blue: 0.56)
+}
+
+/// Raised surface with a hairline border and a soft shadow (cards, grouped property blocks).
+struct CardSurface: ViewModifier {
+    var radius: CGFloat = Radius.l
+    func body(content: Content) -> some View {
+        content
+            .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Color.hairline.opacity(0.6), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.05), radius: 8, y: 2)
+    }
+}
+
+extension View {
+    func cardSurface(radius: CGFloat = Radius.l) -> some View { modifier(CardSurface(radius: radius)) }
+}
+
+/// Button style with a subtle press scale, used for chips, FAB and tiles.
+struct PressableStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.3), value: configuration.isPressed)
+    }
+}
+
+/// Rounded icon tile (sidebar rows, property rows).
+struct IconTile: View {
+    let symbol: String
+    let tint: Color
+    var size: CGFloat = 28
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Counter capsule used in the sidebar and tab badges.
+struct CountBadge: View {
+    let count: Int
+    var tint: Color = .secondary
+    var body: some View {
+        Text(verbatim: String(count))
+            .font(.caption.weight(.semibold)).monospacedDigit()
+            .foregroundStyle(tint)
+            .padding(.horizontal, 7).padding(.vertical, 1)
+            .background(tint.opacity(0.12), in: Capsule())
+    }
+}
+
+// MARK: Dates (text helpers live above); small views
 
 struct ProjectDot: View {
     let id: UUID?
@@ -145,42 +241,118 @@ struct ProjectDot: View {
     var body: some View { Circle().fill(model.projectColor(id)).frame(width: size, height: size) }
 }
 
+/// Label as a small tinted pill.
 struct LabelChip: View {
     let name: String
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 3) {
             Image(systemName: "tag.fill").font(.system(size: 8))
             Text(verbatim: name).lineLimit(1)
         }
-        .font(.caption2.weight(.medium))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(Color.hairline.opacity(0.7), in: Capsule())
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(Color.project(name.hashValueUUID))
+        .padding(.horizontal, 7).padding(.vertical, 2)
+        .background(Color.project(name.hashValueUUID).opacity(0.13), in: Capsule())
     }
 }
 
-/// Empty state built from SF Symbols only: a tinted disc, the main symbol and two small accents.
+extension String {
+    /// Stable pseudo-UUID derived from the text so equal names always get the same tint.
+    var hashValueUUID: UUID {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        for (i, b) in utf8.enumerated() { bytes[i % 16] = bytes[i % 16] &* 31 &+ b &+ UInt8(truncatingIfNeeded: i) }
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+}
+
+/// Small icon + text fragment for a row's meta line.
+struct MetaItem: View {
+    let symbol: String
+    let text: String
+    var tint: Color = .secondary
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
+            Text(verbatim: text).lineLimit(1)
+        }
+        .foregroundStyle(tint)
+    }
+}
+
+/// Empty state built from SF Symbols only: layered tinted discs, the main symbol and animated accents.
 struct EmptyState: View {
     let symbol: String
     let title: LocalizedStringKey
     var message: LocalizedStringKey?
+    var tint: Color = .brand
+    @State private var float = false
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: Space.m) {
             ZStack {
-                Circle().fill(Color.brand.opacity(0.10)).frame(width: 132, height: 132)
-                Circle().stroke(Color.brand.opacity(0.18), style: StrokeStyle(lineWidth: 1.5, dash: [3, 5])).frame(width: 164, height: 164)
-                Image(systemName: symbol).font(.system(size: 52, weight: .regular)).foregroundStyle(Color.brand)
-                Image(systemName: "sparkle").font(.system(size: 16)).foregroundStyle(Color.dueTomorrow).offset(x: 62, y: -52)
-                Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(Color.priority(1)).offset(x: -66, y: 40)
-                Image(systemName: "sparkle").font(.system(size: 10)).foregroundStyle(Color.brand.opacity(0.6)).offset(x: -52, y: -62)
+                Circle().fill(tint.opacity(0.07)).frame(width: 168, height: 168)
+                Circle().fill(tint.opacity(0.11)).frame(width: 118, height: 118)
+                Circle().stroke(tint.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [2, 6])).frame(width: 168, height: 168)
+                    .rotationEffect(.degrees(float ? 8 : -8))
+                RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.canvasRaised).frame(width: 84, height: 84)
+                    .shadow(color: tint.opacity(0.25), radius: 14, y: 6)
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(tint.opacity(0.25), lineWidth: 1))
+                Image(systemName: symbol).font(.system(size: 38, weight: .medium)).foregroundStyle(tint.gradient)
+                Image(systemName: "sparkle").font(.system(size: 18)).foregroundStyle(Color.tileOrange).offset(x: 66, y: float ? -58 : -52)
+                Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(Color.tileBlue).offset(x: -70, y: float ? 40 : 46)
+                Image(systemName: "sparkle").font(.system(size: 11)).foregroundStyle(tint.opacity(0.6)).offset(x: -54, y: float ? -66 : -60)
             }
-            .frame(height: 170)
+            .frame(height: 180)
             .accessibilityHidden(true)
-            Text(title).font(.title3.weight(.semibold))
+            Text(title).font(.system(.title3, design: .rounded).weight(.semibold)).multilineTextAlignment(.center)
             if let message { Text(message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
         }
-        .padding(32)
-        .frame(maxWidth: 360)
+        .padding(Space.xxl)
+        .frame(maxWidth: 380)
+        .onAppear { withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { float = true } }
+    }
+}
+
+/// Placeholder rows shown while the first load is running.
+struct SkeletonRows: View {
+    var count = 6
+    @State private var pulse = false
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<count, id: \.self) { i in
+                HStack(alignment: .top, spacing: Space.m) {
+                    Circle().fill(Color.hairline).frame(width: 22, height: 22)
+                    VStack(alignment: .leading, spacing: 7) {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.hairline).frame(width: CGFloat(150 + (i * 47) % 120), height: 13)
+                        RoundedRectangle(cornerRadius: 4).fill(Color.hairline.opacity(0.6)).frame(width: CGFloat(80 + (i * 31) % 70), height: 9)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            }
+        }
+        .opacity(pulse ? 0.45 : 1)
+        .onAppear { withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true } }
+        .accessibilityLabel(Text("loading"))
+    }
+}
+
+/// Dismissible inline banner for errors and hints.
+struct NoticeBanner: View {
+    let symbol: String
+    let text: LocalizedStringKey
+    var tint: Color = .dueOverdue
+    var action: (() -> Void)?
+    var body: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: symbol)
+            Text(text).font(.footnote.weight(.medium))
+            Spacer(minLength: 0)
+            if let action { Button(action: action) { Image(systemName: "xmark").font(.caption.weight(.bold)) }.buttonStyle(.plain).accessibilityLabel(Text("ok")) }
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s + 2)
+        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+        .padding(.horizontal, Space.l)
     }
 }
