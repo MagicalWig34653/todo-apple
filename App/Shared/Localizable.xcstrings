@@ -1842,12 +1842,122 @@
         }
       }
     },
+    "error.passkey.cancelled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Passkey-Anmeldung wurde abgebrochen. Wenn auf diesem Gerät kein Passkey für %@ im iCloud-Schlüsselbund liegt (zum Beispiel weil du das Konto im Browser mit einem anderen Passwortmanager angelegt hast), lege einen neuen per Wiederherstellungscode an."
+          }
+        }
+      }
+    },
+    "error.passkey.failed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Passkey-Anmeldung ist fehlgeschlagen. Wahrscheinlich liegt auf diesem Gerät kein passender Passkey für %@ im iCloud-Schlüsselbund. Lege einen neuen Passkey per Wiederherstellungscode an und prüfe, dass der iCloud-Schlüsselbund aktiviert ist."
+          }
+        }
+      }
+    },
+    "error.passkey.invalidResponse" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das System hat eine ungültige Passkey-Antwort geliefert. Versuche es noch einmal; bleibt der Fehler, starte das Gerät neu."
+          }
+        }
+      }
+    },
+    "error.passkey.notAssociated" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese App-Version ist nicht mit der Domain %@ verknüpft (Associated Domains). Das ist ein Einrichtungsfehler der App, nicht deines Kontos. Installiere die aktuelle Version oder melde den Fehler."
+          }
+        }
+      }
+    },
+    "error.passkey.notConfigured" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Gerät kann kein Passkey angelegt werden. Aktiviere den iCloud-Schlüsselbund und einen Gerätecode in den Einstellungen."
+          }
+        }
+      }
+    },
+    "error.passkey.notHandled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das System hat die Passkey-Anfrage nicht verarbeitet. Prüfe, dass der iCloud-Schlüsselbund aktiviert ist, und versuche es noch einmal."
+          }
+        }
+      }
+    },
+    "error.passkey.notInteractive" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Passkey-Abfrage konnte nicht angezeigt werden. Bring die App in den Vordergrund und versuche es noch einmal."
+          }
+        }
+      }
+    },
+    "error.passkey.unknown" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Passkey-Anmeldung ist aus unbekanntem Grund fehlgeschlagen. Versuche es noch einmal oder nutze einen Wiederherstellungscode."
+          }
+        }
+      }
+    },
     "error.passwordDisabled" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dieser Server erlaubt keine Anmeldung mit Passwort."
+          }
+        }
+      }
+    },
+    "error.rateLimited" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu viele Versuche in kurzer Zeit. Warte eine Minute und versuche es dann noch einmal."
+          }
+        }
+      }
+    },
+    "error.recovery.expired" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Wiederherstellung ist abgelaufen (nur wenige Minuten gültig). Gib den Code erneut ein oder lass einen neuen ausstellen."
+          }
+        }
+      }
+    },
+    "error.recovery.invalidCode" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Code ist ungültig, abgelaufen oder bereits verwendet. Lass dir von der Administration einen neuen Code ausstellen."
           }
         }
       }
@@ -2248,6 +2358,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anmelden"
+          }
+        }
+      }
+    },
+    "login.recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Wiederherstellungscode anmelden"
           }
         }
       }
@@ -2838,6 +2958,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Was ist zu tun?"
+          }
+        }
+      }
+    },
+    "recovery.accepted" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code akzeptiert. Lege jetzt den neuen Passkey an."
+          }
+        }
+      }
+    },
+    "recovery.code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellungscode"
+          }
+        }
+      }
+    },
+    "recovery.explain" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hast du dein Konto auf einem anderen Gerät oder in einem Browser mit einem anderen Passwortmanager angelegt, liegt dein Passkey nicht im iCloud-Schlüsselbund dieses Geräts. Gib den einmaligen Wiederherstellungscode ein, den eine Administration für dein Konto ausgestellt hat (in der Web-App unter Konto, eine Stunde gültig). Danach legst du hier einen neuen Passkey für dein bestehendes Konto an."
+          }
+        }
+      }
+    },
+    "recovery.passkeyName" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name des Passkeys (optional)"
+          }
+        }
+      }
+    },
+    "recovery.retry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passkey erneut anlegen"
+          }
+        }
+      }
+    },
+    "recovery.submit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code einlösen und Passkey anlegen"
+          }
+        }
+      }
+    },
+    "recovery.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellung"
           }
         }
       }

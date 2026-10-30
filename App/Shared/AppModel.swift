@@ -16,7 +16,13 @@ final class AppModel {
     var phase: Phase = .launching
     var user: User?
     var capabilities: Capabilities?
-    var errorKey: String?
+    var errorKey: String? { didSet { errorDetail = nil } }
+    /// Raw cause line shown small below the error (for example the `ASAuthorizationError` code).
+    var errorDetail: String?
+    /// Restricted bearer from a redeemed recovery code (memory only; valid for minutes).
+    var recoveryToken: RecoveryToken?
+    /// Host of the configured server, used in error texts.
+    var serverHost: String { URL(string: serverURL)?.host ?? serverURL }
     var busy = false
     var serverURL = AppConfig.savedBaseURL
 
@@ -127,14 +133,72 @@ final class AppModel {
 
     private func run(_ work: (APIClient) async throws -> User) async {
         guard let client else { errorKey = "error.invalidServer"; return }
-        busy = true; errorKey = nil
+        busy = true; errorKey = nil; errorDetail = nil
         defer { busy = false }
         do {
             user = try await work(client)
             Self.cachedUser = user
             phase = .signedIn
             await beginSync()
-        } catch { errorKey = Self.key(for: error) }
+        } catch { errorKey = Self.key(for: error); errorDetail = Self.detail(for: error) }
+    }
+
+    /// Recovery with a one-time code issued by an admin: redeem, create a new passkey for the existing account
+    /// (iCloud Keychain on this device), then sign in with it. If creating the passkey fails after the code was
+    /// redeemed, the restricted bearer is kept so the user can retry without a new code (it expires after minutes).
+    func recover(code: String, passkeyName: String) async {
+        guard let client else { errorKey = "error.invalidServer"; return }
+        busy = true; errorKey = nil; errorDetail = nil
+        defer { busy = false }
+        if let t = recoveryToken, t.expiresAt <= Date() { recoveryToken = nil }
+        do {
+            if recoveryToken == nil {
+                do { recoveryToken = try await client.redeemRecovery(code: code) }
+                catch { throw RecoveryStepError.redeem(error) }
+            }
+            guard let bearer = recoveryToken?.token else { return }
+            do {
+                let name = passkeyName.trimmingCharacters(in: .whitespacesAndNewlines)
+                try await client.registerRecoveryPasskey(
+                    bearer: bearer, passkeyName: name.isEmpty ? nil : name, authenticator: passkey)
+            } catch APIError.unauthorized {
+                recoveryToken = nil
+                throw RecoveryStepError.expired
+            }
+            recoveryToken = nil
+            user = try await client.loginWithPasskey(authenticator: passkey)
+            Self.cachedUser = user
+            phase = .signedIn
+            await beginSync()
+        } catch RecoveryStepError.redeem(let e) {
+            errorKey = Self.recoveryRedeemKey(for: e); errorDetail = Self.detail(for: e)
+        } catch RecoveryStepError.expired {
+            errorKey = "error.recovery.expired"
+        } catch {
+            errorKey = Self.key(for: error); errorDetail = Self.detail(for: error)
+        }
+    }
+
+    private enum RecoveryStepError: Error { case redeem(any Error), expired }
+
+    func resetRecovery() { recoveryToken = nil; errorKey = nil; errorDetail = nil }
+
+    static func recoveryRedeemKey(for error: Error) -> String {
+        switch error as? APIError {
+        case .unauthorized, .forbidden, .notFound, .invalidInput, .conflict: "error.recovery.invalidCode"
+        default: key(for: error)
+        }
+    }
+
+    /// Small raw-cause line for support/diagnosis; nil when the localized text says everything.
+    static func detail(for error: Error) -> String? {
+        switch error as? APIError {
+        case .passkey(let f): "ASAuthorizationError \(f.code) \u{00B7} \(String(f.detail.prefix(200)))"
+        case .passkeyFailed(let text): String(text.prefix(200))
+        case .server(let status, let reason): "HTTP \(status)" + (reason.map { " \u{00B7} \($0)" } ?? "")
+        case .transport(let text): String(text.prefix(200))
+        default: nil
+        }
     }
 
     func loginWithPasskey() async { await run { try await $0.loginWithPasskey(authenticator: passkey) } }
@@ -401,6 +465,8 @@ final class AppModel {
         case .passwordLoginDisabled: "error.passwordDisabled"
         case .transport: "error.network"
         case .passkeyFailed: "error.passkey"
+        case .passkey(let failure): "error.passkey." + failure.kind.rawValue
+        case .server(429, _): "error.rateLimited"
         case .notFound: "error.notFound"
         case .invalidInput: "error.invalidInput"
         case .conflict: "error.conflict"

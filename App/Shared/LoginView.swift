@@ -35,7 +35,7 @@ private enum ConnectionState: Equatable {
 }
 
 private enum LoginSheet: String, Identifiable {
-    case server, register, password
+    case server, register, password, recovery
     var id: String { rawValue }
 }
 
@@ -66,6 +66,7 @@ struct LoginView: View {
             case .server: ServerSheet(connection: $connection)
             case .register: RegistrationSheet()
             case .password: PasswordSheet()
+            case .recovery: RecoverySheet()
             }
         }
         .task {
@@ -99,7 +100,7 @@ struct LoginView: View {
         VStack(spacing: 16) {
             serverRow
             if let key = model.errorKey, sheet == nil {
-                ErrorBanner(key: key)
+                ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost)
             }
             Button {
                 Haptics.tap()
@@ -151,6 +152,8 @@ struct LoginView: View {
 
     private var secondaryActions: some View {
         VStack(spacing: 6) {
+            Button("login.recovery") { model.resetRecovery(); sheet = .recovery }
+                .disabled(model.capabilities == nil)
             Button("login.register") { sheet = .register }
                 .disabled(model.capabilities == nil)
             if model.capabilities?.password == true {
@@ -192,11 +195,26 @@ private struct ConnectionBadge: View {
 
 struct ErrorBanner: View {
     let key: String
+    /// Raw cause (for example the system error code), shown small below the text.
+    var detail: String?
+    /// Server host substituted for `%@` in texts that name the domain.
+    var host: String?
+
+    private var message: String {
+        let text = Bundle.main.localizedString(forKey: key, value: key, table: nil)
+        return text.contains("%@") ? String(format: text, host ?? "") : text
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.dueOverdue)
-            Text(LocalizedStringKey(key)).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(verbatim: message).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                if let detail {
+                    Text(verbatim: detail).font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                }
+            }
             Spacer(minLength: 0)
         }
         .padding(12)
@@ -349,7 +367,7 @@ private struct RegistrationSheet: View {
                     #endif
                     .onSubmit(submit)
             }
-            if let key = model.errorKey { ErrorBanner(key: key) }
+            if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }
             Button(action: submit) {
                 HStack(spacing: 10) {
                     if model.busy { ProgressView().tint(.white) } else { Image(systemName: "key.fill") }
@@ -400,7 +418,7 @@ private struct PasswordSheet: View {
                     #endif
                     .onSubmit(submit)
             }
-            if let key = model.errorKey { ErrorBanner(key: key) }
+            if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }
             Button(action: submit) {
                 HStack(spacing: 10) {
                     if model.busy { ProgressView().tint(.white) }
@@ -418,5 +436,56 @@ private struct PasswordSheet: View {
     private func submit() {
         guard canSubmit else { return }
         Task { await model.loginWithPassword(username: username, password: password) }
+    }
+}
+
+private struct RecoverySheet: View {
+    @Environment(AppModel.self) private var model
+    @State private var code = ""
+    @State private var passkeyName = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        SheetScaffold(title: "recovery.title") {
+            Text("recovery.explain").font(.subheadline).foregroundStyle(.secondary)
+            if model.recoveryToken == nil {
+                FieldRow(title: "recovery.code") {
+                    TextField("recovery.code", text: $code)
+                        .focused($focused)
+                        .autocorrectionDisabled()
+                        .font(.body.monospaced())
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never).submitLabel(.go)
+                        #endif
+                        .onSubmit(submit)
+                }
+            } else {
+                Label("recovery.accepted", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(Color.green).font(.subheadline.weight(.medium))
+            }
+            FieldRow(title: "recovery.passkeyName") {
+                TextField("recovery.passkeyName", text: $passkeyName)
+                    .onSubmit(submit)
+            }
+            if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }
+            Button(action: submit) {
+                HStack(spacing: 10) {
+                    if model.busy { ProgressView().tint(.white) } else { Image(systemName: "key.fill") }
+                    Text(model.recoveryToken == nil ? "recovery.submit" : "recovery.retry")
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(!canSubmit)
+        }
+        .onAppear { model.resetRecovery(); focused = true }
+    }
+
+    private var canSubmit: Bool {
+        !model.busy && (model.recoveryToken != nil || !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        Task { await model.recover(code: code, passkeyName: passkeyName) }
     }
 }

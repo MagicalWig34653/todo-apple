@@ -37,6 +37,54 @@ public protocol PasskeyAuthenticator: Sendable {
     func authenticate(challenge: Data, relyingPartyID: String) async throws -> PasskeyAssertionResult
 }
 
+/// Why a platform passkey ceremony failed, derived from `ASAuthorizationError` codes by the app target.
+public struct PasskeyFailure: Error, Equatable, Sendable {
+    public enum Kind: String, Sendable {
+        /// 1001: dismissed. Also what the system reports when no passkey for the domain exists and the user closes the sheet.
+        case cancelled
+        /// 1004 without a domain hint: typically no usable passkey / iCloud Keychain unavailable.
+        case failed
+        /// 1004 whose system text names the Associated Domains link between app and domain.
+        case notAssociated
+        /// 1002
+        case invalidResponse
+        /// 1003
+        case notHandled
+        /// 1005
+        case notInteractive
+        /// 1010: passkey creation not possible on this device (no iCloud Keychain / passcode).
+        case notConfigured
+        case unknown
+    }
+
+    public let kind: Kind
+    public let code: Int
+    public let detail: String
+
+    public init(kind: Kind, code: Int, detail: String) {
+        self.kind = kind
+        self.code = code
+        self.detail = detail
+    }
+
+    /// Pure mapping so it is testable without AuthenticationServices.
+    public static func classify(code: Int, description: String) -> PasskeyFailure {
+        let kind: Kind
+        switch code {
+        case 1001: kind = .cancelled
+        case 1002: kind = .invalidResponse
+        case 1003: kind = .notHandled
+        case 1004:
+            let text = description.lowercased()
+            kind = text.contains("associated") || text.contains("not associated") ? .notAssociated : .failed
+        case 1005: kind = .notInteractive
+        case 1010: kind = .notConfigured
+        default: kind = .unknown
+        }
+        return PasskeyFailure(kind: kind, code: code, detail: description)
+    }
+}
+
 // MARK: Server option shapes (WebAuthn JSON as produced by the backend)
 
 struct RegisterBeginResponse: Decodable {

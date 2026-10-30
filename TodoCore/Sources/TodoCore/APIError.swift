@@ -21,6 +21,8 @@ public enum APIError: Error, Equatable, Sendable {
     case passwordLoginDisabled
     /// The passkey ceremony was cancelled or failed on the device.
     case passkeyFailed(String)
+    /// Classified platform passkey failure (`code` is the raw `ASAuthorizationError` code, `detail` the system text).
+    case passkey(PasskeyFailure)
     /// Network or transport failure (offline, TLS, timeout).
     case transport(String)
     /// The response could not be decoded.

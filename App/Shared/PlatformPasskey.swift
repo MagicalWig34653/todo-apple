@@ -51,8 +51,18 @@ final class PlatformPasskey: NSObject, PasskeyAuthenticator, ASAuthorizationCont
 
     nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: any Error) {
         MainActor.assumeIsolated {
-            continuation?.resume(throwing: APIError.passkeyFailed(error.localizedDescription)); continuation = nil
+            continuation?.resume(throwing: Self.failure(from: error)); continuation = nil
         }
+    }
+
+    /// Keeps the raw `ASAuthorizationError` code and system text so the UI can explain the actual cause.
+    nonisolated static func failure(from error: any Error) -> APIError {
+        let ns = error as NSError
+        let text = ns.localizedDescription + (ns.localizedFailureReason.map { " " + $0 } ?? "")
+        if ns.domain == ASAuthorizationError.errorDomain {
+            return .passkey(PasskeyFailure.classify(code: ns.code, description: text))
+        }
+        return .passkey(PasskeyFailure(kind: .unknown, code: ns.code, detail: "\(ns.domain): \(text)"))
     }
 
     nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
