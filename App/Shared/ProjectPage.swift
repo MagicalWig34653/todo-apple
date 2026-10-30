@@ -61,6 +61,9 @@ struct ProjectView: View {
         #endif
         .toolbar { toolbarContent }
         .task(id: refreshKey) { await board.load(model) }
+        #if DEBUG
+        .task { if ProcessInfo.processInfo.environment["TODO_DEBUG_COMMENTS"] == "1" { try? await Task.sleep(for: .seconds(1)); showComments = true } }
+        #endif
         .onAppear { title = project?.name ?? ""; descriptionText = project?.description ?? "" }
         .onChange(of: project?.description) { _, new in if !descriptionFocus { descriptionText = new ?? "" } }
         .sheet(isPresented: $showComments) { ProjectCommentsView(projectID: projectID).environment(model) }
