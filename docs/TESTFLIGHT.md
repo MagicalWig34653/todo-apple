@@ -16,7 +16,7 @@ Stand 27.10.2026. Dieses Repository bereitet den Build vor; Upload nur mit `TODO
 `App/Config/Todo.entitlements` (`webcredentials:todo.linolaske.de`) ist ueber `CODE_SIGN_ENTITLEMENTS` in `project.yml` fuer Todo-iOS und Todo-macOS eingebunden. Die RP-ID/Passkey-Domain ist `todo.linolaske.de`.
 
 ### apple-app-site-association (AASA)
-Fertige Datei: `docs/aasa/apple-app-site-association` (Team `J2DU2P47XW`, appIDs `J2DU2P47XW.de.linolaske.todo` und `...todo.mac`). Auf `todo.linolaske.de` ausliefern unter `https://todo.linolaske.de/.well-known/apple-app-site-association`: HTTPS mit gueltigem Zertifikat, ohne Dateiendung, `Content-Type: application/json`, kein Redirect, oeffentlich erreichbar. Apple holt die Datei ueber sein CDN (Aenderungen brauchen u. U. Stunden/Tage; fuer Entwicklung `?mode=developer` bei Entwicklungs-Signierung mit `webcredentials:todo.linolaske.de?mode=developer`). Status: Datei liegt im Repo, auf dem Server noch NICHT ausgeliefert/geprueft.
+Fertige Datei: `docs/aasa/apple-app-site-association` (Team `J2DU2P47XW`, appID `J2DU2P47XW.de.linolaske.todo` (iOS+macOS, Universal Purchase)). Auf `todo.linolaske.de` ausliefern unter `https://todo.linolaske.de/.well-known/apple-app-site-association`: HTTPS mit gueltigem Zertifikat, ohne Dateiendung, `Content-Type: application/json`, kein Redirect, oeffentlich erreichbar. Apple holt die Datei ueber sein CDN (Aenderungen brauchen u. U. Stunden/Tage; fuer Entwicklung `?mode=developer` bei Entwicklungs-Signierung mit `webcredentials:todo.linolaske.de?mode=developer`). Status: Datei liegt im Repo, auf dem Server noch NICHT ausgeliefert/geprueft.
 
 ## Pruefung (27.10.2026)
 `TODO_UNSIGNED=1 TODO_OUT_DIR=/private/tmp/claude-501/tfout scripts/testflight-archive.sh`: ARCHIVE SUCCEEDED (generic iOS, CODE_SIGNING_ALLOWED=NO). Im Archiv: Bundle-ID `example.todo.ios` (damals Platzhalter), 0.1.0 (1), Encryption false, Usage-Texte und `PrivacyInfo.xcprivacy` vorhanden. Signierter Export und Upload nicht geprueft (keine Team-ID).
@@ -50,3 +50,6 @@ iOS: Version 0.1.0, Build 2610301841, "Upload succeeded", Delivery UUID `8ce50dc
 
 ## Upload Recovery-Flow (30.10.2026)
 iOS: Version 0.1.0, Build 2610302241, "Upload succeeded", Delivery UUID `f1f92ba9-5146-4e27-85a6-3a7a002692ef` (Stand e0a2018: Recovery-Anmeldung, Passkey-Fehlertexte, Steuerzentrale, Server-State). macOS nicht hochgeladen (App-Eintrag `de.linolaske.todo.mac` fehlt). Verarbeitung in App Store Connect nicht geprueft.
+
+## Checkpoint: macOS Universal Purchase (2026-10-30)
+macOS nutzt jetzt die Bundle-ID `de.linolaske.todo` (wie iOS, ein App-Store-Connect-Eintrag). macOS-Build 2610302313 (Version 0.1.0): "Upload succeeded" (Mac App-ID/Profil "Mac Team Provisioning Profile: de.linolaske.todo" automatisch). Erster Versuch (2610302310) scheiterte an fehlendem ICNS/512@2x-Icon; behoben, indem `Todo-macOS` das `AppIcon.icon` einbindet (`ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`). Delivery UUID nicht mitgeschrieben. Verarbeitung in App Store Connect nicht geprueft. Build-Nummern je Plattform eindeutig halten. Das Backend-AASA darf die alte `.mac`-ID behalten (harmlos).

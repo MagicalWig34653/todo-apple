@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds a signed macOS archive (Todo-macOS, de.linolaske.todo.mac) and exports it. Uploads only with TODO_UPLOAD=1.
+# Builds a signed macOS archive (Todo-macOS, de.linolaske.todo, Universal Purchase) and exports it. Uploads only with TODO_UPLOAD=1.
 # Archiving with -allowProvisioningUpdates also registers the macOS App ID in the developer portal.
 # Upload needs an App Store Connect macOS app record; do not set TODO_UPLOAD before it exists.
 # Env:

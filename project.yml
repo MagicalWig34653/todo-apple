@@ -1,6 +1,6 @@
 name: Todo
 options:
-  bundleIdPrefix: de.linolaske.todo   # iOS-App-ID = Prefix selbst; mac/watch = Prefix.mac/.watch (siehe Base.xcconfig)
+  bundleIdPrefix: de.linolaske.todo   # iOS+macOS = Prefix selbst (Universal Purchase); watch = Prefix.watch (siehe Base.xcconfig)
   developmentLanguage: de
 configFiles:
   Debug: App/Config/Base.xcconfig
@@ -19,9 +19,9 @@ targets:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
-    sources: [App/Shared]
+    sources: [App/Shared, { path: App/Icon/AppIcon.icon, optional: true }]
     dependencies: [{ package: TodoCore }]
-    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX).mac, CODE_SIGN_ENTITLEMENTS: App/Config/Todo.entitlements, GENERATE_INFOPLIST_FILE: YES, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES, ENABLE_USER_SELECTED_FILES: readonly, INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO, INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity } }
+    settings: { base: { PRODUCT_BUNDLE_IDENTIFIER: $(TODO_BUNDLE_ID_PREFIX), CODE_SIGN_ENTITLEMENTS: App/Config/Todo.entitlements, GENERATE_INFOPLIST_FILE: YES, ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon, ENABLE_APP_SANDBOX: YES, ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES, ENABLE_USER_SELECTED_FILES: readonly, INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO, INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity } }
   Todo-watchOS:
     type: application
     platform: watchOS
