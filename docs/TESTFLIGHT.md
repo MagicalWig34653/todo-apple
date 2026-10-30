@@ -53,3 +53,10 @@ iOS: Version 0.1.0, Build 2610302241, "Upload succeeded", Delivery UUID `f1f92ba
 
 ## Checkpoint: macOS Universal Purchase (2026-10-30)
 macOS nutzt jetzt die Bundle-ID `de.linolaske.todo` (wie iOS, ein App-Store-Connect-Eintrag). macOS-Build 2610302313 (Version 0.1.0): "Upload succeeded" (Mac App-ID/Profil "Mac Team Provisioning Profile: de.linolaske.todo" automatisch). Erster Versuch (2610302310) scheiterte an fehlendem ICNS/512@2x-Icon; behoben, indem `Todo-macOS` das `AppIcon.icon` einbindet (`ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`). Delivery UUID nicht mitgeschrieben. Verarbeitung in App Store Connect nicht geprueft. Build-Nummern je Plattform eindeutig halten. Das Backend-AASA darf die alte `.mac`-ID behalten (harmlos).
+
+## Upload Redesign + Steuerzentrale + Recovery (2026-10-30, Universal Purchase)
+Beide aus sauberem Stand (main, nach `git pull --rebase`), Bundle-ID `de.linolaske.todo`, Version 0.1.0, Inhalt: Redesign (Aufgabenzeile, Detail, Schnell-Hinzufuegen, Tabs), Steuerzentrale, Recovery-Flow, Passkey-Fehlertexte.
+- iOS: Build 2610302335, "Upload succeeded", Delivery UUID `773c19b8-afb2-44d4-b13e-c0203b997aab`.
+- macOS: Build 2610302340, "Upload succeeded", Delivery UUID `4c0d573d-0736-4933-9744-f9be5c0af2cc`.
+- UUIDs stammen aus `$TMPDIR/*.xcdistributionlogs` (das Skript druckt sie nicht). Die Logs enthalten je eine ERROR-Zeile "Failed to create URL for CDUploaderStateInfoResumeFilePath" (Resume-Datei, Upload lief trotzdem durch).
+- Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.

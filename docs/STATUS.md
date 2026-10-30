@@ -184,3 +184,7 @@ Anlass: Konto in der PWA mit Passkey eines anderen Passwortmanagers angelegt; di
 - Geprueft: TodoCore-Tests 122 (17 Live uebersprungen), 0 Fehler; Builds iOS-Simulator, macOS, watchOS (CODE_SIGNING_ALLOWED=NO) gruen; iPhone 18 Pro und iPad Pro 13 gegen isolierten Compose-Stack (`todo-apple-ui2`, Image todo-backend:sha-8cf77e5, Ports 23931/29931/28931, mit `down -v` abgebaut) mit Demodaten: Screenshots `docs/screenshots/redesign-after-*` (hell/dunkel, vorher: `redesign-before-*`).
 - Nicht geprueft: Interaktion per Fingertipp (Wischen, Long-Press, Haptik, Tick-Animation) nur kompiliert/Code-Review, kein XCUITest-Target (waere eine Aenderung an `project.yml`; naechster Schritt); macOS-Oberflaeche nur gebaut, nicht gestartet; Dynamic Type/VoiceOver nicht im Simulator geprueft; Unteraufgaben-Anlegen, Wiederholung und Erinnerungen im Detail nur ueber dieselben REST-Aufrufe, nicht live getippt; Board-/Steuerzentrale-Screens nur indirekt (Theme), kein eigenes Redesign.
 - Naechster Schritt: XCUITest-Target (Aufgabe anlegen, abhaken, Detail oeffnen), macOS-Inspector/Toolbar, Steuerzentrale und Board an das Designsystem angleichen.
+
+
+## Checkpoint TestFlight (2026-10-30, spaet)
+iOS Build 2610302335 (Delivery 773c19b8-afb2-44d4-b13e-c0203b997aab) und macOS Build 2610302340 (Delivery 4c0d573d-0736-4933-9744-f9be5c0af2cc) hochgeladen (Redesign, Steuerzentrale, Recovery-Flow, Passkey-Fehlertexte). Verarbeitung in App Store Connect ungeprueft. Details: docs/TESTFLIGHT.md.
