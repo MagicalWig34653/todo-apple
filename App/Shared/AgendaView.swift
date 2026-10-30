@@ -97,7 +97,7 @@ struct UpcomingView: View {
                         let items = (groups[day] ?? []).sorted { ($0.planning.dueAt ?? day) < ($1.planning.dueAt ?? day) }
                         ForEach(items) { TaskRow(task: $0.task, showDue: DueFormat.hasTime($0.planning.dueAt ?? day)).taskRowInsets() }
                         if items.isEmpty {
-                            Text("agenda.dayEmpty").font(.footnote).foregroundStyle(.tertiary).taskRowInsets()
+                            Text("agenda.dayEmpty").font(.footnote).foregroundStyle(.secondary).taskRowInsets()
                         }
                     } header: {
                         SectionHeaderLabel(title: nil, verbatim: dayTitle(day), count: groups[day]?.count)

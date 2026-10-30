@@ -36,6 +36,9 @@ final class AppModel {
     var pendingPrefs: [UUID: ProjectPrefsPatch] = [:]
     var prefsFlushing = false
     var selection: SidebarItem? = nil
+    /// Menu-bar / keyboard command requests; the main view observes the counters and opens the matching sheet.
+    var quickAddRequests = 0
+    var newProjectRequests = 0
     /// Detail navigation path (task details pushed on the detail stack).
     var path: [TodoTask] = []
     var today: [PlanningTask] = []
@@ -416,6 +419,17 @@ final class AppModel {
             if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
             await reloadAgenda()
         } catch { await handle(error) }
+    }
+
+    /// Sets the done state and registers it with the window/shake undo manager (Cmd+Z / shake to undo and redo).
+    func setDone(_ id: UUID, _ done: Bool, undoManager: UndoManager?) {
+        guard let task = tasks.first(where: { $0.id == id }), task.isDone != done else { return }
+        Task { await toggle(task) }
+        guard let undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { target in
+            MainActor.assumeIsolated { target.setDone(id, !done, undoManager: undoManager) }
+        }
+        undoManager.setActionName(String(localized: done ? "task.markDone" : "task.markOpen"))
     }
 
     /// Task detail edits (title, description, status). With the sync engine they are optimistic and queued (they

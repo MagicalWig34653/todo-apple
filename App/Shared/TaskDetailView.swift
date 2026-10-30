@@ -217,7 +217,7 @@ struct TaskDetailView: View {
             HStack(spacing: 5) {
                 ProjectDot(id: model.task.projectID, size: 8)
                 Text(verbatim: project?.name ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
             }
             .foregroundStyle(.primary)
         }
@@ -348,9 +348,9 @@ struct TaskDetailView: View {
                     ForEach(model.planning.reminders, id: \.self) { r in
                         Button { removeReminder(r) } label: {
                             HStack(spacing: 4) {
-                                Image(systemName: "bell.fill").font(.system(size: 9))
+                                Image(systemName: "bell.fill").font(.caption2)
                                 Text(verbatim: DueFormat.text(r))
-                                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                                Image(systemName: "xmark").font(.caption2.weight(.bold))
                             }
                             .font(.caption.weight(.medium)).foregroundStyle(Color.tilePurple)
                             .padding(.horizontal, 9).padding(.vertical, 4).background(Color.tilePurple.opacity(0.12), in: Capsule())
@@ -462,7 +462,7 @@ struct TaskDetailView: View {
                 Spacer()
             }
             if model.comments.isEmpty {
-                Text("comment.empty").font(.footnote).foregroundStyle(.tertiary)
+                Text("comment.empty").font(.footnote).foregroundStyle(.secondary)
             }
             ForEach(model.comments) { c in
                 HStack(alignment: .top, spacing: Space.s + 2) {
@@ -498,7 +498,7 @@ struct TaskDetailView: View {
             Button {
                 let t = newComment; newComment = ""
                 Task { await model.addComment(t, app) }
-            } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 32)).foregroundStyle(empty ? Color.secondary.opacity(0.5) : Color.brand) }
+            } label: { Image(systemName: "arrow.up.circle.fill").font(.largeTitle).foregroundStyle(empty ? Color.secondary.opacity(0.5) : Color.brand) }
             .buttonStyle(.plain).disabled(empty)
             .accessibilityLabel(Text("comment.send"))
         }

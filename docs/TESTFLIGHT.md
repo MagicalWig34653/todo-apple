@@ -60,3 +60,7 @@ Beide aus sauberem Stand (main, nach `git pull --rebase`), Bundle-ID `de.linolas
 - macOS: Build 2610302340, "Upload succeeded", Delivery UUID `4c0d573d-0736-4933-9744-f9be5c0af2cc`.
 - UUIDs stammen aus `$TMPDIR/*.xcdistributionlogs` (das Skript druckt sie nicht). Die Logs enthalten je eine ERROR-Zeile "Failed to create URL for CDUploaderStateInfoResumeFilePath" (Resume-Datei, Upload lief trotzdem durch).
 - Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
+
+## Produktname "Todolino" (31.10.2026)
+Der sichtbare Name ist "Todolino": `CFBundleDisplayName` (iOS/macOS/watchOS) per `INFOPLIST_KEY_CFBundleDisplayName`, `CFBundleName` (Mac-Menueleiste "Todolino", "Ueber Todolino", "Todolino beenden") ueber `App/Shared/InfoPlist.xcstrings`, Face-ID-/Netzwerk-Beschreibung, Login-Wortmarke und Fenstertitel ueber den String `app.title`. Unveraendert: Bundle-IDs (`de.linolaske.todo`, `.watch`), Target-/Scheme-Namen, Archivnamen der Skripte, Domain, Schluesselbund-/UserDefaults-Schluessel.
+Hinweis: Den App-Store-Connect-Namen ("Todolino" oder Alternative) legt der Nutzer beim Anlegen des App-Eintrags selbst fest; er muss nicht mit dem Anzeigenamen auf dem Geraet uebereinstimmen, ist aber in App Store Connect eindeutig zu waehlen (ggf. Namenskonflikt pruefen).

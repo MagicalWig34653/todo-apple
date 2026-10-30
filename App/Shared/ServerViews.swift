@@ -52,7 +52,7 @@ struct ProjectCommentsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
                                 Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
-                                if let d = c.createdAt { Text(d, style: .relative).font(.caption).foregroundStyle(.tertiary) }
+                                if let d = c.createdAt { Text(d, style: .relative).font(.caption).foregroundStyle(.secondary) }
                             }
                             Text(verbatim: c.body).font(.subheadline).textSelection(.enabled)
                         }
@@ -148,11 +148,12 @@ struct ActivityView: View {
                             Text(verbatim: item.projectName)
                             if let d = item.createdAt { Text(d, style: .relative) }
                         }
-                        .font(.caption).foregroundStyle(.tertiary)
+                        .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture { open(item) }
+                .accessibilityAddTraits(.isButton)
                 .taskRowInsets()
             }
             if model.next != nil {
@@ -247,7 +248,7 @@ struct AgentsView: View {
                             HStack(spacing: 6) {
                                 ProjectDot(id: b.projectID, size: 7)
                                 Text(verbatim: app.projects.first { $0.id == b.projectID }?.name ?? b.label)
-                                Text(verbatim: b.repositoryKey).foregroundStyle(.tertiary)
+                                Text(verbatim: b.repositoryKey).foregroundStyle(.secondary)
                             }
                             .font(.caption).foregroundStyle(.secondary)
                         }
@@ -277,10 +278,11 @@ struct AgentsView: View {
                             Text(item.job.mode == "clarify" ? "job.mode.clarify" : "job.mode.implement")
                             if let d = item.createdAt { Text(d, style: .relative) }
                         }
-                        .font(.caption).foregroundStyle(.tertiary)
+                        .font(.caption).foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { if let t = app.tasks.first(where: { $0.id == item.job.taskID }) { app.path = [t] } }
+                    .accessibilityAddTraits(.isButton)
                 }
                 if model.loaded && model.jobs.isEmpty {
                     Text(model.forbidden ? "runner.jobsOwnerOnly" : "runner.noJobs").font(.subheadline).foregroundStyle(.secondary)

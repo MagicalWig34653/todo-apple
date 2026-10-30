@@ -26,12 +26,39 @@ struct QuickAddSheet: View {
     @State private var pickingDate = false
     @State private var saving = false
     @FocusState private var focused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var sendSize: CGFloat = 44
 
     private var chosenProject: Project? { model.projects.first { $0.id == project } }
     private var parsedTitle: String { QuickAddParser.parse(title).title }
     private var canSave: Bool { !parsedTitle.isEmpty && project != nil && !saving }
 
     var body: some View {
+        ScrollView {
+            content
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(Color.canvas)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: recognized)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color.canvas)
+        #if os(macOS)
+        .frame(width: 440, height: 380)
+        #endif
+        .onAppear {
+            if project == nil {
+                project = projectID ?? model.projects.first(where: { $0.name == "Eingang" })?.id ?? model.projects.first?.id
+            }
+            if due == nil { due = dueDate }
+            #if DEBUG
+            if let text = ProcessInfo.processInfo.environment["TODO_DEBUG_QUICKADD_TEXT"] { title = text }
+            #endif
+            focused = true
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             TextField("quickAdd.title", text: $title)
                 .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -75,8 +102,8 @@ struct QuickAddSheet: View {
                 Spacer(minLength: 0)
                 Button { save() } label: {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
+                        .font(.body.weight(.bold)).foregroundStyle(.white)
+                        .frame(width: sendSize, height: sendSize)
                         .background(canSave ? Color.brand : Color.brand.opacity(0.35), in: Circle())
                         .shadow(color: canSave ? Color.brand.opacity(0.35) : .clear, radius: 6, y: 3)
                 }
@@ -89,25 +116,7 @@ struct QuickAddSheet: View {
             projectMenu
         }
         .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.canvas)
-        .animation(.easeOut(duration: 0.2), value: recognized)
-        .presentationDetents([.height(330), .medium])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        #if os(macOS)
-        .frame(width: 440)
-        #endif
-        .onAppear {
-            if project == nil {
-                project = projectID ?? model.projects.first(where: { $0.name == "Eingang" })?.id ?? model.projects.first?.id
-            }
-            if due == nil { due = dueDate }
-            #if DEBUG
-            if let text = ProcessInfo.processInfo.environment["TODO_DEBUG_QUICKADD_TEXT"] { title = text }
-            #endif
-            focused = true
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: pieces
@@ -133,7 +142,7 @@ struct QuickAddSheet: View {
 
     private func chip(icon: String, text: String?, key: LocalizedStringKey? = nil, active: Bool, tint: Color) -> some View {
         HStack(spacing: 5) {
-            Image(systemName: icon).font(.system(size: 13))
+            Image(systemName: icon).font(.footnote)
             if let key { Text(key) } else if let text { Text(verbatim: text) }
         }
         .font(.footnote.weight(.medium))
@@ -142,6 +151,7 @@ struct QuickAddSheet: View {
         .background(active ? tint.opacity(0.13) : Color.canvasRaised, in: Capsule())
         .overlay(Capsule().strokeBorder(active ? tint.opacity(0.5) : Color.hairline, lineWidth: 1))
         .contentShape(Capsule())
+        .tapTarget()
     }
 
     private var priorityMenu: some View {

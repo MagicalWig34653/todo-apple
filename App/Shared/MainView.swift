@@ -43,9 +43,12 @@ struct MainView: View {
             addProject: { newProjectName = ""; newProjectParent = .some($0) },
             share: { shareProject = $0 },
             addTask: { showQuickAdd = true }))
+        .onChange(of: model.quickAddRequests) { _, _ in showQuickAdd = true }
+        .onChange(of: model.newProjectRequests) { _, _ in newProjectName = ""; newProjectParent = .some(nil) }
         .sheet(isPresented: $showQuickAdd) { QuickAddSheet(projectID: model.selectedProjectID, dueDate: nil).environment(model).environment(meta) }
         .task(id: TaskMeta.refreshKey(model)) { await meta.refresh(model) }
-        .sheet(item: Binding(get: { model.path.last }, set: { if $0 == nil { model.path = [] } })) { task in
+        // Compact width: task detail as a sheet. Regular width (iPad, Mac): inspector column in `SplitLayout`.
+        .sheet(item: Binding(get: { compact ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
                 .environment(model).environment(meta)
                 #if os(macOS)
@@ -116,6 +119,13 @@ struct SplitLayout: View {
                 SidebarScreen(item: model.selection)
             }
             .safeAreaInset(edge: .bottom) { SyncStatusBar() }
+            .inspector(isPresented: Binding(get: { model.path.last != nil }, set: { if !$0 { model.path = [] } })) {
+                if let task = model.path.last {
+                    NavigationStack { TaskDetailView(task: task) }
+                        .id(task.id)
+                        .inspectorColumnWidth(min: 340, ideal: 420, max: 560)
+                }
+            }
         }
     }
 }

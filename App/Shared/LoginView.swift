@@ -88,7 +88,7 @@ struct LoginView: View {
     private var header: some View {
         VStack(spacing: 14) {
             LogoMark(size: 96)
-            Text(verbatim: "Todo").font(.system(.largeTitle, design: .rounded, weight: .bold))
+            Text("app.title").font(.system(.largeTitle, design: .rounded, weight: .bold))
             Text("login.tagline").font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(.top, 24)

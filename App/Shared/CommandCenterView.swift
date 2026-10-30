@@ -64,7 +64,7 @@ struct CommandCenterView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("cc.title").font(.system(size: 30, weight: .bold))
+                    Text("cc.title").font(.largeTitle.bold())
                     if let project {
                         Button { app.selectedProjectID = project.id } label: {
                             HStack(spacing: 4) {
@@ -208,7 +208,7 @@ struct LaneColumn: View {
             }
             .padding(.horizontal, 4)
             if lane.cards.isEmpty {
-                Text("cc.lane.empty").font(.footnote).foregroundStyle(.tertiary)
+                Text("cc.lane.empty").font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 60)
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
             } else {
@@ -300,7 +300,7 @@ struct UpdatesSection: View {
                                     if let who = update.actorName { Text(verbatim: who) }
                                     Text(verbatim: CommandFormat.relative(update.createdAt))
                                 }
-                                .font(.caption2).foregroundStyle(.tertiary)
+                                .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                         .contentShape(Rectangle())

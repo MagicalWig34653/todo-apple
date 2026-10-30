@@ -106,9 +106,12 @@ struct TaskCheckbox: View {
     let priority: Int
     var size: CGFloat = 24
     let action: () -> Void
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let color = Color.priority(priority)
+        let size = size * scale
         Button(action: action) {
             ZStack {
                 Circle().fill(color.opacity(checked ? 1 : (priority > 0 ? 0.14 : 0.05)))
@@ -119,13 +122,13 @@ struct TaskCheckbox: View {
             }
             .frame(width: size, height: size)
             .scaleEffect(checked ? 1.08 : 1.0)
-            .frame(width: 44, height: 44)
+            .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .animation(.spring(duration: 0.3, bounce: 0.4), value: checked)
+        .animation(reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.4), value: checked)
         .accessibilityLabel(Text(checked ? "task.markOpen" : "task.markDone"))
-        .accessibilityValue(Text(verbatim: priority > 0 ? "P\(4 - priority)" : ""))
+        .accessibilityValue(Text(priority > 0 ? TaskRow.priorityName(priority) : ""))
     }
 }
 
@@ -139,6 +142,10 @@ struct TaskRow: View {
     var showDue = true
     @State private var completing = false
     @State private var scheduling = false
+    @State private var confirmingDelete = false
+    @Environment(\.undoManager) private var undoManager
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var planning: PlanningData? { meta.planning(for: task.id) }
     private var project: Project? { model.projects.first { $0.id == task.projectID } }
@@ -155,9 +162,13 @@ struct TaskRow: View {
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button { toggle() } label: { Label(task.isDone ? "task.markOpen" : "task.markDone", systemImage: task.isDone ? "arrow.uturn.backward" : "checkmark") }.tint(Color.tileGreen)
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) { Haptics.warning(); Task { await model.deleteTask(task) } } label: { Label("task.delete", systemImage: "trash") }
             Button { scheduling = true } label: { Label("task.schedule", systemImage: "calendar") }.tint(Color.tileOrange)
+        }
+        .confirmationDialog("task.delete.confirm", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("task.delete", role: .destructive) { Haptics.warning(); Task { await model.deleteTask(task) } }
+            Button("cancel", role: .cancel) {}
         }
         .confirmationDialog("task.schedule", isPresented: $scheduling) {
             Button("due.today") { Task { await meta.schedule(task, to: DueFormat.today(), model) } }
@@ -183,10 +194,38 @@ struct TaskRow: View {
                 }
             } label: { Label("task.priority", systemImage: "flag") }
             Divider()
-            Button(role: .destructive) { Task { await model.deleteTask(task) } } label: { Label("task.delete", systemImage: "trash") }
+            Divider()
+            ShareLink(item: shareText) { Label("task.share", systemImage: "square.and.arrow.up") }
+            Button(role: .destructive) { confirmingDelete = true } label: { Label("task.delete", systemImage: "trash") }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAction(named: Text("task.markDone")) { toggle() }
+        .draggable(BoardDrag(kind: .task, id: task.id))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: task.title))
+        .accessibilityValue(Text(verbatim: accessibilitySummary))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { model.path = [task] }
+        .accessibilityAction(named: Text(task.isDone ? "task.markOpen" : "task.markDone")) { toggle() }
+        .accessibilityAction(named: Text("task.schedule")) { scheduling = true }
+        .accessibilityAction(named: Text("task.delete")) { confirmingDelete = true }
+    }
+
+    private var shareText: String { task.description.isEmpty ? task.title : task.title + "\n" + task.description }
+
+    /// Everything the visual row shows besides the title, as one spoken phrase (state, priority, due date, progress, project).
+    private var accessibilitySummary: String {
+        var parts: [String] = []
+        if checked { parts.append(String(localized: "a11y.done")) }
+        if let p = planning?.priority, p > 0 { parts.append(Self.priorityText(p)) }
+        if showDue, let due = planning?.dueAt { parts.append(String(localized: "a11y.due \(DueFormat.text(due))")) }
+        if let sub = meta.subtaskProgress[task.id] { parts.append(String(localized: "a11y.subtasks \(sub.done) \(sub.total)")) }
+        let labels = meta.labels(for: task.id).map(\.name)
+        if !labels.isEmpty { parts.append(labels.joined(separator: ", ")) }
+        if showProject, let project { parts.append(String(localized: "a11y.project \(project.name)")) }
+        return parts.joined(separator: ", ")
+    }
+
+    static func priorityText(_ p: Int) -> String {
+        switch p { case 3: String(localized: "priority.p1"); case 2: String(localized: "priority.p2"); case 1: String(localized: "priority.p3"); default: String(localized: "priority.p4") }
     }
 
     static func priorityName(_ p: Int) -> LocalizedStringKey {
@@ -202,7 +241,7 @@ struct TaskRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(.easeOut(duration: 0.2), value: checked)
             if !task.description.isEmpty {
-                Text(verbatim: task.description).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                Text(verbatim: task.description).font(.footnote).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
             }
             metaLine
         }
@@ -215,21 +254,27 @@ struct TaskRow: View {
         let due = showDue ? planning?.dueAt : nil
         let sub = meta.subtaskProgress[task.id]
         let showsProject = showProject && project != nil
-        if due != nil || !labels.isEmpty || showsProject || sub != nil {
-            HStack(spacing: Space.s) {
+        let priority = planning?.priority ?? 0
+        if due != nil || !labels.isEmpty || showsProject || sub != nil || (priority > 0 && !task.isDone) {
+            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(spacing: Space.s))
+            layout {
+                // Priority is never color alone: flag symbol plus "P1".."P3" next to the colored ring.
+                if priority > 0 && !task.isDone {
+                    MetaItem(symbol: "flag.fill", text: "P\(4 - priority)", tint: Color.priority(priority))
+                }
                 if let due {
                     MetaItem(symbol: planning?.recurrence != nil ? "arrow.triangle.2.circlepath" : "calendar", text: DueFormat.text(due),
                              tint: task.isDone ? .secondary : DueFormat.style(due).color)
                 }
                 if let sub { MetaItem(symbol: "checklist", text: "\(sub.done)/\(sub.total)") }
                 ForEach(labels.prefix(2)) { LabelChip(name: $0.name) }
-                Spacer(minLength: Space.xs)
+                if !typeSize.isAccessibilitySize { Spacer(minLength: Space.xs) }
                 if showsProject, let project {
                     HStack(spacing: 4) {
-                        Text(verbatim: project.name).lineLimit(1)
+                        Text(verbatim: project.name).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                         ProjectDot(id: project.id, size: 7)
                     }
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .layoutPriority(-1)
                 }
             }
@@ -240,14 +285,14 @@ struct TaskRow: View {
     private func toggle() {
         if task.isDone {
             Haptics.tap()
-            Task { await model.toggle(task) }
+            model.setDone(task.id, false, undoManager: undoManager)
             return
         }
-        withAnimation(.spring(duration: 0.3, bounce: 0.35)) { completing = true }
+        withAnimation(reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.35)) { completing = true }
         Haptics.success()
         Task {
-            try? await Task.sleep(for: .milliseconds(450))
-            await model.toggle(task)
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 150 : 450))
+            model.setDone(task.id, true, undoManager: undoManager)
             completing = false
         }
     }
@@ -295,6 +340,7 @@ struct SectionHeaderLabel: View {
 /// Floating red "+" on iOS, toolbar button with ⌘N on macOS. Both open the quick-add sheet.
 struct QuickAddButton: ViewModifier {
     @State private var show = false
+    @ScaledMetric(relativeTo: .title) private var fabSize: CGFloat = 60
     var projectID: UUID?
     var dueDate: Date?
 
@@ -304,9 +350,9 @@ struct QuickAddButton: ViewModifier {
             .overlay(alignment: .bottomTrailing) {
                 Button { Haptics.tap(); show = true } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(.white)
-                        .frame(width: 60, height: 60)
+                        .frame(width: fabSize, height: fabSize)
                         .background(LinearGradient(colors: [Color.brand.opacity(0.92), Color.brand], startPoint: .top, endPoint: .bottom), in: Circle())
                         .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
                         .shadow(color: Color.brand.opacity(0.4), radius: 12, y: 6)
@@ -325,7 +371,6 @@ struct QuickAddButton: ViewModifier {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { show = true } label: { Label("task.add", systemImage: "plus") }
-                        .keyboardShortcut("n", modifiers: .command)
                         .help(Text("task.add"))
                 }
             }

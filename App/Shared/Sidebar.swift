@@ -14,6 +14,7 @@ struct SidebarList: View {
     @State private var teamsExpanded = true
     @State private var moreExpanded = false
     @State private var showHelp = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dayNumber: Int { Calendar.current.component(.day, from: Date()) }
     private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
@@ -37,7 +38,6 @@ struct SidebarList: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut("n", modifiers: .command)
                 .listRowBackground(Color.clear)
             }
             Section {
@@ -47,7 +47,7 @@ struct SidebarList: View {
                 row(.upcoming, "view.upcoming", "calendar", .tileOrange)
                 row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple, count: model.attentionCount, badgeTint: .brand)
                 row(.labels, "view.labels", "tag.fill", .tileTeal)
-                Button { withAnimation { moreExpanded.toggle() } } label: {
+                Button { withAnimation(reduceMotion ? nil : .default) { moreExpanded.toggle() } } label: {
                     HStack(spacing: Space.m) {
                         IconTile(symbol: "ellipsis", tint: .tileGray, size: 26)
                         Text("view.more").font(.body.weight(.medium))
@@ -57,6 +57,7 @@ struct SidebarList: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityValue(Text(moreExpanded ? "a11y.expanded" : "a11y.collapsed"))
                 if moreExpanded {
                     row(.teams, "view.teams", "person.2.fill", .tileBlue, count: model.teamInvitations.count, badgeTint: .brand).padding(.leading, 12)
                     row(.account, "view.account", "gearshape.fill", .tileGray).padding(.leading, 12)
@@ -70,6 +71,7 @@ struct SidebarList: View {
                         projectLabel(p, count: counts[p.id] ?? 0)
                             .contentShape(Rectangle())
                             .onTapGesture { model.selectedProjectID = p.id }
+                            .accessibilityAddTraits(.isButton)
                             .listRowBackground(model.selectedProjectID == p.id ? Color.brand.opacity(0.12) : Color.clear)
                             .contextMenu { projectMenu(p) }
                     }
@@ -93,7 +95,7 @@ struct SidebarList: View {
                 HStack {
                     Text("projects.mine")
                     Spacer()
-                    Button { actions.addProject(nil) } label: { Image(systemName: "plus") }
+                    Button { actions.addProject(nil) } label: { Image(systemName: "plus").tapTarget() }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                         .accessibilityLabel(Text("project.add"))
                 }
@@ -136,8 +138,11 @@ struct SidebarList: View {
             Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(model.projectColor(p.id)).frame(width: 18)
             Text(verbatim: p.name).lineLimit(1)
             Spacer(minLength: 4)
-            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.tertiary).monospacedDigit() }
+            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: p.name))
+        .accessibilityValue(Text(verbatim: count > 0 ? String(localized: "agenda.openCount \(count)") : ""))
     }
 
     @ViewBuilder private func projectMenu(_ p: Project) -> some View {
@@ -163,6 +168,9 @@ struct SidebarList: View {
                 if count > 0 { CountBadge(count: count, tint: badgeTint) }
             }
             .padding(.vertical, 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(title))
+            .accessibilityValue(Text(verbatim: count > 0 ? String(localized: "agenda.openCount \(count)") : ""))
         }
     }
 }
@@ -197,12 +205,11 @@ struct AccountHeader: View {
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
             Spacer()
             Button { showNotifications = true } label: {
-                Image(systemName: "bell").overlay(alignment: .topTrailing) {
-                    if !model.teamInvitations.isEmpty { Circle().fill(Color.brand).frame(width: 8, height: 8).offset(x: 3, y: -3) }
-                }
+                Image(systemName: model.teamInvitations.isEmpty ? "bell" : "bell.badge").symbolRenderingMode(.multicolor).tapTarget()
             }
             .buttonStyle(.plain).foregroundStyle(.secondary)
             .accessibilityLabel(Text("notifications.title"))
+            .accessibilityValue(Text(verbatim: model.teamInvitations.isEmpty ? "" : String(localized: "notifications.invitations \(model.teamInvitations.count)")))
             .popover(isPresented: $showNotifications) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("notifications.title").font(.headline)
@@ -374,7 +381,7 @@ struct RootDropZone: View {
     @Environment(AppModel.self) private var model
     @State private var targeted = false
     var body: some View {
-        Text("projects.dropRoot").font(.caption).foregroundStyle(.tertiary)
+        Text("projects.dropRoot").font(.caption).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: 28)
             .background(targeted ? Color.brand.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
             .dropDestination(for: BoardDrag.self) { items, _ in

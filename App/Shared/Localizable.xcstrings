@@ -277,7 +277,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Todo"
+            "value" : "Todolino"
           }
         }
       }
@@ -2397,7 +2397,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gib die Adresse deines Todo-Servers ein und prüfe die Verbindung."
+            "value" : "Gib die Adresse deines Todolino-Servers ein und prüfe die Verbindung."
           }
         }
       }
@@ -4008,6 +4008,116 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld offen"
+          }
+        }
+      }
+    },
+    "a11y.done" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erledigt"
+          }
+        }
+      }
+    },
+    "a11y.due %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fällig: %@"
+          }
+        }
+      }
+    },
+    "a11y.subtasks %lld %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld von %2$lld Unteraufgaben erledigt"
+          }
+        }
+      }
+    },
+    "a11y.project %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projekt %@"
+          }
+        }
+      }
+    },
+    "task.delete.confirm" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufgabe löschen?"
+          }
+        }
+      }
+    },
+    "task.share" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilen"
+          }
+        }
+      }
+    },
+    "menu.find" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suchen …"
+          }
+        }
+      }
+    },
+    "menu.refresh" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        }
+      }
+    },
+    "menu.go" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gehe zu"
+          }
+        }
+      }
+    },
+    "a11y.expanded" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgeklappt"
+          }
+        }
+      }
+    },
+    "a11y.collapsed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingeklappt"
           }
         }
       }

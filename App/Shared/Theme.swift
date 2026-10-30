@@ -196,11 +196,12 @@ extension View {
 
 /// Button style with a subtle press scale, used for chips, FAB and tiles.
 struct PressableStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(.spring(duration: 0.25, bounce: 0.3), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .spring(duration: 0.25, bounce: 0.3), value: configuration.isPressed)
     }
 }
 
@@ -209,13 +210,26 @@ struct IconTile: View {
     let symbol: String
     let tint: Color
     var size: CGFloat = 28
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
     var body: some View {
+        let side = size * scale
         Image(systemName: symbol)
-            .font(.system(size: size * 0.5, weight: .semibold))
+            .font(.system(size: side * 0.5, weight: .semibold))
             .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(tint.gradient, in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            .frame(width: side, height: side)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: side * 0.28, style: .continuous))
             .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Guarantees the 44 x 44 pt minimum touch target of the HIG on touch platforms without changing the visual size.
+    func tapTarget() -> some View {
+        #if os(iOS)
+        self.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+        #else
+        self
+        #endif
     }
 }
 
@@ -246,7 +260,7 @@ struct LabelChip: View {
     let name: String
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "tag.fill").font(.system(size: 8))
+            Image(systemName: "tag.fill").font(.caption2).imageScale(.small)
             Text(verbatim: name).lineLimit(1)
         }
         .font(.caption2.weight(.semibold))
@@ -270,10 +284,11 @@ struct MetaItem: View {
     let symbol: String
     let text: String
     var tint: Color = .secondary
+    @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
-            Text(verbatim: text).lineLimit(1)
+            Image(systemName: symbol).font(.caption2.weight(.semibold))
+            Text(verbatim: text).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
         }
         .foregroundStyle(tint)
     }
@@ -286,6 +301,7 @@ struct EmptyState: View {
     var message: LocalizedStringKey?
     var tint: Color = .brand
     @State private var float = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: Space.m) {
@@ -309,7 +325,7 @@ struct EmptyState: View {
         }
         .padding(Space.xxl)
         .frame(maxWidth: 380)
-        .onAppear { withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { float = true } }
+        .onAppear { if !reduceMotion { withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { float = true } } }
     }
 }
 
@@ -317,6 +333,7 @@ struct EmptyState: View {
 struct SkeletonRows: View {
     var count = 6
     @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<count, id: \.self) { i in
@@ -332,7 +349,8 @@ struct SkeletonRows: View {
             }
         }
         .opacity(pulse ? 0.45 : 1)
-        .onAppear { withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true } }
+        .onAppear { if !reduceMotion { withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true } } }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("loading"))
     }
 }
