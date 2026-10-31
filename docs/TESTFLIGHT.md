@@ -79,3 +79,11 @@ Aus sauberem Stand (main, `git pull --rebase` ohne Aenderungen), Bundle-ID `de.l
 - iOS: Build 2610310815, "Upload succeeded", Delivery UUID `6dec881f-608e-43a9-bf33-5b535d12d03c`.
 - macOS: Build 2610310818, "Upload succeeded", Delivery UUID `902d14e2-6248-4dd4-9ed4-4d8cf8ed2db6`.
 - Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
+
+## Upload Stand d51900c (2026-10-31, Planung/Labels ueber Sync-Queue)
+Aus sauberem Stand (main, `git pull --rebase` ohne Aenderungen), Version 0.1.0. Inhalt: Planung und Labels ueber die Sync-Queue (Contract 1.4.0), Detail-Audit-Fix.
+- **Server mindestens sha-15b4f06 noetig** fuer Planung/Labels per Sync-Queue; aeltere Server: REST-Fallback.
+- Vorab: Todo-watchOS Build (unsigniert) erfolgreich; TodoCore-Tests (aus `TodoCore/`): 159 Tests, 19 uebersprungen, 0 Fehler.
+- iOS: Build 2610311104, "Upload succeeded", Delivery UUID `762ff3d6-4e2d-4d44-803f-3f50742efae9`.
+- macOS: Build 2610311108, "Upload succeeded", Delivery UUID `f3b8301c-334b-4aa3-a4fa-d7825baf6a91`.
+- Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
