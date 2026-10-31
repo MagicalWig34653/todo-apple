@@ -64,13 +64,18 @@ final class CommandCenterModel {
 
     func refresh(_ app: AppModel) async {
         guard let client = app.client, !loading else { return }
+        LiveHub.shared.subscribe(self) { [weak self] in
+            // Not while a question is being answered; live refresh must not disturb input.
+            if let self, self.busy.isEmpty { await self.refresh(app) }
+        }
         loading = true
         defer { loading = false }
         do {
             async let center = client.commandCenter(options)
             async let open = client.questions(projectID: projectID, state: .open, limit: 200)
             let (c, q) = try await (center, open)
-            data = c; questions = q
+            if data != c { data = c }
+            if questions != q { questions = q }
             if projectID == nil { app.commandSummary = c.summary }
             unsupported = false; loadFailed = false
             loadedMode = mode

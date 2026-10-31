@@ -43,6 +43,7 @@ final class TaskDetailModel {
 
     func load(_ app: AppModel, meta: TaskMeta? = nil) async {
         guard let client = app.client else { return }
+        LiveHub.shared.subscribe(self) { [weak self] in await self?.refreshLive(app) }
         // The text fields come from the local store (optimistic, works offline). Planning and labels fall back to the
         // cached values plus the unsent outbox edits; comments, activity and attachments stay empty while offline.
         let local = app.tasks.first { $0.id == task.id }
@@ -66,6 +67,20 @@ final class TaskDetailModel {
         } catch APIError.transport {
             offlineFallback(app, meta)
         } catch { await app.handle(error) }
+    }
+
+    /// Live refresh: only what others change behind the user's back (comments, activity, attachments, subtasks), and
+    /// only if it differs. Title, description and planning are never touched, so editing is not disturbed.
+    func refreshLive(_ app: AppModel) async {
+        guard loaded, let client = app.client else { return }
+        async let c = client.comments(taskID: task.id)
+        async let a = client.activity(taskID: task.id, limit: 30)
+        async let f = client.attachments(taskID: task.id)
+        guard let comments = try? await c, let activity = try? await a.items, let attachments = try? await f else { return }
+        if self.comments != comments { self.comments = comments }
+        if self.activity != activity { self.activity = activity }
+        if self.attachments != attachments { self.attachments = attachments }
+        if let context = try? await client.taskContext(task.id), subtasks != context.subtasks { subtasks = context.subtasks }
     }
 
     /// Offline: show the cached planning/labels with the unsent edits on top.

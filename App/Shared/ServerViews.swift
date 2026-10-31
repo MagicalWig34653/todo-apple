@@ -13,7 +13,8 @@ final class ProjectCommentsModel {
 
     func load(_ app: AppModel) async {
         guard let client = app.client else { return }
-        do { comments = try await client.projectComments(projectID); offline = false }
+        LiveHub.shared.subscribe(self) { [weak self] in await self?.load(app) }
+        do { let new = try await client.projectComments(projectID); if new != comments { comments = new }; offline = false }
         catch APIError.transport { offline = true }
         catch { await app.handle(error) }
         loaded = true
@@ -116,10 +117,12 @@ final class ActivityModel {
 
     func load(_ app: AppModel, more: Bool = false) async {
         guard let client = app.client else { return }
+        LiveHub.shared.subscribe(self) { [weak self] in await self?.load(app) }
         do {
             let feed = try await client.activityFeed(limit: 50, before: more ? next : nil)
-            items = more ? items + feed.items : feed.items
-            next = feed.nextCursor
+            if more { items += feed.items; next = feed.nextCursor }
+            else if items.count <= 50 { if items != feed.items { items = feed.items }; next = feed.nextCursor }
+            // else: the user paged further; a live refresh keeps the longer list.
             offline = false
         } catch APIError.transport { offline = true }
         catch { await app.handle(error) }
@@ -201,8 +204,10 @@ final class AgentsModel {
     func load(_ app: AppModel) async {
         guard let client = app.client else { return }
         do {
-            devices = try await client.agentDevices()
-            do { jobs = try await client.agentJobs(limit: 50).items; forbidden = false }
+            LiveHub.shared.subscribe(self) { [weak self] in await self?.load(app) }
+            let newDevices = try await client.agentDevices()
+            if devices != newDevices { devices = newDevices }
+            do { let newJobs = try await client.agentJobs(limit: 50).items; if jobs != newJobs { jobs = newJobs }; forbidden = false }
             catch APIError.forbidden { forbidden = true }
             offline = false
         } catch APIError.transport { offline = true }

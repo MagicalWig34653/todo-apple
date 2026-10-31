@@ -33,6 +33,14 @@ struct MainView: View {
         #endif
     }
 
+    private var newProjectPresented: Binding<Bool> {
+        Binding<Bool>(get: { newProjectParent != nil }, set: { shown in if !shown { newProjectParent = nil } })
+    }
+
+    private var conflictPresented: Binding<Bool> {
+        Binding<Bool>(get: { model.conflict != nil }, set: { _ in })
+    }
+
     var body: some View {
         Group {
             if compact { PhoneTabs() } else { SplitLayout() }
@@ -44,6 +52,7 @@ struct MainView: View {
             share: { shareProject = $0 },
             addTask: { showQuickAdd = true }))
         .onChange(of: model.quickAddRequests) { _, _ in showQuickAdd = true }
+        .modifier(LiveRefreshLifecycle())
         .onChange(of: model.newProjectRequests) { _, _ in newProjectName = ""; newProjectParent = .some(nil) }
         .sheet(isPresented: $showQuickAdd) { QuickAddSheet(projectID: model.selectedProjectID, dueDate: nil).environment(model).environment(meta) }
         .task(id: TaskMeta.refreshKey(model)) { await meta.refresh(model) }
@@ -61,7 +70,7 @@ struct MainView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $shareProject) { ShareView(project: $0) }
-        .alert("project.new", isPresented: Binding(get: { newProjectParent != nil }, set: { if !$0 { newProjectParent = nil } })) {
+        .alert("project.new", isPresented: newProjectPresented) {
             TextField(accessible: "project.name", text: $newProjectName)
             Button("save") {
                 let parent = newProjectParent ?? nil
@@ -69,7 +78,7 @@ struct MainView: View {
             }
             Button("cancel", role: .cancel) {}
         }
-        .alert("sync.conflict.title", isPresented: Binding(get: { model.conflict != nil }, set: { _ in })) {
+        .alert("sync.conflict.title", isPresented: conflictPresented) {
             Button("sync.conflict.keepMine") { Task { await model.resolveConflict(keepMine: true) } }
             Button("sync.conflict.useServer", role: .destructive) { Task { await model.resolveConflict(keepMine: false) } }
         } message: {
