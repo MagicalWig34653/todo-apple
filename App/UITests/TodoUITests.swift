@@ -72,6 +72,23 @@ final class TodoUITests: XCTestCase {
         if done.waitForExistence(timeout: 5) { done.tap() }
     }
 
+    private func isPad() -> Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    private func attach(_ name: String) {
+        let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
+    }
+
+    /// iPad: opening a task shows the detail (inspector next to the list; in narrow portrait the system presents it as a panel); screenshots are kept as attachments.
+    func testPadInspectorShowsDetailBesideList() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        attach("pad-list")
+        let first = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Zahnarzttermin' OR label CONTAINS 'Angebote'")).firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        first.tap()
+        XCTAssertTrue(app.textFields["task.title"].exists || app.staticTexts["Fällig"].waitForExistence(timeout: 5), "inspector content")
+        attach("pad-inspector")
+    }
+
     /// Runs the audit and prints every issue (type, element label, description); fails on all of them.
     private func audit(_ name: String) throws {
         var report: [String] = []

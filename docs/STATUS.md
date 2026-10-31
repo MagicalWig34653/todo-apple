@@ -216,3 +216,12 @@ Ziel: Client folgt contracts/sync.yaml 1.3.0 (410 `cursor_expired`: Cache des Ko
 - Geprueft: `xcodebuild test -scheme TodoCore -destination platform=macOS` (im Ordner TodoCore): 129 Tests, 17 uebersprungen (Live), 0 Fehler. Nicht live gegen Backend geprueft (Docker-VM voll, kein Stack gestartet).
 - PWA (Hauptrepo `web/`): nutzt `/v1/sync/changes` nicht (grep ohne Treffer), daher keine 410-Behandlung noetig.
 - Offen: UI kann `lastFullResyncAt` anzeigen (z. B. Hinweis "Daten neu geladen"); Live-Test gegen Backend mit gekuerzten Tombstones.
+
+## Checkpoint 31.10.2026 HIG-Befunde abgearbeitet (Branch main)
+- Befund 38 (UI-Test): kein App-Fehler. Quick-Add aus "Heute" plant die Aufgabe auf heute; "Eingang" zeigt nur Aufgaben ohne Datum. Test sucht jetzt in "Heute", "Als erledigt markieren" eindeutig (`firstMatch`). Neuer Test `testQuickAddReturnKeySaves`. Alle 5 UI-Tests 3x hintereinander grün (iPhone 18 Pro, isolierter Backend-Lauf aus origin/main als lokaler Prozess auf Port 28807, SQLite; Docker-MariaDB scheiterte an vollem Docker-Speicher "No space left", fremde Stacks unberührt).
+- Dynamic Type AX5: Detail, Steuerzentrale (Chips als Spalte, Titel skaliert), Wochenstreifen (skalierende Zellen), Quick-Add (Titel mehrzeilig, Return speichert per onChange, Chips als Spalte), Projektkopf, Seitenleisten-Fuß opak. Neue `AdaptiveStack`.
+- Kontrast: Assets angepasst, Purple/Teal neu, Tönung 10 %, Platzhalter und Kategoriefarben über Assets, Seitenleisten-Auswahl (backgroundProminence) weiß. Zahlen in HIG-AUDIT.md.
+- Haptik über einen `sensoryFeedback`-Host, `EmptyState` auf `ContentUnavailableView`, Aufgaben auf Seitenleisten-Projekt ablegen (`AppModel.moveTask(_:toProject:)` über Sync-Queue; TodoCore-Test), FAB lässt per `contentMargins` Platz.
+- Screenshots `docs/screenshots/hig2-*.png` (iPhone/iPad, hell/dunkel, AX5, Hoher Kontrast).
+- Geprüft: TodoCore 130 Tests (17 live übersprungen) grün; Builds iOS, macOS, watchOS grün; UI-Tests siehe oben.
+- Nicht geprüft: Drag per XCUITest (iOS-Simulator-Geste löste den Drop nicht aus; Logik per Unit-Test, Gerät offen), Haptik am Gerät, VoiceOver real, Mac-UI nach Änderungen nicht gestartet, Board bei AX5 nur Kopf, Hardwaretastatur iPad.

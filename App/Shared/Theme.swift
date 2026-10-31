@@ -46,34 +46,32 @@ extension Color {
     }
 }
 
-enum Haptics {
-    static func select() {
-        #if os(iOS)
-        UISelectionFeedbackGenerator().selectionChanged()
-        #endif
-    }
+/// Central haptics: call sites say what happened, one `sensoryFeedback` host at the app root plays it (no UIKit
+/// generators, the same code path on iOS and macOS trackpads).
+@MainActor @Observable final class HapticCenter {
+    static let shared = HapticCenter()
+    private(set) var tick = 0
+    private(set) var feedback: SensoryFeedback = .selection
+    func fire(_ feedback: SensoryFeedback) { self.feedback = feedback; tick += 1 }
+}
 
-    static func warning() {
-        #if os(iOS)
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        #endif
-    }
+@MainActor enum Haptics {
+    static func select() { HapticCenter.shared.fire(.selection) }
+    static func warning() { HapticCenter.shared.fire(.warning) }
+    static func tap() { HapticCenter.shared.fire(.impact(weight: .light)) }
+    static func success() { HapticCenter.shared.fire(.success) }
+}
 
-    static func tap() {
-        #if os(iOS)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #elseif os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-        #endif
+private struct HapticHost: ViewModifier {
+    private let center = HapticCenter.shared
+    func body(content: Content) -> some View {
+        content.sensoryFeedback(trigger: center.tick) { _, _ in center.feedback }
     }
+}
 
-    static func success() {
-        #if os(iOS)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        #elseif os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .default)
-        #endif
-    }
+extension View {
+    /// Plays the feedback requested through `Haptics`; apply once at the root.
+    func hapticHost() -> some View { modifier(HapticHost()) }
 }
 
 // MARK: Dates
@@ -264,12 +262,15 @@ struct AdaptiveStack<Content: View>: View {
 struct CountBadge: View {
     let count: Int
     var tint: Color = Color.textSecondary
+    /// On a selected (solid accent) sidebar row the badge turns white instead of tinted-on-tint.
+    @Environment(\.backgroundProminence) private var prominence
     var body: some View {
+        let selected = prominence == .increased
         Text(verbatim: String(count))
             .font(.caption.weight(.semibold)).monospacedDigit()
-            .foregroundStyle(tint)
+            .foregroundStyle(selected ? Color.white : tint)
             .padding(.horizontal, 7).padding(.vertical, 1)
-            .background(tint.opacity(0.10), in: Capsule())
+            .background(selected ? Color.white.opacity(0.22) : tint.opacity(0.10), in: Capsule())
     }
 }
 
@@ -322,38 +323,19 @@ struct MetaItem: View {
     }
 }
 
-/// Empty state built from SF Symbols only: layered tinted discs, the main symbol and animated accents.
+/// Empty state on the system `ContentUnavailableView` (standard layout, Dynamic Type, VoiceOver); only the symbol is tinted.
 struct EmptyState: View {
     let symbol: String
     let title: LocalizedStringKey
     var message: LocalizedStringKey?
     var tint: Color = .brand
-    @State private var float = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: Space.m) {
-            ZStack {
-                Circle().fill(tint.opacity(0.07)).frame(width: 168, height: 168)
-                Circle().fill(tint.opacity(0.11)).frame(width: 118, height: 118)
-                Circle().stroke(tint.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [2, 6])).frame(width: 168, height: 168)
-                    .rotationEffect(.degrees(float ? 8 : -8))
-                RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.canvasRaised).frame(width: 84, height: 84)
-                    .shadow(color: tint.opacity(0.25), radius: 14, y: 6)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(tint.opacity(0.25), lineWidth: 1))
-                Image(systemName: symbol).font(.system(size: 38, weight: .medium)).foregroundStyle(tint.gradient)
-                Image(systemName: "sparkle").font(.system(size: 18)).foregroundStyle(Color.tileOrange).offset(x: 66, y: float ? -58 : -52)
-                Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(Color.tileBlue).offset(x: -70, y: float ? 40 : 46)
-                Image(systemName: "sparkle").font(.system(size: 11)).foregroundStyle(tint.opacity(0.6)).offset(x: -54, y: float ? -66 : -60)
-            }
-            .frame(height: 180)
-            .accessibilityHidden(true)
-            Text(title).font(.system(.title3, design: .rounded).weight(.semibold)).multilineTextAlignment(.center)
-            if let message { Text(message).font(.subheadline).foregroundStyle(Color.textSecondary).multilineTextAlignment(.center) }
+        ContentUnavailableView {
+            Label { Text(title) } icon: { Image(systemName: symbol).foregroundStyle(tint) }
+        } description: {
+            if let message { Text(message).foregroundStyle(Color.textSecondary) }
         }
-        .padding(Space.xxl)
-        .frame(maxWidth: 380)
-        .onAppear { if !reduceMotion { withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { float = true } } }
     }
 }
 

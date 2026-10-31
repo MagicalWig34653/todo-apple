@@ -653,4 +653,21 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(sent.first?["description"] as? String, "Body")
         XCTAssertNil(sent.first?["status"])
     }
+
+    /// Dropping a task on a sidebar project queues one `task.update` with `projectID` and moves it in the local snapshot.
+    func testMovingTaskToAnotherProjectIsOneQueuedUpdateAndOptimistic() async throws {
+        let other = UUID()
+        serve(feed: { [self] c in c == "c0" ? page([upsertProject(1, pid), upsertProject(2, other), upsertTask(3, t1, title: "Move me")], cursor: "c3") : page([], cursor: c) },
+              mutation: { _ in (-1, Data()) })
+        let e = try engine()
+        _ = try await e.sync()
+        try await e.updateTask(t1, TaskUpdate(projectID: other))
+        _ = try await e.sync()
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.pending, 1)
+        XCTAssertEqual(snap.tasks.first?.projectID, other)
+        let sent = mutationRequests
+        XCTAssertEqual(sent.first?["type"] as? String, "task.update")
+        XCTAssertEqual((sent.first?["projectID"] as? String)?.lowercased(), other.uuidString.lowercased())
+    }
 }

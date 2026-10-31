@@ -6,7 +6,7 @@ struct TodoApp: App {
 
     var body: some Scene {
         WindowGroup("app.title") {
-            RootView().environment(model).task { await model.start() }
+            RootView().environment(model).hapticHost().task { await model.start() }
                 #if os(macOS)
                 .frame(minWidth: 820, minHeight: 560)
                 #endif

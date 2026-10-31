@@ -347,6 +347,8 @@ struct QuickAddButton: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
         content
+            // The floating button must never cover the last rows: scroll content gets room for it.
+            .contentMargins(.bottom, fabSize + 28, for: .scrollContent)
             .overlay(alignment: .bottomTrailing) {
                 Button { Haptics.tap(); show = true } label: {
                     Image(systemName: "plus")

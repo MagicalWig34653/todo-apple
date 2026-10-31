@@ -206,6 +206,15 @@ extension AppModel {
     }
 
     /// Drop of a dragged project onto a sidebar row: above/below the row (sibling) or onto it (child).
+    /// Moves a task to another project: offline-first through the sync queue (`task.update` with `projectID`), REST otherwise.
+    func moveTask(_ task: TodoTask, toProject projectID: UUID) async {
+        guard task.projectID != projectID else { return }
+        if await queueChange({ try await $0.updateTask(task.id, TaskUpdate(projectID: projectID)) }) { return }
+        guard let client else { return }
+        do { apply(try await client.updateTask(task.id, version: task.version, TaskUpdate(projectID: projectID))) }
+        catch { await handle(error) }
+    }
+
     func dropProject(_ id: UUID, on target: Project, zone: ProjectDropZone) async {
         guard id != target.id else { return }
         switch zone {

@@ -127,6 +127,8 @@ struct SidebarList: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // Opaque footer: scrolled rows must not show through the help label (overlap at large text sizes).
+            .background(Color.canvasRaised)
         }
         .sheet(isPresented: $showHelp) { HelpView() }
         .task { await model.reloadTeams(); await model.refreshCommandSummary() }
@@ -134,15 +136,7 @@ struct SidebarList: View {
     }
 
     private func projectLabel(_ p: Project, count: Int) -> some View {
-        HStack(spacing: 8) {
-            Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(model.projectColor(p.id)).frame(width: 18)
-            Text(verbatim: p.name).lineLimit(1)
-            Spacer(minLength: 4)
-            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(Color.textSecondary).monospacedDigit() }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: p.name))
-        .accessibilityValue(Text(verbatim: count > 0 ? String(localized: "agenda.openCount \(count)") : ""))
+        ProjectRowLabel(name: p.name, color: model.projectColor(p.id), count: count)
     }
 
     @ViewBuilder private func projectMenu(_ p: Project) -> some View {
@@ -364,10 +358,20 @@ struct ProjectDropTarget: ViewModifier {
             .overlay(alignment: .bottom) { if zone == .after { line } }
             .background(zone == .into ? Color.brand.opacity(0.15) : Color.clear)
             .dropDestination(for: BoardDrag.self) { items, location in
-                guard let drag = items.first, drag.kind == .project else { return false }
-                let z = Self.zone(at: location.y)
-                Task { await model.dropProject(drag.id, on: project, zone: z) }
-                return true
+                guard let drag = items.first else { return false }
+                switch drag.kind {
+                case .project:
+                    let z = Self.zone(at: location.y)
+                    Task { await model.dropProject(drag.id, on: project, zone: z) }
+                    return true
+                case .task:
+                    // A task dropped on a project moves into it (same mutation as "move" in the detail view).
+                    guard let task = model.tasks.first(where: { $0.id == drag.id }) else { return false }
+                    Haptics.success()
+                    Task { await model.moveTask(task, toProject: project.id) }
+                    return true
+                default: return false
+                }
             } isTargeted: { targeted in if !targeted { zone = nil } else if zone == nil { zone = .into } }
     }
 
@@ -389,5 +393,26 @@ struct RootDropZone: View {
                 Task { await model.moveProject(drag.id, toParent: nil, at: nil) }
                 return true
             } isTargeted: { targeted = $0 }
+    }
+}
+
+/// Sidebar project row; on a selected (solid accent) row glyph and count switch to white so they stay legible.
+struct ProjectRowLabel: View {
+    let name: String
+    let color: Color
+    let count: Int
+    @Environment(\.backgroundProminence) private var prominence
+
+    var body: some View {
+        let selected = prominence == .increased
+        HStack(spacing: 8) {
+            Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(selected ? Color.white : color).frame(width: 18)
+            Text(verbatim: name).lineLimit(1)
+            Spacer(minLength: 4)
+            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(selected ? Color.white : Color.textSecondary).monospacedDigit() }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: name))
+        .accessibilityValue(Text(verbatim: count > 0 ? String(localized: "agenda.openCount \(count)") : ""))
     }
 }
