@@ -72,3 +72,10 @@ Aus sauberem Stand (main, nach `git pull --rebase`, Stand 0b81ee4-Nachfolger), B
 - macOS: Build 2610310645, "Upload succeeded", Delivery UUID `92716b88-96b1-4d98-9d06-26afa8c546d3`.
 - Hinweis: `xcodebuild test -scheme TodoCore` muss im Verzeichnis `TodoCore/` laufen (im Repo-Root ist das Schema nicht fuer Tests konfiguriert).
 - Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
+
+## Upload Stand 0b81ee4 (2026-10-31, Universal Purchase)
+Aus sauberem Stand (main, `git pull --rebase` ohne Aenderungen), Bundle-ID `de.linolaske.todo`, Version 0.1.0.
+- Vorab: Todo-watchOS Build (unsigniert) erfolgreich; TodoCore-Tests (aus `TodoCore/`): 142 Tests, 18 uebersprungen, 0 Fehler.
+- iOS: Build 2610310815, "Upload succeeded", Delivery UUID `6dec881f-608e-43a9-bf33-5b535d12d03c`.
+- macOS: Build 2610310818, "Upload succeeded", Delivery UUID `902d14e2-6248-4dd4-9ed4-4d8cf8ed2db6`.
+- Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
