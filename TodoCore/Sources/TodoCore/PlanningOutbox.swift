@@ -41,6 +41,8 @@ public struct OutboxSnapshot: Sendable, Equatable {
     public var labelRemoves: [UUID: Set<UUID>] = [:]
     /// Labels to add by name (created on the server on replay if missing).
     public var namedAdds: [UUID: [String]] = [:]
+    /// Labels created by a queued `label.create` (not yet on the server).
+    public var newLabels: [TaskLabel] = []
     public var pending = 0
     public var rejected: [OutboxOp] = []
     public init() {}
@@ -134,6 +136,46 @@ public actor PlanningOutbox {
     private func dropLabelOps(taskID: UUID, labelID: UUID) {
         ops.removeAll { $0.status == .pending && ($0.kind == .addLabel || $0.kind == .removeLabel) && $0.taskID == taskID && $0.labelID == labelID }
     }
+
+    /// Takes over planning/label mutations that the sync queue could not deliver because the server predates
+    /// contract 1.4.0 (`unsupportedByServerReason`). Returns how many could not be represented (label rename/delete
+    /// have no REST outbox equivalent) and were dropped.
+    @discardableResult
+    public func adopt(_ mutations: [SyncMutation]) -> Int {
+        var created: [UUID: String] = [:]
+        var dropped = 0
+        for m in mutations {
+            switch m.type {
+            case .taskPlanning:
+                ops.removeAll { $0.status == .pending && $0.kind == .setPlanning && $0.taskID == m.id }
+                ops.append(OutboxOp(kind: .setPlanning, taskID: m.id, planning: m.planningData))
+            case .labelCreate:
+                if let n = m.name { created[m.id] = n }
+            case .taskLabelAdd:
+                guard let l = m.labelID else { continue }
+                if let name = created[l] {
+                    if !ops.contains(where: { $0.status == .pending && $0.kind == .addLabelNamed && $0.taskID == m.id && $0.labelName?.lowercased() == name.lowercased() }) {
+                        ops.append(OutboxOp(kind: .addLabelNamed, taskID: m.id, labelName: name))
+                    }
+                } else {
+                    dropLabelOps(taskID: m.id, labelID: l)
+                    ops.append(OutboxOp(kind: .addLabel, taskID: m.id, labelID: l))
+                }
+            case .taskLabelRemove:
+                guard let l = m.labelID else { continue }
+                dropLabelOps(taskID: m.id, labelID: l)
+                ops.append(OutboxOp(kind: .removeLabel, taskID: m.id, labelID: l))
+            case .labelRename, .labelDelete:
+                dropped += 1
+            default: break
+            }
+        }
+        persist()
+        return dropped
+    }
+
+    /// Pending ops in queue order (for moving them into the sync queue).
+    public func pendingOps() -> [OutboxOp] { ops.filter { $0.status == .pending } }
 
     /// Forget everything queued for a task (deleted locally).
     public func discard(taskID: UUID) {

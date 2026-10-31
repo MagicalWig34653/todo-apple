@@ -25,7 +25,7 @@ final class TaskMeta {
         var list = confirmedLabels[id] ?? []
         if let removed = overlay.labelRemoves[id] { list.removeAll { removed.contains($0.id) } }
         for add in overlay.labelAdds[id] ?? [] where !list.contains(where: { $0.id == add }) {
-            if let known = allLabels.first(where: { $0.id == add }) { list.append(known) }
+            if let known = allLabels.first(where: { $0.id == add }) ?? overlay.newLabels.first(where: { $0.id == add }) { list.append(known) }
         }
         for name in overlay.namedAdds[id] ?? [] where !list.contains(where: { $0.name.lowercased() == name.lowercased() }) {
             list.append(allLabels.first { $0.name.lowercased() == name.lowercased() } ?? Self.placeholder(name))
@@ -83,9 +83,23 @@ final class TaskMeta {
         try? encoder.encode(Cache(planning: confirmedPlanning, labels: allLabels, labelsByTask: confirmedLabels)).write(to: url, options: .atomic)
     }
 
+    /// Planning and labels as the sync feed delivers them (contract 1.4.0): no REST round trips per label needed.
+    func adoptFeed(_ app: AppModel) {
+        guard app.metaFromFeed else { return }
+        restored = true
+        confirmedPlanning = app.feedPlanning
+        allLabels = app.feedLabels.map(\.asTaskLabel)
+        var map: [UUID: [TaskLabel]] = [:]
+        for l in app.feedLabels { for t in l.taskIDs { map[t, default: []].append(l.asTaskLabel) } }
+        confirmedLabels = map
+        persist(to: app.metaCacheURL)
+    }
+
     func refresh(_ app: AppModel) async {
         restore(from: app.metaCacheURL)
+        adoptFeed(app)
         guard let client = app.client else { return }
+        let fromFeed = app.metaFromFeed
         var known: [UUID: PlanningData] = [:]
         for p in app.today + app.upcoming { known[p.id] = p.planning }
         // Offline (or any failure) keeps the last confirmed values instead of blanking the lists.
@@ -94,8 +108,8 @@ final class TaskMeta {
             let start = DueFormat.startOfToday()
             overdue = next.filter { ($0.planning.dueAt ?? .distantFuture) < start && !$0.task.isDone }
                 .sorted { ($0.planning.dueAt ?? .distantFuture) < ($1.planning.dueAt ?? .distantFuture) }
-            confirmedPlanning = known
-        } else {
+            if !fromFeed { confirmedPlanning = known }
+        } else if !fromFeed {
             confirmedPlanning.merge(known) { _, new in new }
         }
         var overview = CommandCenterOptions(projectID: nil, view: .list)
@@ -110,7 +124,7 @@ final class TaskMeta {
             }
             subtaskProgress = progress; subtaskIDs = children
         }
-        if let labels = try? await client.labels(limit: 100).items {
+        if !fromFeed, let labels = try? await client.labels(limit: 100).items {
             var map: [UUID: [TaskLabel]] = [:]
             var complete = true
             for label in labels {

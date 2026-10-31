@@ -81,7 +81,7 @@ final class TaskDetailModel {
         var list = confirmed
         if let removed = outbox.labelRemoves[task] { list.removeAll { removed.contains($0.id) } }
         for id in outbox.labelAdds[task] ?? [] where !list.contains(where: { $0.id == id }) {
-            if let l = known.first(where: { $0.id == id }) { list.append(l) }
+            if let l = known.first(where: { $0.id == id }) ?? outbox.newLabels.first(where: { $0.id == id }) { list.append(l) }
         }
         for name in outbox.namedAdds[task] ?? [] where !list.contains(where: { $0.name.lowercased() == name.lowercased() }) {
             list.append(known.first { $0.name.lowercased() == name.lowercased() } ?? TaskMeta.placeholder(name))

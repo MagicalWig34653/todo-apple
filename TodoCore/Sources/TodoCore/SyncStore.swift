@@ -28,6 +28,9 @@ public struct QueuedMutation: Codable, Sendable, Equatable, Identifiable {
     /// A `mutation_id_reused` answer is retried once under a fresh mutationID (the old one provably was not ours).
     public var idRegenerated: Bool
     public var createdAt: Date
+    /// Automatic retries after a 409 (planning and label edits are retried once on the refreshed version before the
+    /// user is asked). nil in rows written by older builds.
+    public var autoRetries: Int?
 
     public var id: UUID { mutation.mutationID }
 
@@ -56,13 +59,20 @@ public struct SyncState: Sendable, Equatable {
     /// client-side rank when it is first seen (feed order for the first full pull, creation order for local creates).
     /// Ranks survive updates and resyncs; they are device-local and may differ between devices.
     public var ranks: [UUID: Int]
+    /// Planning of the tasks as delivered by the feed (contract 1.4.0); absent for tasks from older servers.
+    public var planning: [UUID: PlanningData]
+    /// Account-private labels with their task membership (contract 1.4.0).
+    public var labels: [UUID: SyncLabel]
     /// Next rank to hand out (not persisted; recomputed from `ranks` when the engine opens the store).
     var nextRank = 1
 
     public init(
         projects: [UUID: Project] = [:], tasks: [UUID: TodoTask] = [:], cursor: String = "c0", queue: [QueuedMutation] = [],
-        ranks: [UUID: Int] = [:], columns: [UUID: ProjectColumn] = [:]
+        ranks: [UUID: Int] = [:], columns: [UUID: ProjectColumn] = [:], planning: [UUID: PlanningData] = [:],
+        labels: [UUID: SyncLabel] = [:]
     ) {
+        self.planning = planning
+        self.labels = labels
         self.ranks = ranks
         self.columns = columns
         self.projects = projects
@@ -81,6 +91,10 @@ public struct SyncBatch: Sendable, Equatable {
     public var taskDeletes: [UUID] = []
     public var columnUpserts: [ProjectColumn] = []
     public var columnDeletes: [UUID] = []
+    public var planningUpserts: [UUID: PlanningData] = [:]
+    public var planningDeletes: [UUID] = []
+    public var labelUpserts: [SyncLabel] = []
+    public var labelDeletes: [UUID] = []
     public var cursor: String?
     public var queueUpserts: [QueuedMutation] = []
     /// Removed by mutationID (applied before `queueUpserts`, so an id change keeps the position).
@@ -102,13 +116,17 @@ public protocol SyncStore: Sendable {
 /// Applies a batch to a state value. Shared by `InMemorySyncStore` and tests.
 extension SyncState {
     mutating func apply(_ batch: SyncBatch) {
-        if batch.replaceEntities { projects = [:]; tasks = [:]; columns = [:] }
+        if batch.replaceEntities { projects = [:]; tasks = [:]; columns = [:]; planning = [:]; labels = [:] }
         for p in batch.projectUpserts { projects[p.id] = p }
         for t in batch.taskUpserts { tasks[t.id] = t }
         for id in batch.projectDeletes { projects[id] = nil }
         for id in batch.taskDeletes { tasks[id] = nil }
         for c in batch.columnUpserts { columns[c.id] = c }
         for id in batch.columnDeletes { columns[id] = nil }
+        for (id, d) in batch.planningUpserts { planning[id] = d }
+        for id in batch.planningDeletes { planning[id] = nil }
+        for l in batch.labelUpserts { labels[l.id] = l }
+        for id in batch.labelDeletes { labels[id] = nil }
         if let cursor = batch.cursor { self.cursor = cursor }
         for (id, r) in batch.rankUpserts { ranks[id] = r }
         for id in batch.rankDeletes { ranks[id] = nil }

@@ -48,6 +48,9 @@ struct MainView: View {
         .sheet(isPresented: $showQuickAdd) { QuickAddSheet(projectID: model.selectedProjectID, dueDate: nil).environment(model).environment(meta) }
         .task(id: TaskMeta.refreshKey(model)) { await meta.refresh(model) }
         .onChange(of: model.outboxSnapshot, initial: true) { _, new in meta.overlay = new }
+        .onChange(of: model.feedPlanning, initial: true) { _, _ in meta.adoptFeed(model) }
+        .onChange(of: model.feedLabels, initial: true) { _, _ in meta.adoptFeed(model) }
+        .onChange(of: model.metaFromFeed) { _, _ in meta.adoptFeed(model) }
         // Compact width: task detail as a sheet. Regular width (iPad, Mac): inspector column in `SplitLayout`.
         .sheet(item: Binding(get: { compact ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }

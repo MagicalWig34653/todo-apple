@@ -54,14 +54,31 @@ final class AppModel {
     /// Changes waiting to be sent.
     var pendingChanges = 0
     /// Everything not yet confirmed by the server: queued sync mutations plus outbox edits.
-    var unsentChanges: Int { pendingChanges + outboxSnapshot.pending }
+    var unsentChanges: Int { pendingChanges + legacyOutboxSnapshot.pending }
     /// First unresolved `version_conflict` (the user decides: keep mine / use server).
     var conflict: QueuedMutation?
     var engine: SyncEngine?
     /// Offline outbox for planning and label edits (REST-only on the server; see `PlanningOutbox`).
     var outbox: PlanningOutbox?
-    /// What the outbox still has to send, laid over the confirmed planning and labels by `TaskMeta`.
-    var outboxSnapshot = OutboxSnapshot()
+    /// What the REST outbox still has to send (older servers, and entries from before the update until they moved).
+    private(set) var legacyOutboxSnapshot = OutboxSnapshot()
+    /// Queued planning/label mutations of the sync engine (contract 1.4.0).
+    private(set) var syncMetaOverlay = OutboxSnapshot()
+    /// Planning and labels as confirmed by the sync feed; only meaningful while `metaFromFeed`.
+    private(set) var feedPlanning: [UUID: PlanningData] = [:]
+    private(set) var feedLabels: [SyncLabel] = []
+    /// The server delivers planning and labels in the feed (contract 1.4.0): `TaskMeta` needs no REST fetches for them.
+    private(set) var metaFromFeed = false
+    /// What is still to be sent, laid over the confirmed planning and labels by `TaskMeta` (outbox plus sync queue).
+    var outboxSnapshot: OutboxSnapshot {
+        var o = legacyOutboxSnapshot
+        let m = syncMetaOverlay
+        for (t, d) in m.planning { o.planning[t] = d }
+        for (t, ids) in m.labelAdds { o.labelAdds[t, default: []].formUnion(ids); o.labelRemoves[t]?.subtract(ids) }
+        for (t, ids) in m.labelRemoves { o.labelRemoves[t, default: []].formUnion(ids); o.labelAdds[t]?.subtract(ids) }
+        o.newLabels = m.newLabels
+        return o
+    }
     /// Bumped when confirmed planning/labels may have changed (lists refresh their metadata).
     var metaRevision = 0
     /// Cache file of `TaskMeta` (planning and labels as last confirmed), next to the sync store.
@@ -233,7 +250,7 @@ final class AppModel {
         await outbox?.reset()
         if let url = metaCacheURL { try? FileManager.default.removeItem(at: url) }
         metaCacheURL = nil
-        outbox = nil; outboxSnapshot = OutboxSnapshot()
+        outbox = nil; legacyOutboxSnapshot = OutboxSnapshot(); syncMetaOverlay = OutboxSnapshot(); feedPlanning = [:]; feedLabels = []; metaFromFeed = false
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
         Self.cachedUser = nil
@@ -266,10 +283,13 @@ final class AppModel {
         self.engine = engine
         metaCacheURL = URL(fileURLWithPath: path + ".meta.json")
         outbox = PlanningOutbox(store: FileOutboxStore(url: URL(fileURLWithPath: path + ".outbox.json")))
-        outboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
+        legacyOutboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
         usesREST = false
         loadPrefsCache()
-        await publish(await engine.snapshot())
+        let cached = await engine.snapshot()
+        // A cache that already holds feed planning (contract 1.4.0) serves chips and due dates offline right away.
+        metaFromFeed = !cached.planning.isEmpty
+        publish(cached)
         await syncNow()
         selectDefaultIfNeeded()
         syncLoop = Task { [weak self] in
@@ -287,6 +307,11 @@ final class AppModel {
         columns = snap.columns
         pendingChanges = snap.pending
         conflict = snap.conflicts.first
+        syncMetaOverlay = snap.metaOverlay
+        if metaFromFeed {
+            if feedPlanning != snap.planning { feedPlanning = snap.planning }
+            if feedLabels != snap.labels { feedLabels = snap.labels }
+        }
     }
 
     private func selectDefaultIfNeeded() {
@@ -300,9 +325,17 @@ final class AppModel {
         guard let engine, !usesREST else { return }
         syncStatus = .syncing
         do {
+            await migrateOutboxToEngine()
             let report = try await engine.sync()
+            await handOverUnsupported(engine)
+            let support = await engine.planningSyncSupport
+            if (support == .supported) != metaFromFeed {
+                metaFromFeed = support == .supported
+                if !metaFromFeed { feedPlanning = [:]; feedLabels = [] }
+                metaRevision += 1
+            }
             var snap = await engine.snapshot()
-            if report.rejected > 0 {
+            if snap.rejected.isEmpty == false {
                 for q in snap.rejected { snap = (try? await engine.dismiss(q.id)) ?? snap }
                 noticeKey = "notice.syncRejected"
             }
@@ -326,6 +359,7 @@ final class AppModel {
     /// Without a sync engine (REST fallback) it is sent directly. Returns false if that fails.
     @discardableResult
     func savePlanning(taskID: UUID, _ data: PlanningData) async -> Bool {
+        if await queueMeta({ try await $0.setPlanning(taskID, data) }) { return true }
         if let outbox, !usesREST {
             await outbox.setPlanning(taskID: taskID, data)
             await outboxChanged()
@@ -337,6 +371,7 @@ final class AppModel {
     }
 
     func setLabel(_ label: TaskLabel, on taskID: UUID, enabled: Bool) async {
+        if await queueMeta({ e in try await e.setLabel(await e.resolvedLabelID(label), on: taskID, enabled: enabled) }) { return }
         if let outbox, !usesREST {
             if enabled { await outbox.addLabel(label.id, toTask: taskID) } else { await outbox.removeLabel(label.id, fromTask: taskID) }
             await outboxChanged()
@@ -354,6 +389,7 @@ final class AppModel {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         if let match = known.first(where: { $0.name.lowercased() == name.lowercased() }) { await setLabel(match, on: taskID, enabled: true); return }
+        if await queueMeta({ try await $0.addLabel(named: name, to: taskID) }) { return }
         if let outbox, !usesREST {
             await outbox.addLabel(named: name, toTask: taskID)
             await outboxChanged()
@@ -364,8 +400,54 @@ final class AppModel {
         catch { await handle(error) }
     }
 
+    /// Planning/label edits go into the sync queue while the server speaks contract 1.4.0 (or is not known yet to
+    /// predate it). Returns false when the REST outbox has to take the edit.
+    private func queueMeta(_ edit: (SyncEngine) async throws -> SyncSnapshot) async -> Bool {
+        guard let engine, !usesREST, await engine.planningSyncSupport != .unsupported else { return false }
+        guard let snap = try? await edit(engine) else { return false }
+        publish(snap)
+        metaRevision += 1
+        Task { await syncNow() }
+        return true
+    }
+
+    /// Moves outbox entries written by earlier builds (or while the server was old) into the sync queue, so planning
+    /// edits keep their order and merge with newer ones. An entry leaves the outbox only after the queue has it.
+    private func migrateOutboxToEngine() async {
+        guard let engine, let outbox, await engine.planningSyncSupport != .unsupported else { return }
+        for op in await outbox.pendingOps() {
+            let queued: SyncSnapshot?
+            switch op.kind {
+            case .setPlanning:
+                guard let data = op.planning else { continue }
+                queued = try? await engine.setPlanning(op.taskID, data)
+            case .addLabel:
+                guard let l = op.labelID else { continue }
+                queued = try? await engine.setLabel(l, on: op.taskID, enabled: true)
+            case .removeLabel:
+                guard let l = op.labelID else { continue }
+                queued = try? await engine.setLabel(l, on: op.taskID, enabled: false)
+            case .addLabelNamed:
+                guard let n = op.labelName else { continue }
+                queued = try? await engine.addLabel(named: n, to: op.taskID)
+            }
+            if queued != nil { await outbox.dismiss(op.id) }  // an unknown task stays in the outbox
+        }
+        legacyOutboxSnapshot = await outbox.snapshot()
+    }
+
+    /// The server predates contract 1.4.0: planning/label entries parked by the engine move to the REST outbox.
+    private func handOverUnsupported(_ engine: SyncEngine) async {
+        let parked = await engine.unsupportedMutations()
+        guard !parked.isEmpty, let outbox else { return }
+        await outbox.adopt(parked.map(\.mutation))
+        for q in parked { _ = try? await engine.dismiss(q.id) }
+        legacyOutboxSnapshot = await outbox.snapshot()
+        Task { await flushOutbox() }
+    }
+
     private func outboxChanged() async {
-        outboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
+        legacyOutboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
         Task { await flushOutbox() }
     }
 
@@ -383,7 +465,7 @@ final class AppModel {
             let rejected = await outbox.snapshot().rejected
             for op in rejected { await outbox.dismiss(op.id) }
             if !rejected.isEmpty { noticeKey = "notice.syncRejected" }
-            outboxSnapshot = await outbox.snapshot()
+            legacyOutboxSnapshot = await outbox.snapshot()
             if report.sent > 0 || !rejected.isEmpty { metaRevision += 1; await reloadAgenda() }
             if report.offline { syncStatus = .offline }
         } catch APIError.unauthorized {

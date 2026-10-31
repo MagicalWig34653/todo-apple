@@ -19,7 +19,20 @@ public struct SyncSnapshot: Sendable, Equatable {
     /// Queue entries the server refused for good; remove with `SyncEngine.dismiss`.
     public var rejected: [QueuedMutation]
     public var cursor: String
+    /// Planning of the tasks as last confirmed by the server (feed or mutation answers), without queued edits.
+    public var planning: [UUID: PlanningData] = [:]
+    /// Labels as last confirmed by the server (with task membership), without queued edits.
+    public var labels: [SyncLabel] = []
+    /// Queued planning and label edits (`pending` is 0 here: they are counted in `SyncSnapshot.pending`).
+    public var metaOverlay = OutboxSnapshot()
 }
+
+/// Whether the server understands the planning/label sync of contract 1.4.0 (ADR 0020). Not persisted: it is probed
+/// again in every session by the feed (`planning` on task upserts) or by the first such mutation.
+public enum PlanningSyncSupport: Sendable, Equatable { case unknown, supported, unsupported }
+
+/// Reason of queue entries that an older server refused as unknown mutation type. The app moves them to the REST outbox.
+public let unsupportedByServerReason = "unsupported_by_server"
 
 public struct SyncReport: Sendable, Equatable {
     /// Mutations the server accepted in this run.
@@ -34,6 +47,9 @@ public struct SyncReport: Sendable, Equatable {
     public var skipped = false
     public var conflicts = 0
     public var rejected = 0
+    /// The server does not know the 1.4.0 mutation types: planning/label edits stay in the queue as rejected
+    /// entries with `unsupportedByServerReason` until the app moved them to the REST outbox and dismissed them.
+    public var legacyFallback = false
 }
 
 public enum SyncEngineError: Error, Equatable, Sendable {
@@ -48,6 +64,10 @@ public actor SyncEngine {
     private var state: SyncState
     private var syncing = false
     private var rerun = false
+    /// Mutation currently on the wire (never merged away by newer edits).
+    private var inFlight: UUID?
+    /// Probed per session, see `PlanningSyncSupport`.
+    public private(set) var planningSyncSupport: PlanningSyncSupport = .unknown
     private let pageSize: Int
     /// When the last full resync from `c0` completed (cursor lost/ahead/expired). UI hint only; not persisted.
     /// Observe by polling after `sync()` or via `fullResyncEvents()`.
@@ -105,7 +125,10 @@ public actor SyncEngine {
             pending: state.queue.filter { $0.status == .pending }.count,
             conflicts: state.queue.filter { $0.status == .conflict },
             rejected: state.queue.filter { $0.status == .rejected },
-            cursor: state.cursor)
+            cursor: state.cursor,
+            planning: state.planning,
+            labels: state.labels.values.sorted { ($0.name.lowercased(), $0.id.uuidString) < ($1.name.lowercased(), $1.id.uuidString) },
+            metaOverlay: metaOverlay())
     }
 
     /// Entities that still have a queued (pending, conflicting or rejected) mutation. REST-only follow-up writes
@@ -204,9 +227,40 @@ public actor SyncEngine {
                 }
                 columns[c.id] = nil
                 for (i, var x) in remaining.enumerated() { x.position = i; columns[x.id] = x }
+            case .taskPlanning, .labelCreate, .labelRename, .labelDelete, .taskLabelAdd, .taskLabelRemove:
+                break  // planning and labels are not part of the task/project overlay, see `metaOverlay()`
             }
         }
         return (projects, tasks, columns)
+    }
+
+    /// Queued planning and label edits for the UI (same shape as the REST outbox overlay).
+    private func metaOverlay() -> OutboxSnapshot {
+        var o = OutboxSnapshot()
+        var created: [UUID: TaskLabel] = [:]
+        let blocked = blockedIDs()
+        for q in state.queue where q.status == .pending && !blocked.contains(q.mutation.id) {
+            let m = q.mutation
+            switch m.type {
+            case .taskPlanning:
+                o.planning[m.id] = m.planningData
+            case .labelCreate:
+                created[m.id] = TaskLabel(id: m.id, name: m.name ?? "")
+            case .labelRename:
+                if let n = m.name, let known = created[m.id] { created[m.id] = TaskLabel(id: known.id, name: n, version: known.version) }
+            case .labelDelete:
+                created[m.id] = nil
+            case .taskLabelAdd:
+                guard let l = m.labelID else { continue }
+                o.labelAdds[m.id, default: []].insert(l); o.labelRemoves[m.id]?.remove(l)
+            case .taskLabelRemove:
+                guard let l = m.labelID else { continue }
+                o.labelRemoves[m.id, default: []].insert(l); o.labelAdds[m.id]?.remove(l)
+            default: break
+            }
+        }
+        o.newLabels = created.values.sorted { $0.name.lowercased() < $1.name.lowercased() }
+        return o
     }
 
     /// Mirrors the server's board placement: dense positions in the target, done column completes, other column reopens.
@@ -242,7 +296,8 @@ public actor SyncEngine {
 
     /// Entities that have a queue entry stopped by a conflict or rejection.
     private func blockedIDs() -> Set<UUID> {
-        Set(state.queue.filter { $0.status != .pending }.map { $0.mutation.id })
+        // Entries parked for the REST outbox (older server) do not hold back unrelated edits of the same entity.
+        Set(state.queue.filter { $0.status != .pending && $0.reason != unsupportedByServerReason }.map { $0.mutation.id })
     }
 
     // MARK: Local writes (optimistic, queued)
@@ -315,24 +370,130 @@ public actor SyncEngine {
     @discardableResult
     public func deleteTask(_ id: UUID) throws -> SyncSnapshot { try enqueue(SyncMutation(type: .taskDelete, id: id)) }
 
-    static func isCreate(_ type: SyncMutationType) -> Bool { type == .projectCreate || type == .taskCreate || type == .columnCreate }
+    // MARK: Planning and labels (contract 1.4.0, ADR 0020)
+
+    /// Replaces the whole planning of the task. A queued, not yet sent planning of the same task is superseded.
+    @discardableResult
+    public func setPlanning(_ taskID: UUID, _ data: PlanningData) throws -> SyncSnapshot {
+        try enqueue(.planning(taskID: taskID, data))
+    }
+
+    @discardableResult
+    public func createLabel(id: UUID = UUID(), name: String) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .labelCreate, id: id, name: name))
+    }
+
+    @discardableResult
+    public func renameLabel(_ id: UUID, name: String) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: .labelRename, id: id, name: name))
+    }
+
+    @discardableResult
+    public func deleteLabel(_ id: UUID) throws -> SyncSnapshot { try enqueue(SyncMutation(type: .labelDelete, id: id)) }
+
+    /// Adds or removes the label on the task (idempotent on the server; the last queued choice per pair wins).
+    @discardableResult
+    public func setLabel(_ labelID: UUID, on taskID: UUID, enabled: Bool) throws -> SyncSnapshot {
+        try enqueue(SyncMutation(type: enabled ? .taskLabelAdd : .taskLabelRemove, id: taskID, labelID: labelID))
+    }
+
+    /// Adds the label with this name (case-insensitive) to the task; an unknown name is created first (client-chosen id).
+    @discardableResult
+    public func addLabel(named raw: String, to taskID: UUID) throws -> SyncSnapshot {
+        let name = raw.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return snapshot() }
+        let lower = name.lowercased()
+        var known = state.labels.values.first { $0.name.lowercased() == lower }?.id
+        if known == nil {
+            known = state.queue.first { $0.mutation.type == .labelCreate && $0.mutation.name?.lowercased() == lower }?.mutation.id
+        }
+        let id = known ?? UUID()
+        if known == nil { try enqueue(SyncMutation(type: .labelCreate, id: id, name: name)) }
+        return try setLabel(id, on: taskID, enabled: true)
+    }
+
+    /// The label id to use for a label the UI holds: its own id if the label is known (or about to be created), else
+    /// the known/queued label of the same name (UI placeholders carry a name-derived id), else the id as given.
+    public func resolvedLabelID(_ label: TaskLabel) -> UUID {
+        if state.labels[label.id] != nil || state.queue.contains(where: { $0.mutation.type == .labelCreate && $0.mutation.id == label.id }) { return label.id }
+        let lower = label.name.lowercased()
+        return state.labels.values.first { $0.name.lowercased() == lower }?.id
+            ?? state.queue.first { $0.mutation.type == .labelCreate && $0.mutation.name?.lowercased() == lower }?.mutation.id
+            ?? label.id
+    }
+
+    /// Queue entries that a server without contract 1.4.0 refused (see `unsupportedByServerReason`).
+    public func unsupportedMutations() -> [QueuedMutation] {
+        state.queue.filter { $0.status == .rejected && $0.reason == unsupportedByServerReason }
+    }
+
+    static func isCreate(_ type: SyncMutationType) -> Bool { type == .projectCreate || type == .taskCreate || type == .columnCreate || type == .labelCreate }
 
     /// Mutations that carry the entity version (a `project.position` only when it also changes the parent).
     static func needsVersion(_ m: SyncMutation) -> Bool {
         switch m.type {
-        case .projectCreate, .taskCreate, .columnCreate: false
+        case .projectCreate, .taskCreate, .columnCreate, .labelCreate, .taskLabelAdd, .taskLabelRemove: false
         case .projectPosition: m.moveToRoot == true || m.parentID != nil
         default: true
         }
     }
 
     private func confirmedVersion(_ id: UUID) -> Int? {
-        state.projects[id]?.version ?? state.tasks[id]?.version ?? state.columns[id]?.version
+        state.projects[id]?.version ?? state.tasks[id]?.version ?? state.columns[id]?.version ?? state.labels[id]?.version
+    }
+
+    /// Queued edits that a new planning/label edit makes redundant, and whether the new one is itself unnecessary.
+    /// Only entries that are not on the wire are touched; a later edit supersedes earlier ones of the same target
+    /// (the server applies full replacements and idempotent adds/removes, so only the last choice matters).
+    private func merge(_ m: SyncMutation) -> (drop: Set<UUID>, fold: (UUID, String)?, skip: Bool) {
+        var drop: Set<UUID> = []
+        var skip = false
+        var fold: (UUID, String)?
+        let queue = state.queue.filter { $0.id != inFlight }
+        func pendingCreate(of label: UUID) -> QueuedMutation? {
+            queue.first { $0.mutation.type == .labelCreate && $0.mutation.id == label }
+        }
+        switch m.type {
+        case .taskPlanning:
+            for q in queue where q.mutation.type == .taskPlanning && q.mutation.id == m.id { drop.insert(q.id) }
+        case .taskLabelAdd, .taskLabelRemove:
+            guard let label = m.labelID else { break }
+            for q in queue where (q.mutation.type == .taskLabelAdd || q.mutation.type == .taskLabelRemove)
+                && q.mutation.id == m.id && q.mutation.labelID == label { drop.insert(q.id) }
+            let member = state.labels[label]?.taskIDs.contains(m.id) ?? false
+            // A pair that nets out against the confirmed membership needs no request at all.
+            if !drop.isEmpty, m.type == .taskLabelAdd, member { skip = true }
+            if m.type == .taskLabelRemove, (!drop.isEmpty && !member) || pendingCreate(of: label) != nil { skip = true }
+        case .labelRename:
+            for q in queue where q.mutation.type == .labelRename && q.mutation.id == m.id { drop.insert(q.id) }
+            if let c = pendingCreate(of: m.id), let n = m.name { fold = (c.id, n); skip = true }
+        case .labelDelete:
+            let created = pendingCreate(of: m.id)
+            for q in queue where q.mutation.id == m.id && [.labelRename, .labelCreate].contains(q.mutation.type) { drop.insert(q.id) }
+            for q in queue where [.taskLabelAdd, .taskLabelRemove].contains(q.mutation.type) && q.mutation.labelID == m.id { drop.insert(q.id) }
+            // A label that never reached the server is simply forgotten.
+            if created != nil { skip = true }
+        case .taskDelete:
+            for q in queue where q.mutation.id == m.id && q.mutation.type == .taskPlanning { drop.insert(q.id) }
+            for q in queue where q.mutation.id == m.id && [.taskLabelAdd, .taskLabelRemove].contains(q.mutation.type) { drop.insert(q.id) }
+        default: break
+        }
+        return (drop, fold, skip)
     }
 
     private func enqueue(_ template: SyncMutation) throws -> SyncSnapshot {
         var m = template
-        var chained = state.queue.contains { $0.mutation.id == m.id }
+        let merged = merge(m)
+        if merged.skip {
+            if !merged.drop.isEmpty || merged.fold != nil {
+                try transact { s in
+                    s.queue.removeAll { merged.drop.contains($0.id) }
+                    if let (id, name) = merged.fold, let i = s.queue.firstIndex(where: { $0.id == id }) { s.queue[i].mutation.name = name }
+                }
+            }
+            return snapshot()
+        }
+        var chained = state.queue.contains { $0.mutation.id == m.id && !merged.drop.contains($0.id) }
         if !Self.isCreate(m.type) {
             if chained {
                 m.version = nil
@@ -346,6 +507,7 @@ public actor SyncEngine {
         }
         let order = (state.queue.map(\.order).max() ?? 0) + 1
         try transact {
+            $0.queue.removeAll { merged.drop.contains($0.id) }
             $0.queue.append(QueuedMutation(mutation: m, order: order, chained: chained))
             if m.type == .taskCreate { Self.assignRank(m.id, in: &$0) }
         }
@@ -438,12 +600,39 @@ public actor SyncEngine {
         return state.queue.first { $0.status == .pending && !blocked.contains($0.mutation.id) }
     }
 
+    /// Mutation types whose 409 is retried once on the refreshed version before the user is asked: they replace a
+    /// whole value (planning, label name), so the newest local edit simply wins, like the former REST write.
+    private static func retriesConflict(_ type: SyncMutationType) -> Bool {
+        type == .taskPlanning || type == .labelRename || type == .labelDelete
+    }
+
+    /// Older servers answer the 1.4.0 types with `400 unknown_mutation_type` (or an unreasoned 400/422).
+    private static func isUnknownType(_ error: APIError) -> Bool {
+        if case .invalidInput(let reason) = error { return reason == nil || reason == "unknown_mutation_type" }
+        return false
+    }
+
+    /// Parks every queued planning/label mutation as rejected (`unsupportedByServerReason`) for the app to move to
+    /// the REST outbox. Nothing is lost: the entries stay in the persistent queue until they were handed over.
+    private func parkUnsupported(_ report: inout SyncReport) throws {
+        let ids = state.queue.filter { $0.status == .pending && $0.mutation.type.isPlanningSync }.map(\.id)
+        guard !ids.isEmpty else { return }
+        try transact { s in
+            for i in s.queue.indices where ids.contains(s.queue[i].id) { s.queue[i].status = .rejected; s.queue[i].reason = unsupportedByServerReason }
+        }
+        report.legacyFallback = true
+    }
+
     private func flush(_ report: inout SyncReport) async throws {
+        if planningSyncSupport == .unsupported { try parkUnsupported(&report) }
         while let next = nextSendable() {
             var m = next.mutation
             if next.chained, !Self.isCreate(m.type), Self.needsVersion(m) { m.version = confirmedVersion(m.id) }
+            inFlight = next.id
+            defer { inFlight = nil }
             do {
                 let result = try await client.applyMutation(m)
+                if m.type.isPlanningSync { planningSyncSupport = .supported }
                 try transact { s in
                     s.queue.removeAll { $0.id == next.id }
                     Self.confirm(result, into: &s)
@@ -456,6 +645,24 @@ public actor SyncEngine {
                     return
                 case .unauthorized:
                     throw error
+                case _ where m.type.isPlanningSync && Self.isUnknownType(error) && planningSyncSupport != .supported:
+                    planningSyncSupport = .unsupported
+                    try parkUnsupported(&report)
+                case .versionConflict where Self.retriesConflict(m.type) && (next.autoRetries ?? 0) < 1:
+                    // The pull that follows delivers the newer version; then the same edit is sent again.
+                    try transact { s in
+                        guard let i = s.queue.firstIndex(where: { $0.id == next.id }) else { return }
+                        s.queue[i].autoRetries = (s.queue[i].autoRetries ?? 0) + 1
+                        s.queue[i].chained = true
+                    }
+                    try await pullAfterConflict(&report)
+                case .notFound where m.type == .taskLabelRemove || m.type == .labelDelete:
+                    // Removing something that is already gone is a success (idempotent).
+                    try transact { s in
+                        s.queue.removeAll { $0.id == next.id }
+                        if m.type == .labelDelete { s.labels[m.id] = nil }
+                    }
+                    report.pushed += 1
                 case .versionConflict:
                     try mark(next.id, .conflict, "version_conflict")
                 case .conflict(let reason) where reason == "mutation_id_reused" && !next.idRegenerated:
@@ -476,6 +683,18 @@ public actor SyncEngine {
         }
     }
 
+    private func pullAfterConflict(_ report: inout SyncReport) async throws {
+        do { try await pullFeed(from: state.cursor, report: &report) }
+        catch APIError.transport { report.offline = true }
+        catch APIError.server { report.offline = true }
+        catch let error as APIError {
+            switch error {
+            case .cursorExpired, .conflict, .invalidInput: break  // the regular pull after the flush resyncs
+            default: throw error
+            }
+        }
+    }
+
     private func mark(_ id: UUID, _ status: QueuedMutation.Status, _ reason: String) throws {
         try transact { s in
             guard let i = s.queue.firstIndex(where: { $0.id == id }) else { return }
@@ -486,11 +705,16 @@ public actor SyncEngine {
 
     private static func confirm(_ result: SyncMutationResult, into s: inout SyncState) {
         if result.deleted {
+            let before = Set(s.tasks.keys)
             removeProjectTree(result.id, projects: &s.projects, tasks: &s.tasks, columns: &s.columns)
             s.tasks[result.id] = nil
             s.columns[result.id] = nil
+            s.labels[result.id] = nil
+            purge(before.subtracting(s.tasks.keys), from: &s)
             return
         }
+        if let d = result.planning, result.task != nil { s.planning[result.id] = d }
+        if let l = result.label, (s.labels[l.id]?.version ?? 0) <= l.version { s.labels[l.id] = l }
         if let c = result.column, (s.columns[c.id]?.version ?? 0) <= c.version { s.columns[c.id] = c }
         if let p = result.project, (s.projects[p.id]?.version ?? 0) <= p.version { s.projects[p.id] = p }
         if let t = result.task, (s.tasks[t.id]?.version ?? 0) <= t.version {
@@ -550,10 +774,13 @@ public actor SyncEngine {
                 s.projects = [:]
                 s.tasks = [:]
                 s.columns = [:]
+                s.planning = [:]
+                s.labels = [:]
                 for change in all { Self.apply(change, to: &s) }
                 s.cursor = cursor
             }
             report.pulled += all.count
+            observePlanningSupport(all)
             return
         }
         while true {
@@ -564,9 +791,17 @@ public actor SyncEngine {
                 s.cursor = next
             }
             report.pulled += page.changes.count
+            observePlanningSupport(page.changes)
             cursor = next
             if !page.hasMore { return }
         }
+    }
+
+    /// Task upserts of a 1.4.0 server always carry `planning`; older servers never do.
+    private func observePlanningSupport(_ changes: [SyncChange]) {
+        let tasks = changes.filter { $0.entityType == .task && $0.kind == .upsert && $0.task != nil }
+        if tasks.contains(where: { $0.planning != nil }) { planningSyncSupport = .supported }
+        else if !tasks.isEmpty, planningSyncSupport == .unknown { planningSyncSupport = .unsupported }
     }
 
     /// Feed entries arrive in sequence order. A delete (tombstone or revoke) removes the entity and, for projects,
@@ -576,15 +811,38 @@ public actor SyncEngine {
         case (.project, .upsert):
             if let p = change.project { s.projects[p.id] = p }
         case (.task, .upsert):
-            if let t = change.task { s.tasks[t.id] = t; assignRank(t.id, in: &s) }
+            if let t = change.task {
+                s.tasks[t.id] = t
+                assignRank(t.id, in: &s)
+                if let d = change.planning { s.planning[t.id] = d }
+            }
+        case (.label, .upsert):
+            if let l = change.label { s.labels[l.id] = l }
+        case (.label, .delete):
+            s.labels[change.entityID] = nil
         case (.column, .upsert):
             if let c = change.column { s.columns[c.id] = c }
         case (.project, .delete):
+            let before = Set(s.tasks.keys)
             removeProjectTree(change.entityID, projects: &s.projects, tasks: &s.tasks, columns: &s.columns)
+            purge(before.subtracting(s.tasks.keys), from: &s)
         case (.task, .delete):
             s.tasks[change.entityID] = nil
+            purge([change.entityID], from: &s)
         case (.column, .delete):
             s.columns[change.entityID] = nil
+        }
+    }
+
+    /// Planning and label links of tasks that are gone (tombstone, lost access, deleted project): the feed sends no
+    /// label update for those, so the client removes them itself.
+    private static func purge(_ taskIDs: Set<UUID>, from s: inout SyncState) {
+        guard !taskIDs.isEmpty else { return }
+        for id in taskIDs { s.planning[id] = nil }
+        for (lid, l) in s.labels where l.taskIDs.contains(where: taskIDs.contains) {
+            var next = l
+            next.taskIDs.removeAll { taskIDs.contains($0) }
+            s.labels[lid] = next
         }
     }
 
@@ -626,6 +884,10 @@ public actor SyncEngine {
         for (id, t) in new.tasks where old.tasks[id] != t { b.taskUpserts.append(t) }
         b.projectDeletes = old.projects.keys.filter { new.projects[$0] == nil }
         b.taskDeletes = old.tasks.keys.filter { new.tasks[$0] == nil }
+        for (id, d) in new.planning where old.planning[id] != d { b.planningUpserts[id] = d }
+        b.planningDeletes = old.planning.keys.filter { new.planning[$0] == nil }
+        for (id, l) in new.labels where old.labels[id] != l { b.labelUpserts.append(l) }
+        b.labelDeletes = old.labels.keys.filter { new.labels[$0] == nil }
         for (id, c) in new.columns where old.columns[id] != c { b.columnUpserts.append(c) }
         b.columnDeletes = old.columns.keys.filter { new.columns[$0] == nil }
         if old.cursor != new.cursor { b.cursor = new.cursor }

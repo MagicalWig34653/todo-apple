@@ -26,13 +26,16 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
             CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, json BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, json BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, json BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS planning (id TEXT PRIMARY KEY, json BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS labels (id TEXT PRIMARY KEY, json BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS ranks (id TEXT PRIMARY KEY, rank INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS queue (mutation_id TEXT PRIMARY KEY, ord INTEGER NOT NULL, json BLOB NOT NULL);
             """)
-        // Caches written before columns/project details were part of the feed lack them: restart the feed at c0 once.
-        // The full pull replaces the cached entities, the offline queue is kept.
-        if try text("SELECT value FROM meta WHERE key = 'schema'") != "2" {
-            try exec("DELETE FROM meta WHERE key = 'cursor'; INSERT INTO meta (key, value) VALUES ('schema', '2') ON CONFLICT(key) DO UPDATE SET value = excluded.value;")
+        // Caches written before columns/project details (schema 2) or planning and labels (schema 3, additive tables
+        // above) were part of the feed lack them: restart the feed at c0 once. The full pull replaces the cached
+        // entities, the offline queue is kept.
+        if try text("SELECT value FROM meta WHERE key = 'schema'") != "3" {
+            try exec("DELETE FROM meta WHERE key = 'cursor'; INSERT INTO meta (key, value) VALUES ('schema', '3') ON CONFLICT(key) DO UPDATE SET value = excluded.value;")
         }
     }
 
@@ -67,6 +70,13 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
                 let c = try decode(ProjectColumn.self, data)
                 state.columns[c.id] = c
             }
+            for (key, data) in try rows("SELECT id, json FROM planning") {
+                if let id = UUID(uuidString: key) { state.planning[id] = try decode(PlanningData.self, data) }
+            }
+            for (_, data) in try rows("SELECT id, json FROM labels") {
+                let l = try decode(SyncLabel.self, data)
+                state.labels[l.id] = l
+            }
             for (_, data) in try rows("SELECT mutation_id, json FROM queue ORDER BY ord") {
                 state.queue.append(try decode(QueuedMutation.self, data))
             }
@@ -82,10 +92,14 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
         try lock.withLock {
             try exec("BEGIN IMMEDIATE")
             do {
-                if batch.replaceEntities { try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM columns;") }
+                if batch.replaceEntities { try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM columns; DELETE FROM planning; DELETE FROM labels;") }
                 for p in batch.projectUpserts { try upsert("projects", p.id.uuidString, Self.encoder.encode(p)) }
                 for t in batch.taskUpserts { try upsert("tasks", t.id.uuidString, Self.encoder.encode(t)) }
                 for c in batch.columnUpserts { try upsert("columns", c.id.uuidString, Self.encoder.encode(c)) }
+                for (id, d) in batch.planningUpserts { try upsert("planning", id.uuidString, Self.encoder.encode(d)) }
+                for l in batch.labelUpserts { try upsert("labels", l.id.uuidString, Self.encoder.encode(l)) }
+                for id in batch.planningDeletes { try run("DELETE FROM planning WHERE id = ?", [.text(id.uuidString)]) }
+                for id in batch.labelDeletes { try run("DELETE FROM labels WHERE id = ?", [.text(id.uuidString)]) }
                 for id in batch.columnDeletes { try run("DELETE FROM columns WHERE id = ?", [.text(id.uuidString)]) }
                 for id in batch.projectDeletes { try run("DELETE FROM projects WHERE id = ?", [.text(id.uuidString)]) }
                 for id in batch.taskDeletes { try run("DELETE FROM tasks WHERE id = ?", [.text(id.uuidString)]) }
@@ -114,7 +128,7 @@ public final class SQLiteSyncStore: SyncStore, @unchecked Sendable {
 
     public func wipe() throws {
         try lock.withLock {
-            try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM columns; DELETE FROM queue; DELETE FROM ranks; DELETE FROM meta;")
+            try exec("DELETE FROM projects; DELETE FROM tasks; DELETE FROM columns; DELETE FROM planning; DELETE FROM labels; DELETE FROM queue; DELETE FROM ranks; DELETE FROM meta;")
         }
     }
 
