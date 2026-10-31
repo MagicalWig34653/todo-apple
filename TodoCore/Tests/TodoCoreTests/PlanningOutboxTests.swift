@@ -146,6 +146,24 @@ final class PlanningOutboxTests: XCTestCase {
         XCTAssertTrue(paths.contains("PUT /v1/tasks/\(t1.uuidString)/labels/\(created.uuidString)"))
     }
 
+    func testNamedLabelLookupFollowsPagesAndRespectsTheServerPageCap() async throws {
+        let onPage2 = UUID()
+        MockURLProtocol.handler = { req in
+            if req.httpMethod == "GET" {
+                let q = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                if q.first(where: { $0.name == "limit" })?.value != "100" { return (400, Data(#"{"error":true,"reason":"invalid_limit"}"#.utf8)) }
+                if q.first(where: { $0.name == "cursor" })?.value == "p2" { return (200, Data(#"{"items":[{"id":"\#(onPage2)","name":"Deep","version":1}]}"#.utf8)) }
+                return (200, Data(#"{"items":[{"id":"\#(UUID())","name":"Other","version":1}],"nextCursor":"p2"}"#.utf8))
+            }
+            return (204, Data())
+        }
+        let box = PlanningOutbox(store: store)
+        await box.addLabel(named: "deep", toTask: t1)
+        let r = try await box.flush(client: client)
+        XCTAssertEqual(r.sent, 1); XCTAssertTrue(r.createdLabels.isEmpty)
+        XCTAssertFalse(paths.contains { $0.hasPrefix("POST") })
+    }
+
     func testUnauthorizedIsThrownAndKeepsOps() async {
         MockURLProtocol.handler = { _ in (401, Data()) }
         let box = PlanningOutbox(store: store)

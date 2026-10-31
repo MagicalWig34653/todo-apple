@@ -217,7 +217,7 @@ public actor PlanningOutbox {
             try await client.removeLabel(l, fromTask: op.taskID)
         case .addLabelNamed:
             guard let name = op.labelName else { return }
-            let known = try await client.labels(limit: 200).items.first { $0.name.lowercased() == name.lowercased() }
+            let known = try await Self.findLabel(named: name, client: client)
             let label: TaskLabel
             if let known { label = known } else {
                 label = try await client.createLabel(name: name)
@@ -225,6 +225,17 @@ public actor PlanningOutbox {
             }
             try await client.addLabel(label.id, toTask: op.taskID)
         }
+    }
+
+    /// Case-insensitive lookup over all pages (the server caps a page at 100 labels).
+    private static func findLabel(named name: String, client: APIClient) async throws -> TaskLabel? {
+        var cursor: String?
+        repeat {
+            let page = try await client.labels(limit: 100, cursor: cursor)
+            if let hit = page.items.first(where: { $0.name.lowercased() == name.lowercased() }) { return hit }
+            cursor = page.nextCursor
+        } while cursor != nil
+        return nil
     }
 
     private static func reason(_ error: APIError) -> String {
