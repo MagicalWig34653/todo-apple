@@ -6,11 +6,14 @@ public struct Capabilities: Codable, Sendable, Equatable {
     public let passkey: Bool
     public let password: Bool
     public let bootstrapOpen: Bool
+    /// Live refresh hints of newer servers (ADR 0022); nil on older servers or when disabled.
+    public let liveRefresh: LiveRefreshCapability?
 
-    public init(passkey: Bool, password: Bool, bootstrapOpen: Bool) {
+    public init(passkey: Bool, password: Bool, bootstrapOpen: Bool, liveRefresh: LiveRefreshCapability? = nil) {
         self.passkey = passkey
         self.password = password
         self.bootstrapOpen = bootstrapOpen
+        self.liveRefresh = liveRefresh
     }
 }
 
