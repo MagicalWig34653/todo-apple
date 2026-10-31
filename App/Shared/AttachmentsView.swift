@@ -105,7 +105,7 @@ struct AttachmentsSection: View {
                         VStack(alignment: .leading) {
                             Text(verbatim: a.filename).lineLimit(1)
                             Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(a.size), countStyle: .file))
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.caption).foregroundStyle(Color.textSecondary)
                         }
                         Spacer()
                         if model.openingID == a.id { ProgressView() }
@@ -160,7 +160,7 @@ private struct AttachmentThumbnail: View {
             if let image {
                 image.resizable().scaledToFill()
             } else {
-                Image(systemName: attachment.isImage ? "photo" : "doc.richtext").foregroundStyle(.secondary)
+                Image(systemName: attachment.isImage ? "photo" : "doc.richtext").foregroundStyle(Color.textSecondary)
             }
         }
         .frame(width: 44, height: 44)

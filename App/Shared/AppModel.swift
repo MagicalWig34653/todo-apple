@@ -101,6 +101,9 @@ final class AppModel {
     func start() async {
         #if DEBUG
         DebugLaunch.seedSession(model: self)
+        #if os(macOS)
+        DebugLaunch.snapshotIfRequested()
+        #endif
         defer { Task { await DebugLaunch.navigate(model: self) } }
         #endif
         guard let client, client.hasStoredSession() else { phase = .signedOut; await refreshCapabilities(); return }

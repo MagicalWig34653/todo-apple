@@ -89,7 +89,7 @@ struct LoginView: View {
         VStack(spacing: 14) {
             LogoMark(size: 96)
             Text("app.title").font(.system(.largeTitle, design: .rounded, weight: .bold))
-            Text("login.tagline").font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text("login.tagline").font(.body).foregroundStyle(Color.textSecondary).multilineTextAlignment(.center)
         }
         .padding(.top, 24)
         .accessibilityElement(children: .combine)
@@ -124,9 +124,9 @@ struct LoginView: View {
     private var serverRow: some View {
         Button { sheet = .server } label: {
             HStack(spacing: 12) {
-                Image(systemName: "server.rack").foregroundStyle(.secondary).frame(width: 22)
+                Image(systemName: "server.rack").foregroundStyle(Color.textSecondary).frame(width: 22)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("login.server").font(.caption).foregroundStyle(.secondary)
+                    Text("login.server").font(.caption).foregroundStyle(Color.textSecondary)
                     Text(verbatim: hostText).font(.subheadline.weight(.medium)).lineLimit(1).truncationMode(.middle)
                 }
                 Spacer(minLength: 8)
@@ -211,7 +211,7 @@ struct ErrorBanner: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: message).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                 if let detail {
-                    Text(verbatim: detail).font(.caption2).foregroundStyle(.secondary)
+                    Text(verbatim: detail).font(.caption2).foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                 }
             }
@@ -244,7 +244,7 @@ private struct FieldRow<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.footnote.weight(.medium)).foregroundStyle(.secondary)
+            Text(title).font(.footnote.weight(.medium)).foregroundStyle(Color.textSecondary)
             content
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -293,7 +293,7 @@ private struct ServerSheet: View {
     var body: some View {
         @Bindable var model = model
         SheetScaffold(title: "login.server") {
-            Text("login.server.explain").font(.subheadline).foregroundStyle(.secondary)
+            Text("login.server.explain").font(.subheadline).foregroundStyle(Color.textSecondary)
             FieldRow(title: "login.serverURL") {
                 TextField("login.serverURL.placeholder", text: $model.serverURL)
                     .autocorrectionDisabled()
@@ -323,7 +323,7 @@ private struct ServerSheet: View {
         case .failed:
             ErrorBanner(key: model.errorKey ?? "error.network")
         case .checking:
-            Label("login.status.checking", systemImage: "hourglass").foregroundStyle(.secondary).font(.subheadline)
+            Label("login.status.checking", systemImage: "hourglass").foregroundStyle(Color.textSecondary).font(.subheadline)
         case .unknown: EmptyView()
         }
     }
@@ -349,7 +349,7 @@ private struct RegistrationSheet: View {
     var body: some View {
         SheetScaffold(title: "login.register") {
             Text(model.capabilities?.bootstrapOpen == true ? "login.setup.bootstrap" : "login.setup.invitation")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline).foregroundStyle(Color.textSecondary)
             FieldRow(title: "login.setup.token") {
                 TextField("login.setup.token", text: $setupToken)
                     .focused($focus, equals: .token)
@@ -400,7 +400,7 @@ private struct PasswordSheet: View {
 
     var body: some View {
         SheetScaffold(title: "login.passwordOption") {
-            Text("login.password.explain").font(.subheadline).foregroundStyle(.secondary)
+            Text("login.password.explain").font(.subheadline).foregroundStyle(Color.textSecondary)
             FieldRow(title: "login.username") {
                 TextField("login.username", text: $username)
                     .focused($focus, equals: .user)
@@ -447,7 +447,7 @@ private struct RecoverySheet: View {
 
     var body: some View {
         SheetScaffold(title: "recovery.title") {
-            Text("recovery.explain").font(.subheadline).foregroundStyle(.secondary)
+            Text("recovery.explain").font(.subheadline).foregroundStyle(Color.textSecondary)
             if model.recoveryToken == nil {
                 FieldRow(title: "recovery.code") {
                     TextField("recovery.code", text: $code)

@@ -79,7 +79,7 @@ struct ProjectView: View {
                 .onSubmit { commitTitle(project) }
                 .onChange(of: titleFocus) { _, f in if !f { commitTitle(project) } }
             TextField("project.descriptionPlaceholder", text: $descriptionText, axis: .vertical)
-                .font(.body).foregroundStyle(.secondary).textFieldStyle(.plain).lineLimit(1...4).focused($descriptionFocus)
+                .font(.body).foregroundStyle(Color.textSecondary).textFieldStyle(.plain).lineLimit(1...4).focused($descriptionFocus)
                 .onChange(of: descriptionFocus) { _, f in if !f { commitDescription(project) } }
         }
         .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
@@ -131,10 +131,10 @@ struct ProjectView: View {
 
     private var breadcrumb: some View {
         HStack(spacing: 4) {
-            Text("projects.mine").foregroundStyle(.secondary)
+            Text("projects.mine").foregroundStyle(Color.textSecondary)
             ForEach(ancestors) { p in
                 Text(verbatim: "/").foregroundStyle(.tertiary)
-                Button { model.selectedProjectID = p.id } label: { Text(verbatim: p.name) }.buttonStyle(.plain).foregroundStyle(.secondary)
+                Button { model.selectedProjectID = p.id } label: { Text(verbatim: p.name) }.buttonStyle(.plain).foregroundStyle(Color.textSecondary)
             }
             if !ancestors.isEmpty || project != nil { Text(verbatim: "/").foregroundStyle(.tertiary) }
         }
@@ -265,7 +265,7 @@ struct ProjectListView: View {
                             Text(verbatim: String(done.count)).fontWeight(.regular)
                             Spacer()
                         }
-                        .font(.subheadline.weight(.bold)).foregroundStyle(.secondary).textCase(nil)
+                        .font(.subheadline.weight(.bold)).foregroundStyle(Color.textSecondary).textCase(nil)
                     }
                     .buttonStyle(.plain)
                 }

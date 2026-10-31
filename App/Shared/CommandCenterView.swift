@@ -72,11 +72,11 @@ struct CommandCenterView: View {
                                 Text(verbatim: project.name)
                                 Image(systemName: "chevron.right").font(.caption2)
                             }
-                            .font(.subheadline).foregroundStyle(.secondary)
+                            .font(.subheadline).foregroundStyle(Color.textSecondary)
                         }
                         .buttonStyle(.plain)
                     } else {
-                        Text("cc.scope.account").font(.subheadline).foregroundStyle(.secondary)
+                        Text("cc.scope.account").font(.subheadline).foregroundStyle(Color.textSecondary)
                     }
                 }
                 Spacer()
@@ -203,12 +203,12 @@ struct LaneColumn: View {
             HStack(spacing: 6) {
                 Image(systemName: LanePresentation.symbol(lane.key)).foregroundStyle(LanePresentation.color(lane.key))
                 LanePresentation.title(lane.key, fallback: lane.title).font(.subheadline.weight(.bold))
-                Text(verbatim: String(lane.count)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                Text(verbatim: String(lane.count)).font(.subheadline).foregroundStyle(Color.textSecondary).monospacedDigit()
                 Spacer()
             }
             .padding(.horizontal, 4)
             if lane.cards.isEmpty {
-                Text("cc.lane.empty").font(.footnote).foregroundStyle(.secondary)
+                Text("cc.lane.empty").font(.footnote).foregroundStyle(Color.textSecondary)
                     .frame(maxWidth: .infinity, minHeight: 60)
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
             } else {
@@ -216,7 +216,7 @@ struct LaneColumn: View {
                     ForEach(lane.cards) { CommandCardView(cc: cc, card: $0, showProject: showProject) }
                 }
                 if lane.truncated {
-                    Text("cc.lane.truncated \(lane.count - lane.cards.count)").font(.caption).foregroundStyle(.secondary)
+                    Text("cc.lane.truncated \(lane.count - lane.cards.count)").font(.caption).foregroundStyle(Color.textSecondary)
                 }
             }
         }
@@ -246,7 +246,7 @@ struct CommandListSection: View {
                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             }
             if let total = cc.data?.total, total > cc.items.count {
-                Text("cc.list.more \(total - cc.items.count)").font(.footnote).foregroundStyle(.secondary).listRowBackground(Color.clear)
+                Text("cc.list.more \(total - cc.items.count)").font(.footnote).foregroundStyle(Color.textSecondary).listRowBackground(Color.clear)
             }
         }
         .listStyle(.plain)
@@ -270,9 +270,9 @@ struct UpdatesSection: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 6) {
                                 Text(verbatim: group.label ?? group.buildID).font(.subheadline.weight(.semibold))
-                                if let platform = group.platform { Text(verbatim: platform).font(.caption).foregroundStyle(.secondary) }
+                                if let platform = group.platform { Text(verbatim: platform).font(.caption).foregroundStyle(Color.textSecondary) }
                                 Spacer()
-                                Text(verbatim: CommandFormat.relative(group.createdAt)).font(.caption).foregroundStyle(.secondary)
+                                Text(verbatim: CommandFormat.relative(group.createdAt)).font(.caption).foregroundStyle(Color.textSecondary)
                             }
                             BuildStrip(builds: group.items, total: group.items.count)
                         }
@@ -293,14 +293,14 @@ struct UpdatesSection: View {
                                 }
                                 .font(.subheadline)
                                 if let text = update.text, !text.isEmpty {
-                                    Text(verbatim: text).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                                    Text(verbatim: text).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3)
                                 }
                                 HStack(spacing: 6) {
                                     Text(verbatim: update.projectName)
                                     if let who = update.actorName { Text(verbatim: who) }
                                     Text(verbatim: CommandFormat.relative(update.createdAt))
                                 }
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(.caption2).foregroundStyle(Color.textSecondary)
                             }
                         }
                         .contentShape(Rectangle())
@@ -336,7 +336,7 @@ struct QuestionsSection: View {
                             Text(verbatim: "#").foregroundStyle(Color.project(q.projectID))
                             Text(verbatim: project)
                         }
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.textSecondary)
                     }
                     QuestionAnswerView(prompt: q.prompt, options: q.options, asker: q.askerDisplay, blocking: q.blocking, askedAt: q.createdAt,
                         taskTitle: q.taskTitle, busy: cc.busy.contains(q.id)) { answer in
@@ -376,7 +376,7 @@ struct AgentBriefView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 8) {
-                Text("cc.brief.hint").font(.footnote).foregroundStyle(.secondary)
+                Text("cc.brief.hint").font(.footnote).foregroundStyle(Color.textSecondary)
                 TextEditor(text: $text)
                     .font(.system(.body, design: .monospaced))
                     .scrollContentBackground(.hidden)

@@ -57,8 +57,8 @@ struct TeamMembersView: View {
                     HStack {
                         Text(verbatim: m.displayName ?? "?")
                         Spacer()
-                        if m.isAdmin { Text("teams.admin").font(.caption).foregroundStyle(.secondary) }
-                        if !m.accepted { Text("teams.pending").font(.caption).foregroundStyle(.secondary) }
+                        if m.isAdmin { Text("teams.admin").font(.caption).foregroundStyle(Color.textSecondary) }
+                        if !m.accepted { Text("teams.pending").font(.caption).foregroundStyle(Color.textSecondary) }
                     }
                     .swipeActions {
                         Button("teams.remove", role: .destructive) { Task { await remove(m) } }
@@ -125,7 +125,7 @@ struct ShareView: View {
                             Image(systemName: g.principalType == .team ? "person.2" : "person")
                             Text(verbatim: name(of: g))
                             Spacer()
-                            roleText(g.role).foregroundStyle(.secondary)
+                            roleText(g.role).foregroundStyle(Color.textSecondary)
                         }
                         .swipeActions { Button("share.remove", role: .destructive) { Task { await remove(g) } } }
                     }

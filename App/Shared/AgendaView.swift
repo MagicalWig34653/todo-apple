@@ -8,7 +8,7 @@ struct ScreenHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.screenTitle)
-            if let subtitle { Text(verbatim: subtitle).font(.subheadline.weight(.medium)).foregroundStyle(.secondary) }
+            if let subtitle { Text(verbatim: subtitle).font(.subheadline.weight(.medium)).foregroundStyle(Color.textSecondary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -41,7 +41,7 @@ struct TodayView: View {
                         SectionHeaderLabel(title: "agenda.overdue", count: overdue.count, tint: .dueOverdue)
                         Button("agenda.reschedule") { Task { for p in overdue { await meta.schedule(p.task, to: DueFormat.today(), model) } } }
                             .font(.caption.weight(.semibold)).foregroundStyle(Color.brand).textCase(nil)
-                            .padding(.horizontal, Space.s + 2).padding(.vertical, 4).background(Color.brand.opacity(0.1), in: Capsule()).buttonStyle(.plain)
+                            .padding(.horizontal, Space.s + 2).padding(.vertical, 4).background(Color.brand.opacity(0.07), in: Capsule()).tapTarget().buttonStyle(.plain)
                     }
                 }
             }
@@ -97,7 +97,7 @@ struct UpcomingView: View {
                         let items = (groups[day] ?? []).sorted { ($0.planning.dueAt ?? day) < ($1.planning.dueAt ?? day) }
                         ForEach(items) { TaskRow(task: $0.task, showDue: DueFormat.hasTime($0.planning.dueAt ?? day)).taskRowInsets() }
                         if items.isEmpty {
-                            Text("agenda.dayEmpty").font(.footnote).foregroundStyle(.secondary).taskRowInsets()
+                            Text("agenda.dayEmpty").font(.footnote).foregroundStyle(Color.textSecondary).taskRowInsets()
                         }
                     } header: {
                         SectionHeaderLabel(title: nil, verbatim: dayTitle(day), count: groups[day]?.count)

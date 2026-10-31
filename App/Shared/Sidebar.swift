@@ -89,14 +89,14 @@ struct SidebarList: View {
                     RootDropZone()
                 }
                 if model.tree.isEmpty {
-                    Text("projects.none").font(.subheadline).foregroundStyle(.secondary)
+                    Text("projects.none").font(.subheadline).foregroundStyle(Color.textSecondary)
                 }
             } header: {
                 HStack {
                     Text("projects.mine")
                     Spacer()
                     Button { actions.addProject(nil) } label: { Image(systemName: "plus").tapTarget() }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                        .buttonStyle(.plain).foregroundStyle(Color.textSecondary)
                         .accessibilityLabel(Text("project.add"))
                 }
             }
@@ -122,7 +122,7 @@ struct SidebarList: View {
                     Text("help.title")
                     Spacer()
                 }
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline).foregroundStyle(Color.textSecondary)
                 .padding(.horizontal, 16).padding(.vertical, 10)
                 .contentShape(Rectangle())
             }
@@ -138,7 +138,7 @@ struct SidebarList: View {
             Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(model.projectColor(p.id)).frame(width: 18)
             Text(verbatim: p.name).lineLimit(1)
             Spacer(minLength: 4)
-            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(Color.textSecondary).monospacedDigit() }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: p.name))
@@ -198,7 +198,7 @@ struct AccountHeader: View {
                     Text(verbatim: initials).font(.caption.weight(.bold)).foregroundStyle(.white)
                         .frame(width: 28, height: 28).background(Color.brand, in: Circle())
                     Text(verbatim: model.user?.displayName ?? "").font(.body.weight(.semibold)).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.textSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -207,14 +207,14 @@ struct AccountHeader: View {
             Button { showNotifications = true } label: {
                 Image(systemName: model.teamInvitations.isEmpty ? "bell" : "bell.badge").symbolRenderingMode(.multicolor).tapTarget()
             }
-            .buttonStyle(.plain).foregroundStyle(.secondary)
+            .buttonStyle(.plain).foregroundStyle(Color.textSecondary)
             .accessibilityLabel(Text("notifications.title"))
             .accessibilityValue(Text(verbatim: model.teamInvitations.isEmpty ? "" : String(localized: "notifications.invitations \(model.teamInvitations.count)")))
             .popover(isPresented: $showNotifications) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("notifications.title").font(.headline)
                     if model.teamInvitations.isEmpty {
-                        Text("notifications.empty").font(.subheadline).foregroundStyle(.secondary)
+                        Text("notifications.empty").font(.subheadline).foregroundStyle(Color.textSecondary)
                     } else {
                         Button { showNotifications = false; model.selection = .teams } label: {
                             Label { Text("notifications.invitations \(model.teamInvitations.count)") } icon: { Image(systemName: "person.2.badge.plus") }
@@ -297,7 +297,7 @@ struct LabelsView: View {
                         HStack {
                             Label { Text(verbatim: l.name) } icon: { Image(systemName: "tag").foregroundStyle(Color.project(l.id)) }
                             Spacer()
-                            Text(verbatim: String(meta.labelsByTask.values.filter { $0.contains { $0.id == l.id } }.count)).font(.caption).foregroundStyle(.secondary)
+                            Text(verbatim: String(meta.labelsByTask.values.filter { $0.contains { $0.id == l.id } }.count)).font(.caption).foregroundStyle(Color.textSecondary)
                         }
                         .contentShape(Rectangle())
                     }
@@ -381,7 +381,7 @@ struct RootDropZone: View {
     @Environment(AppModel.self) private var model
     @State private var targeted = false
     var body: some View {
-        Text("projects.dropRoot").font(.caption).foregroundStyle(.secondary)
+        Text("projects.dropRoot").font(.caption).foregroundStyle(Color.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 28)
             .background(targeted ? Color.brand.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
             .dropDestination(for: BoardDrag.self) { items, _ in

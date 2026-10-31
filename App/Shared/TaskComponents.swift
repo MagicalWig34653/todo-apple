@@ -241,7 +241,7 @@ struct TaskRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(.easeOut(duration: 0.2), value: checked)
             if !task.description.isEmpty {
-                Text(verbatim: task.description).font(.footnote).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                Text(verbatim: task.description).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
             }
             metaLine
         }
@@ -260,7 +260,7 @@ struct TaskRow: View {
             layout {
                 // Priority is never color alone: flag symbol plus "P1".."P3" next to the colored ring.
                 if priority > 0 && !task.isDone {
-                    MetaItem(symbol: "flag.fill", text: "P\(4 - priority)", tint: Color.priority(priority))
+                    MetaItem(symbol: "flag.fill", text: "P\(4 - priority)", tint: Color.priority(priority), textTint: Color.textSecondary)
                 }
                 if let due {
                     MetaItem(symbol: planning?.recurrence != nil ? "arrow.triangle.2.circlepath" : "calendar", text: DueFormat.text(due),
@@ -274,7 +274,7 @@ struct TaskRow: View {
                         Text(verbatim: project.name).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                         ProjectDot(id: project.id, size: 7)
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
                     .layoutPriority(-1)
                 }
             }
@@ -325,7 +325,7 @@ struct SectionHeaderLabel: View {
     var body: some View {
         HStack(spacing: 6) {
             if let title { Text(title) } else if let verbatim { Text(verbatim: verbatim) }
-            if let count { Text(verbatim: String(count)).foregroundStyle(.secondary).fontWeight(.regular) }
+            if let count { Text(verbatim: String(count)).foregroundStyle(Color.textSecondary).fontWeight(.regular) }
             Spacer()
         }
         .font(.sectionTitle)

@@ -1,6 +1,9 @@
 #if DEBUG
 import Foundation
 import TodoCore
+#if os(macOS)
+import AppKit
+#endif
 
 /// Debug builds only: lets a simulator run start signed in and on a given screen without passkey hardware
 /// (`SIMCTL_CHILD_TODO_DEBUG_SERVER`, `..._TOKEN`, `..._SELECT`). Never compiled into release/TestFlight builds.
@@ -47,6 +50,23 @@ enum DebugLaunch {
             try? await Task.sleep(for: .milliseconds(300))
         }
     }
+
+    #if os(macOS)
+    /// `TODO_DEBUG_SNAPSHOT=<png path>[:<seconds>]` (macOS): writes the main window to a PNG and quits. Exists because
+    /// `screencapture` needs a screen-recording permission that headless agent runs do not have.
+    static func snapshotIfRequested() {
+        guard let spec = env["TODO_DEBUG_SNAPSHOT"] else { return }
+        let parts = spec.components(separatedBy: ":")
+        let delay = parts.count > 1 ? Double(parts[1]) ?? 8 : 8
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard let view = NSApp.windows.first(where: { $0.isVisible })?.contentView?.superview ?? NSApp.windows.first?.contentView,
+                  let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(2) }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: parts[0]))
+            exit(0)
+        }
+    }
+    #endif
 
     /// `TODO_DEBUG_SELECT`: today | upcoming | search | teams | project:<name> | task:<title>
     static func navigate(model: AppModel) async {

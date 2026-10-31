@@ -23,7 +23,7 @@ struct SearchView: View {
                     Section {
                         ForEach(meta.allLabels) { l in
                             Button { query = l.name; Task { await run(label: l) } } label: {
-                                Label { Text(verbatim: l.name) } icon: { Image(systemName: "tag").foregroundStyle(.secondary) }
+                                Label { Text(verbatim: l.name) } icon: { Image(systemName: "tag").foregroundStyle(Color.textSecondary) }
                             }
                             .buttonStyle(.plain).taskRowInsets()
                         }

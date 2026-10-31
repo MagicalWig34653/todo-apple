@@ -188,3 +188,10 @@ Anlass: Konto in der PWA mit Passkey eines anderen Passwortmanagers angelegt; di
 
 ## Checkpoint TestFlight (2026-10-30, spaet)
 iOS Build 2610302335 (Delivery 773c19b8-afb2-44d4-b13e-c0203b997aab) und macOS Build 2610302340 (Delivery 4c0d573d-0736-4933-9744-f9be5c0af2cc) hochgeladen (Redesign, Steuerzentrale, Recovery-Flow, Passkey-Fehlertexte). Verarbeitung in App Store Connect ungeprueft. Details: docs/TESTFLIGHT.md.
+
+## Checkpoint 31.10.2026 HIG-Abgleich und Todolino
+- Umbenennung (nur Anzeige): Display-/Bundle-Name "Todolino" (project.yml, `InfoPlist.xcstrings`), Login, `app.title`, Fenstertitel, Face-ID/Netzwerktexte, README, TESTFLIGHT.md. Bundle-IDs/Targets unveraendert.
+- `docs/HIG-AUDIT.md`: Befunde und Status. Umgesetzt: Commands/Menues/Settings, Inspector (iPad/Mac), Undo, Swipe/Kontextmenue/ShareLink/Drag, A11y-Labels/Aktionen/Badges, Kontrastfarben + Hoher Kontrast, Reduce Motion, ScaledMetric/AX-Layouts, Plural.
+- UI-Test-Target `Todo-iOS-UITests` (project.yml, `App/UITests`): Aufrufe mit `TEST_RUNNER_TODO_UITEST_SERVER/_TOKEN` (Seed per `testSeedDemoData`). 3 Accessibility-Audits laufen (Hit-Area/Element hart, Contrast/Dynamic Type als Anhang); `testCreateCompleteAndOpenDetail` scheitert noch (offen).
+- Geprueft: TodoCore 122 Tests (17 live uebersprungen) gruen; Builds iOS/macOS/watchOS gruen; macOS-App real gestartet (Snapshot per DEBUG `TODO_DEBUG_SNAPSHOT`, `docs/screenshots/hig-mac-inspector.png`); iPhone-Simulator gegen isolierten Stack (todo-apple-hig, abgebaut). Nicht geprueft: iPad-Screens nach Aenderung, Hoher Kontrast/AX5 per Screenshot (Simulator wurde vom Testlauf heruntergefahren), VoiceOver real.
+

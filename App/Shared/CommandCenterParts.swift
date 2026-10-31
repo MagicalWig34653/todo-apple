@@ -205,7 +205,7 @@ struct BuildStrip: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.hairline, lineWidth: 1))
                             if let label = b.label ?? b.platform {
-                                Text(verbatim: label).font(.caption2).foregroundStyle(.secondary).lineLimit(1).frame(width: 84, alignment: .leading)
+                                Text(verbatim: label).font(.caption2).foregroundStyle(Color.textSecondary).lineLimit(1).frame(width: 84, alignment: .leading)
                             }
                         }
                     }
@@ -213,7 +213,7 @@ struct BuildStrip: View {
                     .accessibilityLabel(Text("cc.build.open"))
                 }
                 if total > builds.count {
-                    Text("cc.build.more \(total - builds.count)").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
+                    Text("cc.build.more \(total - builds.count)").font(.caption).foregroundStyle(Color.textSecondary).padding(.horizontal, 4)
                 }
             }
         }
@@ -260,14 +260,14 @@ struct QuestionAnswerView: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "questionmark.bubble.fill").foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 2) {
-                    if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text(verbatim: prompt).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 6) {
                         if let asker { Text(verbatim: asker) }
                         if askedAt != nil { Text(verbatim: CommandFormat.relative(askedAt)) }
                         if blocking { Text("cc.question.blocking").foregroundStyle(.orange) }
                     }
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.textSecondary)
                 }
             }
             if options.isEmpty {
@@ -322,14 +322,14 @@ struct ReviewDecisionView: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "eye.fill").foregroundStyle(.purple)
                 VStack(alignment: .leading, spacing: 2) {
-                    if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text("cc.review.title").font(.subheadline.weight(.semibold))
                     Text(verbatim: summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 6) {
                         if let requestedBy { Text(verbatim: requestedBy) }
                         if requestedAt != nil { Text(verbatim: CommandFormat.relative(requestedAt)) }
                     }
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.textSecondary)
                 }
             }
             if asking {
@@ -391,7 +391,7 @@ struct CommandCardView: View {
                 }
             }
             if card.openQuestionCount > card.questions.count {
-                Text("cc.question.moreOpen \(card.openQuestionCount - card.questions.count)").font(.caption).foregroundStyle(.secondary)
+                Text("cc.question.moreOpen \(card.openQuestionCount - card.questions.count)").font(.caption).foregroundStyle(Color.textSecondary)
             }
             if let review = card.pendingReview {
                 ReviewDecisionView(summary: review.summary, requestedBy: review.requestedByLabel, requestedAt: review.createdAt,
@@ -417,7 +417,7 @@ struct CommandCardView: View {
         HStack(spacing: 6) {
             if showProject {
                 Text(verbatim: "#").font(.caption.weight(.bold)).foregroundStyle(Color.project(card.project.id))
-                Text(verbatim: card.project.name).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(verbatim: card.project.name).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             if card.isFeature {
@@ -435,7 +435,7 @@ struct CommandCardView: View {
                 Text(verbatim: "\(card.progress.percent) %").monospacedDigit().fontWeight(.semibold)
                 CommandFormat.progressText(card.progress)
             }
-            .font(.caption).foregroundStyle(.secondary)
+            .font(.caption).foregroundStyle(Color.textSecondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -444,7 +444,7 @@ struct CommandCardView: View {
         HStack(spacing: 6) {
             Image(systemName: "cpu").foregroundStyle(.blue)
             if let label = agent.claimedLabel { Text(verbatim: label).fontWeight(.medium) }
-            if let state = agent.jobState { CommandFormat.jobState(state).foregroundStyle(.secondary) }
+            if let state = agent.jobState { CommandFormat.jobState(state).foregroundStyle(Color.textSecondary) }
         }
         .font(.footnote)
     }
@@ -456,7 +456,7 @@ struct CommandCardView: View {
                 if let who = update.actorLabel { Text(verbatim: who) }
                 if update.at != nil { Text(verbatim: CommandFormat.relative(update.at)) }
             }
-            .font(.caption2).foregroundStyle(.secondary)
+            .font(.caption2).foregroundStyle(Color.textSecondary)
         }
     }
 
@@ -468,7 +468,7 @@ struct CommandCardView: View {
                         .foregroundStyle(s.status == "done" ? Color.green : Color.secondary)
                     Text(verbatim: s.title).lineLimit(1).strikethrough(s.status == "done")
                     Spacer(minLength: 4)
-                    Text(verbatim: "\(s.progressPercent) %").foregroundStyle(.secondary).monospacedDigit()
+                    Text(verbatim: "\(s.progressPercent) %").foregroundStyle(Color.textSecondary).monospacedDigit()
                 }
                 .font(.caption)
             }

@@ -9,6 +9,8 @@ import AppKit
 /// Design tokens. The colors live in `Assets.xcassets` (light and dark variants); nothing else hard-codes colors.
 extension Color {
     static let brand = Color("Brand")
+    /// Secondary text with at least 4.5:1 contrast (the system secondary label is about 3.4:1 on white).
+    static let textSecondary = Color("TextSecondary")
     static let canvas = Color("Canvas")
     static let canvasRaised = Color("CanvasRaised")
     static let hairline = Color("Hairline")
@@ -163,7 +165,7 @@ enum Radius {
 /// Type scale. Rounded design for headings gives the app its own voice; all styles scale with Dynamic Type.
 extension Font {
     static let screenTitle = Font.system(.largeTitle, design: .rounded).weight(.bold)
-    static let sectionTitle = Font.system(.subheadline, design: .rounded).weight(.bold)
+    static let sectionTitle = Font.system(.subheadline, design: .rounded, weight: .bold)
     static let rowTitle = Font.system(.body, design: .default).weight(.regular)
     static let rowMeta = Font.system(.caption, design: .default).weight(.medium)
     static let detailTitle = Font.system(.title2, design: .rounded).weight(.bold)
@@ -260,11 +262,11 @@ struct LabelChip: View {
     let name: String
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "tag.fill").font(.caption2).imageScale(.small)
+            Image(systemName: "tag.fill").font(.caption2).imageScale(.small).foregroundStyle(Color.project(name.hashValueUUID))
             Text(verbatim: name).lineLimit(1)
         }
         .font(.caption2.weight(.semibold))
-        .foregroundStyle(Color.project(name.hashValueUUID))
+        .foregroundStyle(Color.textSecondary)
         .padding(.horizontal, 7).padding(.vertical, 2)
         .background(Color.project(name.hashValueUUID).opacity(0.13), in: Capsule())
     }
@@ -283,14 +285,15 @@ extension String {
 struct MetaItem: View {
     let symbol: String
     let text: String
-    var tint: Color = .secondary
+    var tint: Color = Color.textSecondary
+    /// Text color when it differs from the symbol tint (low-contrast hues keep their color on the symbol only).
+    var textTint: Color?
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: symbol).font(.caption2.weight(.semibold))
-            Text(verbatim: text).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+            Image(systemName: symbol).font(.caption2.weight(.semibold)).foregroundStyle(tint)
+            Text(verbatim: text).lineLimit(typeSize.isAccessibilitySize ? nil : 1).foregroundStyle(textTint ?? tint)
         }
-        .foregroundStyle(tint)
     }
 }
 
@@ -321,7 +324,7 @@ struct EmptyState: View {
             .frame(height: 180)
             .accessibilityHidden(true)
             Text(title).font(.system(.title3, design: .rounded).weight(.semibold)).multilineTextAlignment(.center)
-            if let message { Text(message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+            if let message { Text(message).font(.subheadline).foregroundStyle(Color.textSecondary).multilineTextAlignment(.center) }
         }
         .padding(Space.xxl)
         .frame(maxWidth: 380)

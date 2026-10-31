@@ -47,7 +47,7 @@ struct BoardView: View {
                     }
                 } label: {
                     Label("board.column.add", systemImage: "plus")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(Color.textSecondary)
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .frame(width: 200, alignment: .leading)
                         .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: 12))
@@ -141,7 +141,7 @@ struct BoardColumnView: View {
         let base = HStack(spacing: 6) {
             if let color = Color(hex: column.color) { Circle().fill(color).frame(width: 9, height: 9) }
             title.font(.headline).lineLimit(1)
-            Text(verbatim: String(tasks.count)).font(.subheadline).foregroundStyle(.secondary)
+            Text(verbatim: String(tasks.count)).font(.subheadline).foregroundStyle(Color.textSecondary)
             Spacer(minLength: 4)
             if column.isReal { columnMenu }
         }
@@ -164,7 +164,7 @@ struct BoardColumnView: View {
             Divider()
             Button(role: .destructive) { confirmDelete = true } label: { Label("board.column.delete", systemImage: "trash") }
         } label: {
-            Image(systemName: "ellipsis").foregroundStyle(.secondary).frame(width: 28, height: 24).contentShape(Rectangle())
+            Image(systemName: "ellipsis").foregroundStyle(Color.textSecondary).frame(width: 28, height: 24).contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
         .accessibilityLabel(Text("board.column.menu"))
@@ -188,7 +188,7 @@ struct BoardColumnView: View {
         } else {
             Button { adding = true; focus = true } label: {
                 Label("board.task.add", systemImage: "plus")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.subheadline).foregroundStyle(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10).padding(.vertical, 9)
                     .contentShape(Rectangle())
@@ -226,7 +226,7 @@ struct BoardCard: View {
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !task.description.isEmpty {
-                        Text(verbatim: task.description).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                        Text(verbatim: task.description).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(2)
                             .multilineTextAlignment(.leading)
                     }
                     meta_line

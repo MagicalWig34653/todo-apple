@@ -52,7 +52,7 @@ struct ProjectCommentsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
                                 Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
-                                if let d = c.createdAt { Text(d, style: .relative).font(.caption).foregroundStyle(.secondary) }
+                                if let d = c.createdAt { Text(d, style: .relative).font(.caption).foregroundStyle(Color.textSecondary) }
                             }
                             Text(verbatim: c.body).font(.subheadline).textSelection(.enabled)
                         }
@@ -135,11 +135,11 @@ struct ActivityView: View {
         List {
             ForEach(model.items) { item in
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: Self.symbol(item)).foregroundStyle(.secondary).frame(width: 22)
+                    Image(systemName: Self.symbol(item)).foregroundStyle(Color.textSecondary).frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
                             Text(verbatim: actor(item)).fontWeight(.semibold)
-                            activityText(item.kind).foregroundStyle(.secondary)
+                            activityText(item.kind).foregroundStyle(Color.textSecondary)
                         }
                         .font(.subheadline)
                         if let title = item.taskTitle { Text(verbatim: title).font(.subheadline).lineLimit(2) }
@@ -148,7 +148,7 @@ struct ActivityView: View {
                             Text(verbatim: item.projectName)
                             if let d = item.createdAt { Text(d, style: .relative) }
                         }
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.textSecondary)
                     }
                 }
                 .contentShape(Rectangle())
@@ -235,28 +235,28 @@ struct AgentsView: View {
                 ForEach(model.devices) { d in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Image(systemName: "desktopcomputer").foregroundStyle(.secondary)
+                            Image(systemName: "desktopcomputer").foregroundStyle(Color.textSecondary)
                             Text(verbatim: d.label).font(.body.weight(.semibold))
                             Spacer()
                             if d.revokedAt != nil { Text("runner.revoked").foregroundStyle(.red) }
                             else if !d.paired { Text("runner.unpaired").foregroundStyle(.orange) }
                             else if d.activeRunCount > 0 { Text("runner.active \(d.activeRunCount)").foregroundStyle(Color.brand) }
-                            else { Text("runner.idle").foregroundStyle(.secondary) }
+                            else { Text("runner.idle").foregroundStyle(Color.textSecondary) }
                         }
                         .font(.subheadline)
                         ForEach(d.bindings) { b in
                             HStack(spacing: 6) {
                                 ProjectDot(id: b.projectID, size: 7)
                                 Text(verbatim: app.projects.first { $0.id == b.projectID }?.name ?? b.label)
-                                Text(verbatim: b.repositoryKey).foregroundStyle(.secondary)
+                                Text(verbatim: b.repositoryKey).foregroundStyle(Color.textSecondary)
                             }
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Color.textSecondary)
                         }
                     }
                     .padding(.vertical, 2)
                 }
                 if model.loaded && model.devices.isEmpty {
-                    Text("runner.noDevices").font(.subheadline).foregroundStyle(.secondary)
+                    Text("runner.noDevices").font(.subheadline).foregroundStyle(Color.textSecondary)
                 }
             } header: { SectionHeaderLabel(title: "runner.devices") }
             Section {
@@ -270,22 +270,22 @@ struct AgentsView: View {
                                 .background(Self.tint(item.job.state).opacity(0.15), in: Capsule())
                                 .foregroundStyle(Self.tint(item.job.state))
                         }
-                        if let p = item.job.progress, !p.isEmpty { Text(verbatim: p).font(.footnote).foregroundStyle(.secondary).lineLimit(2) }
-                        if let r = item.job.result { Text(verbatim: r.summary).font(.footnote).foregroundStyle(.secondary).lineLimit(3) }
+                        if let p = item.job.progress, !p.isEmpty { Text(verbatim: p).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(2) }
+                        if let r = item.job.result { Text(verbatim: r.summary).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3) }
                         HStack(spacing: 6) {
                             ProjectDot(id: item.job.projectID, size: 7)
                             Text(verbatim: item.projectName)
                             Text(item.job.mode == "clarify" ? "job.mode.clarify" : "job.mode.implement")
                             if let d = item.createdAt { Text(d, style: .relative) }
                         }
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.textSecondary)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { if let t = app.tasks.first(where: { $0.id == item.job.taskID }) { app.path = [t] } }
                     .accessibilityAddTraits(.isButton)
                 }
                 if model.loaded && model.jobs.isEmpty {
-                    Text(model.forbidden ? "runner.jobsOwnerOnly" : "runner.noJobs").font(.subheadline).foregroundStyle(.secondary)
+                    Text(model.forbidden ? "runner.jobsOwnerOnly" : "runner.noJobs").font(.subheadline).foregroundStyle(Color.textSecondary)
                 }
             } header: { SectionHeaderLabel(title: "runner.jobs") }
         }

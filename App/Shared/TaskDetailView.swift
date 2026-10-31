@@ -217,7 +217,7 @@ struct TaskDetailView: View {
             HStack(spacing: 5) {
                 ProjectDot(id: model.task.projectID, size: 8)
                 Text(verbatim: project?.name ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.textSecondary)
             }
             .foregroundStyle(.primary)
         }
@@ -241,7 +241,7 @@ struct TaskDetailView: View {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "text.alignleft").font(.footnote).foregroundStyle(.tertiary).padding(.top, 3)
                     TextField("task.description", text: $text, axis: .vertical)
-                        .font(.body).foregroundStyle(.secondary).lineLimit(1...12)
+                        .font(.body).foregroundStyle(Color.textSecondary).lineLimit(1...12)
                 }
             }
         }
@@ -277,7 +277,7 @@ struct TaskDetailView: View {
             IconTile(symbol: icon, tint: tint, size: 26)
             Text(label).foregroundStyle(.primary)
             Spacer(minLength: Space.s)
-            value().multilineTextAlignment(.trailing).foregroundStyle(.secondary)
+            value().multilineTextAlignment(.trailing).foregroundStyle(Color.textSecondary)
         }
         .font(.subheadline)
         .frame(minHeight: 46)
@@ -420,7 +420,7 @@ struct TaskDetailView: View {
             HStack {
                 Text("task.subtasks").font(.sectionTitle)
                 if !model.subtasks.isEmpty {
-                    Text(verbatim: "\(model.subtasks.filter(\.isDone).count)/\(model.subtasks.count)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(verbatim: "\(model.subtasks.filter(\.isDone).count)/\(model.subtasks.count)").font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
             }
@@ -458,11 +458,11 @@ struct TaskDetailView: View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: 6) {
                 Text("task.comments").font(.sectionTitle)
-                if !model.comments.isEmpty { Text(verbatim: String(model.comments.count)).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
+                if !model.comments.isEmpty { Text(verbatim: String(model.comments.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary) }
                 Spacer()
             }
             if model.comments.isEmpty {
-                Text("comment.empty").font(.footnote).foregroundStyle(.secondary)
+                Text("comment.empty").font(.footnote).foregroundStyle(Color.textSecondary)
             }
             ForEach(model.comments) { c in
                 HStack(alignment: .top, spacing: Space.s + 2) {
@@ -513,7 +513,7 @@ struct TaskDetailView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).rotationEffect(.degrees(showActivity ? 90 : 0))
                         Text("task.activity").font(.sectionTitle)
-                        Text(verbatim: String(model.activity.count)).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(verbatim: String(model.activity.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
                         Spacer()
                     }
                     .contentShape(Rectangle())
@@ -528,7 +528,7 @@ struct TaskDetailView: View {
                                 HStack {
                                     if let name = a.actorName { Text(verbatim: name) }
                                     if let at = a.createdAt { Text(at, format: .dateTime.day().month().hour().minute()) }
-                                }.font(.caption2).foregroundStyle(.secondary)
+                                }.font(.caption2).foregroundStyle(Color.textSecondary)
                             }
                         }
                     }

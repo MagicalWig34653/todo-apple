@@ -27,6 +27,7 @@ struct QuickAddSheet: View {
     @State private var saving = false
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .body) private var sendSize: CGFloat = 44
 
     private var chosenProject: Project? { model.projects.first { $0.id == project } }
@@ -40,7 +41,7 @@ struct QuickAddSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.canvas)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: recognized)
-        .presentationDetents([.medium, .large])
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         #if os(macOS)
@@ -68,16 +69,15 @@ struct QuickAddSheet: View {
                 .onChange(of: title) { _, new in applyParse(new) }
                 .accessibilityIdentifier("quickAddTitle")
             if !recognized.isEmpty {
-                HStack(spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Image(systemName: "sparkles").foregroundStyle(Color.tileOrange)
-                    Text("quickAdd.recognized")
-                    Text(verbatim: recognized.joined(separator: " · ")).fontWeight(.semibold)
+                    Text("quickAdd.recognized") + Text(verbatim: " ") + Text(verbatim: recognized.joined(separator: " · ")).fontWeight(.semibold)
                 }
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .font(.caption).foregroundStyle(Color.textSecondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                 .transition(.opacity)
             }
             TextField("quickAdd.notes", text: $notes, axis: .vertical)
-                .font(.subheadline).foregroundStyle(.secondary).lineLimit(1...3)
+                .font(.subheadline).foregroundStyle(Color.textSecondary).lineLimit(1...3)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -96,10 +96,11 @@ struct QuickAddSheet: View {
                 }
             }
 
-            HStack(spacing: 10) {
+            let bottomLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+            bottomLayout {
                 priorityMenu
                 labelMenu
-                Spacer(minLength: 0)
+                if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
                 Button { save() } label: {
                     Image(systemName: "arrow.up")
                         .font(.body.weight(.bold)).foregroundStyle(.white)
@@ -145,8 +146,9 @@ struct QuickAddSheet: View {
             Image(systemName: icon).font(.footnote)
             if let key { Text(key) } else if let text { Text(verbatim: text) }
         }
+        .fixedSize(horizontal: true, vertical: false)
         .font(.footnote.weight(.medium))
-        .foregroundStyle(active ? tint : Color.secondary)
+        .foregroundStyle(active ? tint : Color.textSecondary)
         .padding(.horizontal, 11).padding(.vertical, 7)
         .background(active ? tint.opacity(0.13) : Color.canvasRaised, in: Capsule())
         .overlay(Capsule().strokeBorder(active ? tint.opacity(0.5) : Color.hairline, lineWidth: 1))
@@ -197,6 +199,7 @@ struct QuickAddSheet: View {
                 Image(systemName: "chevron.down").font(.caption2)
             }
             .font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+            .tapTarget()
         }
         .menuStyle(.button).buttonStyle(.plain)
     }
