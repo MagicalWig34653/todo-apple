@@ -36,7 +36,7 @@ final class TodoUITests: XCTestCase {
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
         XCTAssertTrue(field.waitForNonExistence(timeout: 10), "sheet dismissed")
         // The task is created from "Heute" and therefore planned for today; it is not in "Eingang" (tasks without a date).
-        for _ in 0..<6 where !row.waitForExistence(timeout: 3) { app.swipeUp() }
+        for _ in 0..<12 where !row.waitForExistence(timeout: 3) { app.swipeUp() }
         XCTAssertTrue(row.exists, "new task row in Heute")
 
         // Open the detail sheet.
@@ -53,6 +53,23 @@ final class TodoUITests: XCTestCase {
         let gone = NSPredicate(format: "exists == false")
         expectation(for: gone, evaluatedWith: row)
         waitForExpectations(timeout: 15)
+    }
+
+    /// The title field wraps (vertical axis); the keyboard's Return key must still save, not insert a line break.
+    func testQuickAddReturnKeySaves() throws {
+        let title = "UITest Return \(Int(Date().timeIntervalSince1970) % 100000)"
+        app.buttons["quickAddButton"].tap()
+        let field = app.textFields["quickAddTitle"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText(title + "\n")
+        XCTAssertTrue(field.waitForNonExistence(timeout: 10), "Return saved and dismissed the sheet")
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        for _ in 0..<12 where !row.waitForExistence(timeout: 3) { app.swipeUp() }
+        XCTAssertTrue(row.exists, "task created by Return")
+        // Clean up so repeated runs do not pile tasks into "Heute".
+        row.swipeRight()
+        let done = app.buttons.matching(identifier: "Als erledigt markieren").firstMatch
+        if done.waitForExistence(timeout: 5) { done.tap() }
     }
 
     /// Runs the audit and prints every issue (type, element label, description); fails on all of them.

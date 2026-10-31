@@ -7,7 +7,7 @@ struct ScreenHeader: View {
     var subtitle: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.screenTitle)
+            Text(title).font(.screenTitle).lineLimit(1).minimumScaleFactor(0.5)
             if let subtitle { Text(verbatim: subtitle).font(.subheadline.weight(.medium)).foregroundStyle(Color.textSecondary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -37,7 +37,7 @@ struct TodayView: View {
                 Section {
                     ForEach(overdue) { TaskRow(task: $0.task).taskRowInsets() }
                 } header: {
-                    HStack {
+                    AdaptiveStack {
                         SectionHeaderLabel(title: "agenda.overdue", count: overdue.count, tint: .dueOverdue)
                         Button("agenda.reschedule") { Task { for p in overdue { await meta.schedule(p.task, to: DueFormat.today(), model) } } }
                             .font(.caption.weight(.semibold)).foregroundStyle(Color.brand).textCase(nil)
@@ -129,6 +129,8 @@ struct WeekStrip: View {
     let hasTasks: (Date) -> Bool
     let onSelect: (Date) -> Void
     private let cal = Calendar.current
+    @ScaledMetric(relativeTo: .body) private var cellWidth: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var cellHeight: CGFloat = 62
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -138,12 +140,12 @@ struct WeekStrip: View {
                     Button { Haptics.select(); selected = day; onSelect(day) } label: {
                         VStack(spacing: 4) {
                             Text(day.formatted(.dateTime.weekday(.narrow))).font(.caption2.weight(.medium))
-                                .foregroundStyle(isSelected ? Color.white.opacity(0.9) : Color.secondary)
+                                .foregroundStyle(isSelected ? Color.white.opacity(0.9) : Color.textSecondary)
                             Text(day.formatted(.dateTime.day())).font(.callout.weight(.semibold))
                                 .foregroundStyle(isSelected ? Color.white : (cal.isDateInToday(day) ? Color.brand : Color.primary))
                             Circle().fill(hasTasks(day) ? (isSelected ? Color.white : Color.brand) : Color.clear).frame(width: 4, height: 4)
                         }
-                        .frame(width: 44, height: 62)
+                        .frame(width: min(cellWidth, 70), height: min(cellHeight, 100))
                         .background(isSelected ? Color.brand : (cal.isDateInToday(day) ? Color.brand.opacity(0.1) : Color.clear), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                         .shadow(color: isSelected ? Color.brand.opacity(0.3) : .clear, radius: 6, y: 3)
                         .contentShape(Rectangle())
@@ -153,6 +155,8 @@ struct WeekStrip: View {
             }
             .padding(.horizontal, 12)
         }
+        // The cells are fixed-size controls: their text stops growing at the largest regular size, the cell frame scales on.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
         .listRowBackground(Color.canvas)

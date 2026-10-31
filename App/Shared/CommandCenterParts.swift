@@ -6,13 +6,13 @@ import TodoCore
 enum LanePresentation {
     static func color(_ key: String) -> Color {
         switch key {
-        case "running": .blue
-        case "question": .orange
-        case "review": .purple
-        case "ready": .teal
-        case "blocked": .red
-        case "done": .green
-        default: .gray
+        case "running": Color.priority(1)
+        case "question": Color.priority(2)
+        case "review": Color.chipPurple
+        case "ready": Color.chipTeal
+        case "blocked": Color.dueOverdue
+        case "done": Color.dueToday
+        default: Color.textSecondary
         }
     }
 
@@ -258,21 +258,21 @@ struct QuestionAnswerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "questionmark.bubble.fill").foregroundStyle(.orange)
+                Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.priority(2))
                 VStack(alignment: .leading, spacing: 2) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text(verbatim: prompt).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 6) {
                         if let asker { Text(verbatim: asker) }
                         if askedAt != nil { Text(verbatim: CommandFormat.relative(askedAt)) }
-                        if blocking { Text("cc.question.blocking").foregroundStyle(.orange) }
+                        if blocking { Text("cc.question.blocking").foregroundStyle(Color.priority(2)) }
                     }
                     .font(.caption).foregroundStyle(Color.textSecondary)
                 }
             }
             if options.isEmpty {
                 HStack(alignment: .bottom, spacing: 8) {
-                    TextField("cc.question.placeholder", text: $text, axis: .vertical)
+                    TextField(accessible: "cc.question.placeholder", text: $text, axis: .vertical)
                         .textFieldStyle(.roundedBorder).lineLimit(1...5)
                         .onSubmit(send)
                     Button(action: send) { Image(systemName: "paperplane.fill") }
@@ -292,7 +292,7 @@ struct QuestionAnswerView: View {
         .controlSize(.small)
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.priority(2).opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
         .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(8) } }
     }
 
@@ -320,7 +320,7 @@ struct ReviewDecisionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "eye.fill").foregroundStyle(.purple)
+                Image(systemName: "eye.fill").foregroundStyle(Color.chipPurple)
                 VStack(alignment: .leading, spacing: 2) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text("cc.review.title").font(.subheadline.weight(.semibold))
@@ -333,7 +333,7 @@ struct ReviewDecisionView: View {
                 }
             }
             if asking {
-                TextField("cc.review.notePlaceholder", text: $note, axis: .vertical)
+                TextField(accessible: "cc.review.notePlaceholder", text: $note, axis: .vertical)
                     .textFieldStyle(.roundedBorder).lineLimit(2...6)
                 HStack {
                     Button("cc.review.sendChanges") { onDecision(.requestChanges, note); asking = false; note = "" }
@@ -353,7 +353,7 @@ struct ReviewDecisionView: View {
         .controlSize(.small)
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.purple.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.chipPurple.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
         .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(8) } }
     }
 }
@@ -381,7 +381,7 @@ struct CommandCardView: View {
             if let agent = card.agent, agent.claimedLabel != nil || agent.jobState != nil { agentRow(agent) }
             if let reason = card.blockedReason, !reason.isEmpty {
                 Label { Text(verbatim: reason) } icon: { Image(systemName: "hand.raised.fill") }
-                    .font(.footnote).foregroundStyle(.red)
+                    .font(.footnote).foregroundStyle(Color.dueOverdue)
             }
             if let update = card.latestUpdate { latest(update) }
             ForEach(card.questions) { q in
@@ -422,8 +422,8 @@ struct CommandCardView: View {
             Spacer(minLength: 4)
             if card.isFeature {
                 Label("cc.feature", systemImage: "square.stack.3d.up.fill")
-                    .font(.caption2.weight(.semibold)).foregroundStyle(.indigo)
-                    .padding(.horizontal, 6).padding(.vertical, 2).background(Color.indigo.opacity(0.12), in: Capsule())
+                    .font(.caption2.weight(.semibold)).foregroundStyle(Color.chipPurple)
+                    .padding(.horizontal, 6).padding(.vertical, 2).background(Color.chipPurple.opacity(0.10), in: Capsule())
             }
         }
     }
@@ -442,7 +442,7 @@ struct CommandCardView: View {
 
     private func agentRow(_ agent: CommandCardAgent) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "cpu").foregroundStyle(.blue)
+            Image(systemName: "cpu").foregroundStyle(Color.priority(1))
             if let label = agent.claimedLabel { Text(verbatim: label).fontWeight(.medium) }
             if let state = agent.jobState { CommandFormat.jobState(state).foregroundStyle(Color.textSecondary) }
         }
@@ -465,7 +465,7 @@ struct CommandCardView: View {
             ForEach(card.subtasks) { s in
                 HStack(spacing: 6) {
                     Image(systemName: s.status == "done" ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(s.status == "done" ? Color.green : Color.secondary)
+                        .foregroundStyle(s.status == "done" ? Color.dueToday : Color.textSecondary)
                     Text(verbatim: s.title).lineLimit(1).strikethrough(s.status == "done")
                     Spacer(minLength: 4)
                     Text(verbatim: "\(s.progressPercent) %").foregroundStyle(Color.textSecondary).monospacedDigit()

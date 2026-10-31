@@ -22,7 +22,7 @@ struct TeamsView: View {
                 ForEach(model.teams) { team in
                     NavigationLink { TeamMembersView(team: team) } label: { Text(verbatim: team.name) }
                 }
-                TextField("teams.new", text: $newTeam).onSubmit { Task { await create() } }
+                TextField(accessible: "teams.new", text: $newTeam).onSubmit { Task { await create() } }
             }
         }
         .navigationTitle("view.teams")
@@ -66,7 +66,7 @@ struct TeamMembersView: View {
                 }
             }
             Section("teams.invite") {
-                TextField("users.search", text: $query).onSubmit { Task { await search() } }
+                TextField(accessible: "users.search", text: $query).onSubmit { Task { await search() } }
                 ForEach(found) { u in
                     Button { Task { await invite(u) } } label: { Text(verbatim: u.displayName) }
                 }
@@ -137,7 +137,7 @@ struct ShareView: View {
                     ForEach(model.teams) { team in
                         Button { Task { await add(.team, team.id) } } label: { Label { Text(verbatim: team.name) } icon: { Image(systemName: "person.2") } }
                     }
-                    TextField("users.search", text: $query).onSubmit { Task { await search() } }
+                    TextField(accessible: "users.search", text: $query).onSubmit { Task { await search() } }
                     ForEach(found) { u in
                         Button { Task { await add(.person, u.id) } } label: { Label { Text(verbatim: u.displayName) } icon: { Image(systemName: "person") } }
                     }

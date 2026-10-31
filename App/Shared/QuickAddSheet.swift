@@ -61,12 +61,21 @@ struct QuickAddSheet: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("quickAdd.title", text: $title)
+            TextField(accessible: "quickAdd.title", text: $title, axis: .vertical)
+                .lineLimit(1...6)
                 .font(.system(.title3, design: .rounded).weight(.semibold))
                 .focused($focused)
                 .submitLabel(.done)
                 .onSubmit { if canSave { save() } }
-                .onChange(of: title) { _, new in applyParse(new) }
+                .onChange(of: title) { _, new in
+                    // A wrapping (vertical-axis) field turns Return into a line break: treat it as "save" instead.
+                    if new.contains("\n") {
+                        title = new.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+                        if canSave { save() }
+                        return
+                    }
+                    applyParse(new)
+                }
                 .accessibilityIdentifier("quickAddTitle")
             if !recognized.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -76,25 +85,10 @@ struct QuickAddSheet: View {
                 .font(.caption).foregroundStyle(Color.textSecondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                 .transition(.opacity)
             }
-            TextField("quickAdd.notes", text: $notes, axis: .vertical)
+            TextField(accessible: "quickAdd.notes", text: $notes, axis: .vertical)
                 .font(.subheadline).foregroundStyle(Color.textSecondary).lineLimit(1...3)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    dueChip("due.today", date: DueFormat.today(), icon: "sun.max")
-                    dueChip("due.tomorrow", date: DueFormat.tomorrow(), icon: "sunrise")
-                    dueChip("due.weekend", date: DueFormat.weekend(), icon: "sofa")
-                    Button { pickingDate = true } label: {
-                        chip(icon: "calendar", text: customDueText, active: isCustomDue, tint: .brand)
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $pickingDate) {
-                        DatePicker("", selection: Binding(get: { due ?? DueFormat.tomorrow() }, set: { dueTouched = true; due = $0 }), displayedComponents: [.date, .hourAndMinute])
-                            .datePickerStyle(.graphical).labelsHidden().padding()
-                            .presentationCompactAdaptation(.popover)
-                    }
-                }
-            }
+            dueChips
 
             let bottomLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
             bottomLayout {
@@ -121,6 +115,31 @@ struct QuickAddSheet: View {
     }
 
     // MARK: pieces
+
+    /// Due chips: one scrolling row, or a column from the accessibility sizes on so no chip is cut off.
+    @ViewBuilder private var dueChips: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) { dueChipItems }
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { dueChipItems } }
+        }
+    }
+
+    @ViewBuilder private var dueChipItems: some View {
+        dueChip("due.today", date: DueFormat.today(), icon: "sun.max")
+        dueChip("due.tomorrow", date: DueFormat.tomorrow(), icon: "sunrise")
+        dueChip("due.weekend", date: DueFormat.weekend(), icon: "sofa")
+        Button { pickingDate = true } label: {
+            chip(icon: "calendar", text: customDueText, active: isCustomDue, tint: .brand)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $pickingDate) {
+            DatePicker("", selection: Binding(get: { due ?? DueFormat.tomorrow() }, set: { dueTouched = true; due = $0 }), displayedComponents: [.date, .hourAndMinute])
+                .datePickerStyle(.graphical).labelsHidden().padding()
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
 
     private var isCustomDue: Bool {
         guard let due else { return false }
@@ -150,7 +169,7 @@ struct QuickAddSheet: View {
         .font(.footnote.weight(.medium))
         .foregroundStyle(active ? tint : Color.textSecondary)
         .padding(.horizontal, 11).padding(.vertical, 7)
-        .background(active ? tint.opacity(0.13) : Color.canvasRaised, in: Capsule())
+        .background(active ? tint.opacity(0.10) : Color.canvasRaised, in: Capsule())
         .overlay(Capsule().strokeBorder(active ? tint.opacity(0.5) : Color.hairline, lineWidth: 1))
         .contentShape(Capsule())
         .tapTarget()
@@ -198,7 +217,7 @@ struct QuickAddSheet: View {
                 Text(verbatim: chosenProject?.name ?? String(localized: "projects.none"))
                 Image(systemName: "chevron.down").font(.caption2)
             }
-            .font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+            .font(.subheadline.weight(.medium)).foregroundStyle(Color.primary)
             .tapTarget()
         }
         .menuStyle(.button).buttonStyle(.plain)

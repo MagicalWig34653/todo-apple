@@ -159,7 +159,7 @@ struct SidebarList: View {
         if linking { NavigationLink(value: item) { content() } } else { content().tag(item) }
     }
 
-    private func row(_ item: SidebarItem, _ title: LocalizedStringKey, _ symbol: String, _ tint: Color, count: Int = 0, badgeTint: Color = .secondary) -> some View {
+    private func row(_ item: SidebarItem, _ title: LocalizedStringKey, _ symbol: String, _ tint: Color, count: Int = 0, badgeTint: Color = Color.textSecondary) -> some View {
         link(item) {
             HStack(spacing: Space.m) {
                 IconTile(symbol: symbol, tint: tint, size: 26)

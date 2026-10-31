@@ -6,6 +6,7 @@ import TodoCore
 struct CommandCenterView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var typeSize
     let projectID: UUID?
     @State private var cc: CommandCenterModel
     @State private var showBrief = false
@@ -64,7 +65,7 @@ struct CommandCenterView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("cc.title").font(.largeTitle.bold())
+                    Text("cc.title").font(.largeTitle.bold()).lineLimit(1).minimumScaleFactor(0.5)
                     if let project {
                         Button { app.selectedProjectID = project.id } label: {
                             HStack(spacing: 4) {
@@ -93,22 +94,27 @@ struct CommandCenterView: View {
         .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 10)
     }
 
-    private var summaryStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(CommandLane.allCases, id: \.self) { lane in
-                    chip(lane.rawValue, cc.summary.count(for: lane))
-                }
-                if cc.summary.activeAgents > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "cpu")
-                        Text("cc.summary.agents \(cc.summary.activeAgents)")
-                    }
-                    .font(.caption.weight(.medium)).foregroundStyle(.blue)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Color.blue.opacity(0.12), in: Capsule())
-                }
+    @ViewBuilder private var summaryStrip: some View {
+        if typeSize.isAccessibilitySize {
+            // Accessibility sizes: wrap into a column instead of a clipped horizontal strip.
+            VStack(alignment: .leading, spacing: 8) { summaryChips }
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { summaryChips } }
+        }
+    }
+
+    @ViewBuilder private var summaryChips: some View {
+        ForEach(CommandLane.allCases, id: \.self) { lane in
+            chip(lane.rawValue, cc.summary.count(for: lane))
+        }
+        if cc.summary.activeAgents > 0 {
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                Text("cc.summary.agents \(cc.summary.activeAgents)")
             }
+            .font(.caption.weight(.medium)).foregroundStyle(Color.priority(1))
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Color.priority(1).opacity(0.10), in: Capsule())
         }
     }
 
@@ -116,13 +122,14 @@ struct CommandCenterView: View {
         let color = LanePresentation.color(key)
         return HStack(spacing: 4) {
             Image(systemName: LanePresentation.symbol(key))
-            LanePresentation.title(key, fallback: key)
+            LanePresentation.title(key, fallback: key).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
             Text(verbatim: String(count)).monospacedDigit().fontWeight(.bold)
         }
+        .fixedSize(horizontal: false, vertical: true)
         .font(.caption.weight(.medium))
-        .foregroundStyle(count > 0 ? color : Color.secondary)
+        .foregroundStyle(count > 0 ? color : Color.textSecondary)
         .padding(.horizontal, 10).padding(.vertical, 5)
-        .background((count > 0 ? color : Color.secondary).opacity(0.12), in: Capsule())
+        .background((count > 0 ? color : Color.textSecondary).opacity(0.10), in: Capsule())
         .accessibilityElement(children: .combine)
     }
 
@@ -389,9 +396,9 @@ struct AgentBriefView: View {
                         }
                     }
                 HStack {
-                    Text("cc.brief.count \(text.count)").font(.caption).foregroundStyle(text.count > 20000 ? .red : .secondary).monospacedDigit()
+                    Text("cc.brief.count \(text.count)").font(.caption).foregroundStyle(text.count > 20000 ? Color.dueOverdue : Color.textSecondary).monospacedDigit()
                     Spacer()
-                    if let errorKey { Text(LocalizedStringKey(errorKey)).font(.caption).foregroundStyle(.red) }
+                    if let errorKey { Text(LocalizedStringKey(errorKey)).font(.caption).foregroundStyle(Color.dueOverdue) }
                 }
                 if conflict {
                     Button("cc.brief.reload") { Task { await load() } }.buttonStyle(.bordered)

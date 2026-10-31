@@ -58,7 +58,7 @@ struct MainView: View {
         }
         .sheet(item: $shareProject) { ShareView(project: $0) }
         .alert("project.new", isPresented: Binding(get: { newProjectParent != nil }, set: { if !$0 { newProjectParent = nil } })) {
-            TextField("project.name", text: $newProjectName)
+            TextField(accessible: "project.name", text: $newProjectName)
             Button("save") {
                 let parent = newProjectParent ?? nil
                 Task { await model.addProject(name: newProjectName, parentID: parent ?? nil) }
@@ -92,7 +92,7 @@ struct SyncStatusBar: View {
                 }
             }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(model.syncStatus == .offline ? Color.tileOrange : Color.secondary)
+            .foregroundStyle(model.syncStatus == .offline ? Color.dueTomorrow : Color.textSecondary)
             .padding(.horizontal, Space.m).padding(.vertical, 6)
             .background(.regularMaterial, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 0.5))

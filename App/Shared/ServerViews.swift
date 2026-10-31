@@ -79,13 +79,13 @@ struct ProjectCommentsView: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack(alignment: .bottom) {
-                    TextField("comment.new", text: $draft, axis: .vertical).lineLimit(1...5).textFieldStyle(.roundedBorder)
+                    TextField(accessible: "comment.new", text: $draft, axis: .vertical).lineLimit(1...5).textFieldStyle(.roundedBorder)
                     Button {
                         let t = draft; draft = ""
                         Task { await model.add(t, app) }
                     } label: {
                         Image(systemName: "arrow.up.circle.fill").font(.title)
-                            .foregroundStyle(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.brand)
+                            .foregroundStyle(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.textSecondary : Color.brand)
                     }
                     .buttonStyle(.plain).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel(Text("comment.send"))
@@ -238,8 +238,8 @@ struct AgentsView: View {
                             Image(systemName: "desktopcomputer").foregroundStyle(Color.textSecondary)
                             Text(verbatim: d.label).font(.body.weight(.semibold))
                             Spacer()
-                            if d.revokedAt != nil { Text("runner.revoked").foregroundStyle(.red) }
-                            else if !d.paired { Text("runner.unpaired").foregroundStyle(.orange) }
+                            if d.revokedAt != nil { Text("runner.revoked").foregroundStyle(Color.dueOverdue) }
+                            else if !d.paired { Text("runner.unpaired").foregroundStyle(Color.priority(2)) }
                             else if d.activeRunCount > 0 { Text("runner.active \(d.activeRunCount)").foregroundStyle(Color.brand) }
                             else { Text("runner.idle").foregroundStyle(Color.textSecondary) }
                         }
@@ -267,7 +267,7 @@ struct AgentsView: View {
                             Spacer()
                             jobStateText(item.job.state).font(.caption.weight(.semibold))
                                 .padding(.horizontal, 8).padding(.vertical, 2)
-                                .background(Self.tint(item.job.state).opacity(0.15), in: Capsule())
+                                .background(Self.tint(item.job.state).opacity(0.10), in: Capsule())
                                 .foregroundStyle(Self.tint(item.job.state))
                         }
                         if let p = item.job.progress, !p.isEmpty { Text(verbatim: p).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(2) }
@@ -298,11 +298,11 @@ struct AgentsView: View {
 
     static func tint(_ state: String) -> Color {
         switch state {
-        case "succeeded": .green
-        case "failed", "cancelled": .red
-        case "waiting_for_answer", "awaiting_review": .orange
+        case "succeeded": Color.dueToday
+        case "failed", "cancelled": Color.dueOverdue
+        case "waiting_for_answer", "awaiting_review": Color.priority(2)
         case "running", "claimed": Color.brand
-        default: .secondary
+        default: Color.textSecondary
         }
     }
 }

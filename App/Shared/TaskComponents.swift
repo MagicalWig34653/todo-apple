@@ -236,8 +236,8 @@ struct TaskRow: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(verbatim: task.title)
                 .font(.rowTitle)
-                .strikethrough(checked, color: .secondary)
-                .foregroundStyle(checked ? Color.secondary : Color.primary)
+                .strikethrough(checked, color: Color.textSecondary)
+                .foregroundStyle(checked ? Color.textSecondary : Color.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(.easeOut(duration: 0.2), value: checked)
             if !task.description.isEmpty {

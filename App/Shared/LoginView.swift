@@ -187,7 +187,7 @@ private struct ConnectionBadge: View {
         switch state {
         case .unknown: Circle().fill(Color.secondary.opacity(0.4)).frame(width: 9, height: 9)
         case .checking: ProgressView().controlSize(.small)
-        case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.green)
+        case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.dueToday)
         case .failed: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.dueOverdue)
         }
     }
@@ -295,7 +295,7 @@ private struct ServerSheet: View {
         SheetScaffold(title: "login.server") {
             Text("login.server.explain").font(.subheadline).foregroundStyle(Color.textSecondary)
             FieldRow(title: "login.serverURL") {
-                TextField("login.serverURL.placeholder", text: $model.serverURL)
+                TextField(accessible: "login.serverURL.placeholder", text: $model.serverURL)
                     .autocorrectionDisabled()
                     #if os(iOS)
                     .textInputAutocapitalization(.never).keyboardType(.URL).submitLabel(.go)
@@ -319,7 +319,7 @@ private struct ServerSheet: View {
     @ViewBuilder private var statusView: some View {
         switch connection {
         case .ok:
-            Label("login.status.ok", systemImage: "checkmark.circle.fill").foregroundStyle(Color.green).font(.subheadline.weight(.medium))
+            Label("login.status.ok", systemImage: "checkmark.circle.fill").foregroundStyle(Color.dueToday).font(.subheadline.weight(.medium))
         case .failed:
             ErrorBanner(key: model.errorKey ?? "error.network")
         case .checking:
@@ -351,7 +351,7 @@ private struct RegistrationSheet: View {
             Text(model.capabilities?.bootstrapOpen == true ? "login.setup.bootstrap" : "login.setup.invitation")
                 .font(.subheadline).foregroundStyle(Color.textSecondary)
             FieldRow(title: "login.setup.token") {
-                TextField("login.setup.token", text: $setupToken)
+                TextField(accessible: "login.setup.token", text: $setupToken)
                     .focused($focus, equals: .token)
                     .autocorrectionDisabled()
                     #if os(iOS)
@@ -360,7 +360,7 @@ private struct RegistrationSheet: View {
                     .onSubmit { focus = .name }
             }
             FieldRow(title: "login.setup.name") {
-                TextField("login.setup.name", text: $displayName)
+                TextField(accessible: "login.setup.name", text: $displayName)
                     .focused($focus, equals: .name)
                     #if os(iOS)
                     .textContentType(.name).submitLabel(.go)
@@ -402,7 +402,7 @@ private struct PasswordSheet: View {
         SheetScaffold(title: "login.passwordOption") {
             Text("login.password.explain").font(.subheadline).foregroundStyle(Color.textSecondary)
             FieldRow(title: "login.username") {
-                TextField("login.username", text: $username)
+                TextField(accessible: "login.username", text: $username)
                     .focused($focus, equals: .user)
                     .autocorrectionDisabled()
                     #if os(iOS)
@@ -450,7 +450,7 @@ private struct RecoverySheet: View {
             Text("recovery.explain").font(.subheadline).foregroundStyle(Color.textSecondary)
             if model.recoveryToken == nil {
                 FieldRow(title: "recovery.code") {
-                    TextField("recovery.code", text: $code)
+                    TextField(accessible: "recovery.code", text: $code)
                         .focused($focused)
                         .autocorrectionDisabled()
                         .font(.body.monospaced())
@@ -461,10 +461,10 @@ private struct RecoverySheet: View {
                 }
             } else {
                 Label("recovery.accepted", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(Color.green).font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.dueToday).font(.subheadline.weight(.medium))
             }
             FieldRow(title: "recovery.passkeyName") {
-                TextField("recovery.passkeyName", text: $passkeyName)
+                TextField(accessible: "recovery.passkeyName", text: $passkeyName)
                     .onSubmit(submit)
             }
             if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }

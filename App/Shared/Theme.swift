@@ -17,6 +17,9 @@ extension Color {
     static let dueOverdue = Color("DueOverdue")
     static let dueToday = Color("DueToday")
     static let dueTomorrow = Color("DueTomorrow")
+    /// AA-contrast text colors for tinted chips (light, dark and increased contrast variants in the asset catalog).
+    static let chipPurple = Color("Purple")
+    static let chipTeal = Color("Teal")
 
     /// Ring color of the checkbox for the stored priority (0 none ... 3 highest): P4 gray, P3 blue, P2 orange, P1 red.
     static func priority(_ value: Int) -> Color {
@@ -83,7 +86,7 @@ enum DueStyle {
         case .overdue: .dueOverdue
         case .today: .dueToday
         case .tomorrow: .dueTomorrow
-        case .later: .secondary
+        case .later: Color.textSecondary
         }
     }
 }
@@ -171,13 +174,13 @@ extension Font {
     static let detailTitle = Font.system(.title2, design: .rounded).weight(.bold)
 }
 
-/// Tinted tile colors for sidebar and property icons (fixed hues that work on light and dark).
+/// Tinted tile colors for sidebar and property icons (fixed hues, each at least 3.2:1 against the white glyph).
 extension Color {
     static let tileBlue = Color(red: 0.20, green: 0.48, blue: 0.95)
-    static let tileGreen = Color(red: 0.20, green: 0.70, blue: 0.40)
-    static let tileOrange = Color(red: 0.96, green: 0.58, blue: 0.12)
+    static let tileGreen = Color(red: 0.18, green: 0.64, blue: 0.36)
+    static let tileOrange = Color(red: 0.80, green: 0.48, blue: 0.10)
     static let tilePurple = Color(red: 0.52, green: 0.38, blue: 0.90)
-    static let tileTeal = Color(red: 0.12, green: 0.68, blue: 0.72)
+    static let tileTeal = Color(red: 0.10, green: 0.61, blue: 0.65)
     static let tileGray = Color(red: 0.50, green: 0.52, blue: 0.56)
 }
 
@@ -235,16 +238,38 @@ extension View {
     }
 }
 
+extension TextField where Label == Text {
+    /// Text field whose placeholder uses the AA-contrast secondary text color (the system placeholder is about 2.6:1).
+    init(accessible key: LocalizedStringKey, text: Binding<String>, axis: Axis = .horizontal) {
+        self.init(text: text, prompt: Text(key).foregroundColor(Color.textSecondary), axis: axis) { Text(key) }
+    }
+}
+
+/// Horizontal stack that becomes a leading-aligned vertical stack from the accessibility text sizes on, so chips and
+/// label/value pairs never get squeezed or clipped next to each other.
+struct AdaptiveStack<Content: View>: View {
+    var spacing: CGFloat = 8
+    var verticalAlignment: VerticalAlignment = .center
+    @ViewBuilder var content: Content
+    @Environment(\.dynamicTypeSize) private var typeSize
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: spacing))
+            : AnyLayout(HStackLayout(alignment: verticalAlignment, spacing: spacing))
+        layout { content }
+    }
+}
+
 /// Counter capsule used in the sidebar and tab badges.
 struct CountBadge: View {
     let count: Int
-    var tint: Color = .secondary
+    var tint: Color = Color.textSecondary
     var body: some View {
         Text(verbatim: String(count))
             .font(.caption.weight(.semibold)).monospacedDigit()
             .foregroundStyle(tint)
             .padding(.horizontal, 7).padding(.vertical, 1)
-            .background(tint.opacity(0.12), in: Capsule())
+            .background(tint.opacity(0.10), in: Capsule())
     }
 }
 
@@ -262,13 +287,13 @@ struct LabelChip: View {
     let name: String
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "tag.fill").font(.caption2).imageScale(.small).foregroundStyle(Color.project(name.hashValueUUID))
+            Image(systemName: "tag.fill").font(.caption2).imageScale(.small).foregroundStyle(Color.textSecondary)
             Text(verbatim: name).lineLimit(1)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(Color.textSecondary)
         .padding(.horizontal, 7).padding(.vertical, 2)
-        .background(Color.project(name.hashValueUUID).opacity(0.13), in: Capsule())
+        .background(Color.project(name.hashValueUUID).opacity(0.10), in: Capsule())
     }
 }
 

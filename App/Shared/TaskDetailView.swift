@@ -135,6 +135,7 @@ struct TaskDetailView: View {
     @Environment(TaskMeta.self) private var meta
     @Environment(\.dismiss) private var dismiss
     @State private var model: TaskDetailModel
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var title: String
     @State private var text: String
     @State private var newComment = ""
@@ -219,28 +220,29 @@ struct TaskDetailView: View {
                 Text(verbatim: project?.name ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.textSecondary)
             }
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.primary)
+            .tapTarget()
         }
     }
 
     // MARK: header (checkbox, title, description)
 
     private var header: some View {
-        HStack(alignment: .top, spacing: Space.xs) {
+        (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(alignment: .top, spacing: Space.xs))) {
             TaskCheckbox(checked: model.task.isDone, priority: model.planning.priority, size: 28) {
                 Task { await model.setStatus(model.task.isDone ? .open : .done, app) }
                 Haptics.success()
             }
             .padding(.leading, -8).padding(.top, -2)
             VStack(alignment: .leading, spacing: Space.s) {
-                TextField("task.title", text: $title, axis: .vertical)
+                TextField(accessible: "task.title", text: $title, axis: .vertical)
                     .font(.detailTitle)
                     .strikethrough(model.task.isDone)
-                    .foregroundStyle(model.task.isDone ? Color.secondary : Color.primary)
+                    .foregroundStyle(model.task.isDone ? Color.textSecondary : Color.primary)
                     .onSubmit(saveText)
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "text.alignleft").font(.footnote).foregroundStyle(.tertiary).padding(.top, 3)
-                    TextField("task.description", text: $text, axis: .vertical)
+                    TextField(accessible: "task.description", text: $text, axis: .vertical)
                         .font(.body).foregroundStyle(Color.textSecondary).lineLimit(1...12)
                 }
             }
@@ -273,14 +275,22 @@ struct TaskDetailView: View {
     private var divider: some View { Divider().padding(.leading, 40) }
 
     private func propertyRow<Value: View>(_ icon: String, _ tint: Color, _ label: LocalizedStringKey, @ViewBuilder value: () -> Value) -> some View {
-        HStack(spacing: Space.m) {
-            IconTile(symbol: icon, tint: tint, size: 26)
-            Text(label).foregroundStyle(.primary)
-            Spacer(minLength: Space.s)
-            value().multilineTextAlignment(.trailing).foregroundStyle(Color.textSecondary)
+        // From the accessibility sizes on the value moves below the label instead of squeezing next to it.
+        let stacked = typeSize.isAccessibilitySize
+        return (stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(spacing: Space.m))) {
+            HStack(spacing: Space.m) {
+                IconTile(symbol: icon, tint: tint, size: 26)
+                Text(label).foregroundStyle(Color.primary)
+            }
+            if !stacked { Spacer(minLength: Space.s) }
+            value().multilineTextAlignment(stacked ? .leading : .trailing).foregroundStyle(Color.textSecondary)
+                .frame(minHeight: 44).contentShape(Rectangle())
+                .padding(.leading, stacked ? 26 + Space.m : 0)
         }
         .font(.subheadline)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 46)
+        .padding(.vertical, stacked ? Space.s : 0)
         .contentShape(Rectangle())
     }
 
@@ -344,7 +354,7 @@ struct TaskDetailView: View {
                 } label: { Text(model.planning.reminders.isEmpty ? LocalizedStringKey("reminder.add") : "reminder.addMore") }
             }
             if !model.planning.reminders.isEmpty {
-                HStack(spacing: 6) {
+                AdaptiveStack(spacing: 6) {
                     ForEach(model.planning.reminders, id: \.self) { r in
                         Button { removeReminder(r) } label: {
                             HStack(spacing: 4) {
@@ -352,8 +362,8 @@ struct TaskDetailView: View {
                                 Text(verbatim: DueFormat.text(r))
                                 Image(systemName: "xmark").font(.caption2.weight(.bold))
                             }
-                            .font(.caption.weight(.medium)).foregroundStyle(Color.tilePurple)
-                            .padding(.horizontal, 9).padding(.vertical, 4).background(Color.tilePurple.opacity(0.12), in: Capsule())
+                            .font(.caption.weight(.medium)).foregroundStyle(Color.chipPurple)
+                            .padding(.horizontal, 9).padding(.vertical, 4).background(Color.chipPurple.opacity(0.10), in: Capsule())
                         }
                         .buttonStyle(.plain)
                     }
@@ -392,11 +402,11 @@ struct TaskDetailView: View {
                     }
                 } label: {
                     if model.labels.isEmpty { Text("label.add") } else {
-                        HStack { ForEach(model.labels) { LabelChip(name: $0.name) } }
+                        AdaptiveStack(spacing: 4) { ForEach(model.labels) { LabelChip(name: $0.name) } }
                     }
                 }
             }
-            TextField("label.new", text: $newLabel).font(.footnote).onSubmit {
+            TextField(accessible: "label.new", text: $newLabel).font(.footnote).onSubmit {
                 let name = newLabel; newLabel = ""
                 Task { await model.createLabel(name, app); await meta.refresh(app) }
             }
@@ -434,13 +444,13 @@ struct TaskDetailView: View {
                     TaskCheckbox(checked: sub.isDone, priority: 0, size: 20) { Haptics.success(); Task { await model.toggleSubtask(sub, app) } }
                         .padding(.leading, -10)
                     Text(verbatim: sub.title).font(.subheadline).strikethrough(sub.isDone)
-                        .foregroundStyle(sub.isDone ? Color.secondary : Color.primary)
+                        .foregroundStyle(sub.isDone ? Color.textSecondary : Color.primary)
                     Spacer()
                 }
             }
             HStack(spacing: Space.s) {
                 Image(systemName: "plus").font(.footnote.weight(.semibold)).foregroundStyle(Color.brand).frame(width: 24)
-                TextField("subtask.add", text: $newSubtask).font(.subheadline).submitLabel(.done).onSubmit {
+                TextField(accessible: "subtask.add", text: $newSubtask).font(.subheadline).submitLabel(.done).onSubmit {
                     let t = newSubtask; newSubtask = ""
                     Task { await model.addSubtask(t, app); await meta.refresh(app) }
                 }
@@ -490,7 +500,7 @@ struct TaskDetailView: View {
 
     private var commentComposer: some View {
         HStack(spacing: Space.s) {
-            TextField("comment.new", text: $newComment, axis: .vertical).lineLimit(1...4)
+            TextField(accessible: "comment.new", text: $newComment, axis: .vertical).lineLimit(1...4)
                 .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                 .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))

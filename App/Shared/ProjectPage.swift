@@ -74,12 +74,17 @@ struct ProjectView: View {
 
     private func header(_ project: Project) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField("project.name", text: $title)
+            TextField(accessible: "project.name", text: $title, axis: .vertical)
+                .lineLimit(1...3).fixedSize(horizontal: false, vertical: true)
                 .font(.screenTitle).textFieldStyle(.plain).focused($titleFocus)
                 .onSubmit { commitTitle(project) }
+                .onChange(of: title) { _, new in
+                    // The wrapping field turns Return into a line break: treat it as "done".
+                    if new.contains("\n") { title = new.replacingOccurrences(of: "\n", with: " "); titleFocus = false }
+                }
                 .onChange(of: titleFocus) { _, f in if !f { commitTitle(project) } }
-            TextField("project.descriptionPlaceholder", text: $descriptionText, axis: .vertical)
-                .font(.body).foregroundStyle(Color.textSecondary).textFieldStyle(.plain).lineLimit(1...4).focused($descriptionFocus)
+            TextField(accessible: "project.descriptionPlaceholder", text: $descriptionText, axis: .vertical)
+                .font(.body).foregroundStyle(Color.textSecondary).textFieldStyle(.plain).lineLimit(1...4).fixedSize(horizontal: false, vertical: true).focused($descriptionFocus)
                 .onChange(of: descriptionFocus) { _, f in if !f { commitDescription(project) } }
         }
         .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
@@ -251,7 +256,7 @@ struct ProjectListView: View {
                 Section {
                     ForEach(g.tasks) { TaskRow(task: $0, showProject: false).taskRowInsets() }
                 } header: {
-                    if let t = g.title { t.font(.sectionTitle).foregroundStyle(.primary).textCase(nil) }
+                    if let t = g.title { t.font(.sectionTitle).foregroundStyle(Color.primary).textCase(nil) }
                 }
             }
             if !done.isEmpty {

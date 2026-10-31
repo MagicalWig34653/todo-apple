@@ -115,14 +115,14 @@ struct AttachmentsSection: View {
                 .accessibilityHint(Text("attachment.open"))
             }
             HStack {
-                PhotosPicker(selection: $pickedPhoto, matching: .images) { Label("attachment.addPhoto", systemImage: "photo.badge.plus") }
+                PhotosPicker(selection: $pickedPhoto, matching: .images) { Label("attachment.addPhoto", systemImage: "photo.badge.plus").font(.subheadline).foregroundStyle(Color.brand).tapTarget() }
                 Spacer()
-                Button { importing = true } label: { Label("attachment.addFile", systemImage: "paperclip") }.buttonStyle(.plain)
+                Button { importing = true } label: { Label("attachment.addFile", systemImage: "paperclip").font(.subheadline).foregroundStyle(Color.brand).tapTarget() }.buttonStyle(.plain)
                 if model.uploading { ProgressView() }
             }
             .disabled(model.uploading)
             if let key = model.errorKey {
-                Text(LocalizedStringKey(key)).font(.caption).foregroundStyle(.red)
+                Text(LocalizedStringKey(key)).font(.caption).foregroundStyle(Color.dueOverdue)
             }
         }
         .font(.subheadline)

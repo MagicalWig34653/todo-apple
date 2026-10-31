@@ -29,7 +29,7 @@ struct BoardView: View {
         Group {
             if addingColumn {
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("board.column.name", text: $newColumnName)
+                    TextField(accessible: "board.column.name", text: $newColumnName)
                         .textFieldStyle(.roundedBorder).focused($columnFocus)
                         .onSubmit { commit() }
                     HStack {
@@ -127,7 +127,7 @@ struct BoardColumnView: View {
             return true
         } isTargeted: { targeted = $0 }
         .alert("board.column.rename", isPresented: $renaming) {
-            TextField("board.column.name", text: $renameText)
+            TextField(accessible: "board.column.name", text: $renameText)
             Button("save") { Task { await board.update(column, name: renameText, model) } }
             Button("cancel", role: .cancel) {}
         }
@@ -173,7 +173,7 @@ struct BoardColumnView: View {
     @ViewBuilder private var footer: some View {
         if adding {
             VStack(alignment: .leading, spacing: 8) {
-                TextField("quickAdd.title", text: $draft, axis: .vertical)
+                TextField(accessible: "quickAdd.title", text: $draft, axis: .vertical)
                     .textFieldStyle(.plain).focused($focus)
                     .onSubmit { submit() }
                 HStack {
@@ -221,8 +221,8 @@ struct BoardCard: View {
             Button { model.path = [task] } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(verbatim: task.title).font(.body)
-                        .strikethrough(checked, color: .secondary)
-                        .foregroundStyle(checked ? Color.secondary : Color.primary)
+                        .strikethrough(checked, color: Color.textSecondary)
+                        .foregroundStyle(checked ? Color.textSecondary : Color.primary)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !task.description.isEmpty {
@@ -254,7 +254,7 @@ struct BoardCard: View {
                         Image(systemName: planning?.recurrence != nil ? "arrow.triangle.2.circlepath" : "calendar")
                         Text(verbatim: DueFormat.text(due))
                     }
-                    .foregroundStyle(task.isDone ? Color.secondary : DueFormat.style(due).color)
+                    .foregroundStyle(task.isDone ? Color.textSecondary : DueFormat.style(due).color)
                 }
                 ForEach(labels.prefix(3)) { LabelChip(name: $0.name) }
             }
