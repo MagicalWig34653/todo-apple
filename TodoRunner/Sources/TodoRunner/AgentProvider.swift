@@ -60,9 +60,15 @@ public protocol AgentProvider: Sendable {
     /// Kills the whole process group; never signals an unverified PID.
     func stop(_ process: ProcessReference) async
     func reconcile(_ process: ProcessReference) async -> ProcessObservation
+    /// Tool steps observed since the last call (best effort, empty when the provider cannot stream).
+    func drainProgress(_ process: ProcessReference) async -> [ProgressEvent]
+}
+
+public extension AgentProvider {
+    func drainProgress(_ process: ProcessReference) async -> [ProgressEvent] { [] }
 }
 
 public enum RunnerError: Error, Equatable {
     case alreadyOpen, unapprovedFolder, invalidConfiguration, spawn(Int32)
-    case unknownProcess, invalidResult, timedOut, stopped, sessionMismatch
+    case unknownProcess, invalidResult, timedOut, stopped, sessionMismatch, missingToken
 }

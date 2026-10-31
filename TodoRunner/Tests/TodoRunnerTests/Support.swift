@@ -41,6 +41,7 @@ actor FakeServer: RunnerServer {
     var submitted: [RunResult] = []
     var asked: [(String, [String])] = []
     var checkpoints: [Checkpoint] = []
+    var progressTexts: [String] = []
 
     func add(job: Job, binding: Binding) { jobs.append(job); if !bindings.contains(where: { $0.id == binding.id }) { bindings.append(binding) } }
     func set(heartbeatError e: RunnerServerError?) { heartbeatError = e }
@@ -97,7 +98,9 @@ actor FakeServer: RunnerServer {
         if let e = heartbeatError { record("heartbeat"); throw e }
         return try write("heartbeat", runID, generation)
     }
-    func progress(runID: UUID, generation: Int, text: String) async throws -> Run { try write("progress", runID, generation, state: .running) }
+    func progress(runID: UUID, generation: Int, text: String) async throws -> Run {
+        let r = try write("progress", runID, generation, state: .running); progressTexts.append(text); return r
+    }
     func checkpoint(runID: UUID, generation: Int, checkpoint: Checkpoint) async throws -> Run {
         let r = try write("checkpoint", runID, generation); checkpoints.append(checkpoint); return r
     }
@@ -133,7 +136,10 @@ actor FakeProvider: AgentProvider {
     private var observations: [Int32: ProcessObservation] = [:]
     private var next: Int32 = 5000
     var startError: Error?
+    private var queuedProgress: [ProgressEvent] = []
 
+    func queue(_ events: [ProgressEvent]) { queuedProgress += events }
+    func drainProgress(_ process: ProcessReference) -> [ProgressEvent] { defer { queuedProgress = [] }; return queuedProgress }
     func set(startError e: Error?) { startError = e }
     func finish(_ pid: Int32, _ result: AgentResult) { outcomes[pid] = .success(result) }
     func observe(_ pid: Int32, _ o: ProcessObservation) { observations[pid] = o }

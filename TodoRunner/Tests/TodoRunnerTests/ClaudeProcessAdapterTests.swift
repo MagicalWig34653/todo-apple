@@ -24,7 +24,7 @@ import Testing
     @Test func argumentsMatchAdr0004() {
         let id = UUID()
         let fresh = ClaudeProcessAdapter.arguments(for: AgentRequest(sessionID: id, folder: URL(fileURLWithPath: "/"), prompt: "P", allowedTools: ["Read", "Bash(git status)"], maxTurns: 7))
-        #expect(fresh.starts(with: ["-p", "P", "--session-id", id.uuidString.lowercased(), "--output-format", "json"]))
+        #expect(fresh.starts(with: ["-p", "P", "--session-id", id.uuidString.lowercased(), "--output-format", "stream-json", "--verbose"]))
         #expect(fresh.contains("--resume") == false)
         func value(_ flag: String, _ a: [String]) -> String? { a.firstIndex(of: flag).map { a[$0 + 1] } }
         #expect(value("--allowedTools", fresh) == "Read,Bash(git status)" && value("--tools", fresh) == "Read,Bash")

@@ -72,10 +72,14 @@ public final class LocalStateStore: @unchecked Sendable {
 
     private var runsFile: URL { directory.appendingPathComponent("runs.json") }
 
-    public func load() throws -> [LocalRun] {
-        guard FileManager.default.fileExists(atPath: runsFile.path) else { return [] }
+    public func load() throws -> [LocalRun] { try Self.readRuns(in: directory) }
+
+    /// Lock-free read for `status`/`doctor` while a runner is active (writes are atomic renames).
+    public static func readRuns(in directory: URL) throws -> [LocalRun] {
+        let file = directory.appendingPathComponent("runs.json")
+        guard FileManager.default.fileExists(atPath: file.path) else { return [] }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode([LocalRun].self, from: Data(contentsOf: runsFile))
+        return try decoder.decode([LocalRun].self, from: Data(contentsOf: file))
     }
 
     public func save(_ runs: [LocalRun]) throws {
@@ -95,19 +99,44 @@ public final class LocalStateStore: @unchecked Sendable {
     }
 }
 
-/// Server URL and device token. Stored with 0600 permissions (Keychain is a documented follow-up).
-public struct RunnerConfig: Codable, Sendable, Equatable {
+/// Server URL and device token. The URL and device ID live in config.json (0600); the token lives
+/// in the SecretStore (Keychain) and is never part of any Codable representation of this type.
+public struct RunnerConfig: Sendable, Equatable {
     public var baseURL: URL
     public var deviceID: UUID
     public var token: String
     public init(baseURL: URL, deviceID: UUID, token: String) {
         self.baseURL = baseURL; self.deviceID = deviceID; self.token = token
     }
-    public static func load(from directory: URL) throws -> RunnerConfig {
-        try JSONDecoder().decode(RunnerConfig.self, from: Data(contentsOf: directory.appendingPathComponent("config.json")))
+
+    private struct Stored: Codable {
+        var baseURL: URL
+        var deviceID: UUID
+        /// Only present in files written before the Keychain move; migrated on first load.
+        var token: String?
     }
-    public func save(to directory: URL) throws {
-        try LocalStateStore.write(try JSONEncoder().encode(self), to: directory.appendingPathComponent("config.json"))
+
+    static func account(_ deviceID: UUID) -> String { "device-token-\(deviceID.uuidString.lowercased())" }
+    private static func file(_ directory: URL) -> URL { directory.appendingPathComponent("config.json") }
+
+    public static func exists(in directory: URL) -> Bool { FileManager.default.fileExists(atPath: file(directory).path) }
+
+    public static func load(from directory: URL, secrets: any SecretStore) throws -> RunnerConfig {
+        let stored = try JSONDecoder().decode(Stored.self, from: Data(contentsOf: file(directory)))
+        if let legacy = stored.token {
+            // Move a plaintext token into the secret store, then rewrite the file without it.
+            try secrets.write(legacy, account: account(stored.deviceID))
+            try RunnerConfig(baseURL: stored.baseURL, deviceID: stored.deviceID, token: legacy).save(to: directory, secrets: secrets)
+            return RunnerConfig(baseURL: stored.baseURL, deviceID: stored.deviceID, token: legacy)
+        }
+        guard let token = try secrets.read(account: account(stored.deviceID)) else { throw RunnerError.missingToken }
+        return RunnerConfig(baseURL: stored.baseURL, deviceID: stored.deviceID, token: token)
+    }
+
+    public func save(to directory: URL, secrets: any SecretStore) throws {
+        try secrets.write(token, account: Self.account(deviceID))
+        try LocalStateStore.write(try JSONEncoder().encode(Stored(baseURL: baseURL, deviceID: deviceID, token: nil)),
+                                  to: Self.file(directory))
     }
 }
 

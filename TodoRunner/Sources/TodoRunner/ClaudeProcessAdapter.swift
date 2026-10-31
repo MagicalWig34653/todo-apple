@@ -9,19 +9,20 @@ public actor ClaudeProcessAdapter: AgentProvider {
     private let environment: [String: String]
     private var children: Set<Int32> = []
     private var interruptions: [Int32: RunnerError] = [:]
+    private var tails: [Int32: StreamTail] = [:]
 
     public init(executable: URL, scratch: URL, environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.executable = executable; self.scratch = scratch; self.environment = environment
     }
 
     static let outputSchema = #"{"type":"object","properties":{"text":{"type":"string"},"question":{"type":"string"},"options":{"type":"array","items":{"type":"string"}}},"required":["text"]}"#
-    static let systemPrompt = "Answer with a concise summary in the structured text field. If you need a human decision, put exactly one question in the question field (optionally with answer options in options) and stop working. Never commit, push or deploy."
+    static let systemPrompt = "Answer with a concise summary in the structured text field. If you need a human decision, put exactly one question in the question field (optionally with answer options in options) and stop working. Never commit, push or deploy. If Todo MCP tools are available in this session, call get_manual once at the start and follow it; if they are not available, continue without it. Never put secrets, tokens or passwords into answers, questions or files."
 
     /// Exposed for tests: the exact CLI arguments.
     public static func arguments(for request: AgentRequest) -> [String] {
         ["-p", request.prompt,
          request.resume ? "--resume" : "--session-id", request.sessionID.uuidString.lowercased(),
-         "--output-format", "json",
+         "--output-format", "stream-json", "--verbose",
          "--allowedTools", request.allowedTools.joined(separator: ","),
          "--permission-mode", "dontAsk",
          "--max-turns", String(request.maxTurns),
@@ -91,7 +92,19 @@ public actor ClaudeProcessAdapter: AgentProvider {
         return process.startTime == 0 || abs(start - process.startTime) < 0.01
     }
 
+    /// New tool steps since the last call, read from the stream-json output file. Never throws; best effort.
+    public func drainProgress(_ process: ProcessReference) async -> [ProgressEvent] {
+        guard !process.outputPath.isEmpty else { return [] }
+        var tail = tails[process.pid] ?? StreamTail()
+        let events = tail.read(from: URL(fileURLWithPath: process.outputPath))
+        tails[process.pid] = tail
+        return events
+    }
+
     public func wait(for process: ProcessReference) async throws -> AgentResult {
+        // The timeout counts awake time only: systemUptime stands still while the Mac sleeps,
+        // so a night in sleep mode does not kill a run on wake.
+        let limit = ProcessInfo.processInfo.systemUptime + max(0, process.deadline.timeIntervalSinceNow)
         let ours = children.contains(process.pid)
         var status: Int32 = 0
         var reaped = false
@@ -102,7 +115,7 @@ public actor ClaudeProcessAdapter: AgentProvider {
                 if waited < 0 && errno != EINTR { break }
             } else if !isAlive(process) { break }
             if Task.isCancelled { kill(-process.pid, SIGKILL); interruptions[process.pid] = interruptions[process.pid] ?? .stopped }
-            if Date() >= process.deadline, interruptions[process.pid] == nil {
+            if ProcessInfo.processInfo.systemUptime >= limit, interruptions[process.pid] == nil {
                 interruptions[process.pid] = .timedOut
                 kill(-process.pid, SIGKILL)
             }
@@ -110,6 +123,7 @@ public actor ClaudeProcessAdapter: AgentProvider {
             try? await Task.sleep(for: .milliseconds(30))
         }
         children.remove(process.pid)
+        tails[process.pid] = nil
         let interruption = interruptions.removeValue(forKey: process.pid)
         let output = URL(fileURLWithPath: process.outputPath)
         defer {
@@ -145,7 +159,18 @@ public actor ClaudeProcessAdapter: AgentProvider {
             var structured_output: Structured?
             struct Structured: Decodable { var text: String?; var question: String?; var options: [String]? }
         }
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { throw RunnerError.invalidResult }
+        // Plain `json` output is one object; `stream-json` is JSON lines whose last `result` line is the same object.
+        let decoder = JSONDecoder()
+        var decoded = try? decoder.decode(Envelope.self, from: data)
+        if decoded == nil {
+            for line in data.split(separator: 0x0A).reversed() {
+                guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+                      object["type"] as? String == "result" else { continue }
+                decoded = try? decoder.decode(Envelope.self, from: line)
+                break
+            }
+        }
+        guard let envelope = decoded else { throw RunnerError.invalidResult }
         guard UUID(uuidString: envelope.session_id) == sessionID else { throw RunnerError.sessionMismatch }
         let question = envelope.structured_output?.question.flatMap { $0.isEmpty ? nil : $0 }
         return AgentResult(text: envelope.structured_output?.text ?? envelope.result ?? "", question: question,

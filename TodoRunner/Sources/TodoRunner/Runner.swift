@@ -6,7 +6,48 @@ public struct RunnerSettings: Sendable {
     public var clarifyTools = ["Read", "Glob", "Grep"]
     public var implementTools = ["Read", "Glob", "Grep", "Edit", "Write"]
     public var now: @Sendable () -> Date = { Date() }
+    /// Minimum time between two progress messages of one run; tool steps in between are summarised.
+    public var progressInterval: TimeInterval = 30
+    /// After a detected wake-up the runner re-adopts expired leases for this long (the network may need a moment).
+    public var wakeGrace: TimeInterval = 300
+    /// Receives human-readable log lines (the CLI redacts and persists them).
+    public var log: @Sendable (String) -> Void = { _ in }
+    /// Keeps the Mac awake while an agent process runs.
+    public var activity: any ActivityAssertion = NoActivityAssertion()
     public init() {}
+}
+
+/// Prevents idle system sleep while agent processes run. A closed lid or low battery still sleeps the Mac;
+/// that case is handled by the wake-up recovery in `Runner`.
+public protocol ActivityAssertion: Sendable {
+    func begin()
+    func end()
+}
+
+public struct NoActivityAssertion: ActivityAssertion {
+    public init() {}
+    public func begin() {}
+    public func end() {}
+}
+
+/// `ProcessInfo.beginActivity` with idle-system-sleep disabled (display may still sleep and lock).
+public final class ProcessInfoActivityAssertion: ActivityAssertion, @unchecked Sendable {
+    private let lock = NSLock()
+    private var token: NSObjectProtocol?
+    public init() {}
+    public func begin() {
+        lock.withLock {
+            guard token == nil else { return }
+            token = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .suddenTerminationDisabled],
+                                                          reason: "Todo Runner: Claude-Code-Lauf aktiv")
+        }
+    }
+    public func end() {
+        lock.withLock {
+            if let token { ProcessInfo.processInfo.endActivity(token) }
+            token = nil
+        }
+    }
 }
 
 /// Runner state machine. Rules enforced here:
@@ -28,7 +69,13 @@ public actor Runner {
     private var ticking = false
     /// Actor reentrancy: only one outbox flush per run at a time, or steps would be sent twice.
     private var flushing: Set<UUID> = []
-    public private(set) var lastError: String?
+    public private(set) var lastError: String? {
+        didSet { if let error = lastError, error != oldValue { settings.log("Fehler: \(error)") } }
+    }
+    private var progressState: [UUID: ProgressAggregator] = [:]
+    private var progressSent: [UUID: Date] = [:]
+    private var wakeGraceUntil: Date?
+    private var activityHeld = false
 
     public init(server: any RunnerServer, provider: any AgentProvider, store: LocalStateStore,
                 allowlist: FolderAllowlist, settings: RunnerSettings = RunnerSettings()) throws {
@@ -45,9 +92,33 @@ public actor Runner {
 
     private func mutate(_ id: UUID, _ change: (inout LocalRun) -> Void) {
         guard var run = runs[id] else { return }
+        let oldNote = run.note, oldPhase = run.phase
         change(&run)
         runs[id] = run
         do { try persist() } catch { lastError = "State write failed: \(error)" }
+        if run.note != oldNote || run.phase != oldPhase {
+            settings.log("Lauf \(id.uuidString.prefix(8).lowercased()) [\(run.phase.rawValue)]: \(run.note)")
+        }
+        updateActivity()
+    }
+
+    private func updateActivity() {
+        let needed = runs.values.contains { $0.phase == .launching || $0.phase == .running || $0.phase == .resuming }
+        guard needed != activityHeld else { return }
+        activityHeld = needed
+        if needed { settings.activity.begin() } else { settings.activity.end() }
+    }
+
+    /// Call when the Mac woke up. For a grace period, expired leases of live runs are re-adopted
+    /// instead of being treated as lost (the server decides; a refusal marks the run as interrupted).
+    public func noteWake() {
+        wakeGraceUntil = now.addingTimeInterval(settings.wakeGrace)
+        settings.log("Aufwachen aus dem Ruhezustand erkannt; Leases werden neu uebernommen.")
+    }
+
+    /// True when the wall clock advanced noticeably more than the awake time, i.e. the Mac slept in between.
+    static func sleptDuring(wall: Duration, awake: Duration, tolerance: Duration = .seconds(5)) -> Bool {
+        wall - awake > tolerance
     }
 
     private func adopt(_ id: UUID, _ remote: Run) {
@@ -59,20 +130,52 @@ public actor Runner {
 
     // MARK: Loop
 
-    public func tick() async throws {
+    public func tick() async throws { try await tick(claim: true) }
+
+    func tick(claim: Bool) async throws {
         guard !ticking else { return }
         ticking = true
         defer { ticking = false }
         if !startupDone || !startupPending.isEmpty { try await reconcileAtStart() }
         for id in runs.keys.sorted(by: { $0.uuidString < $1.uuidString }) { await service(id) }
-        try await claimNext()
+        if claim { try await claimNext() }
+        updateActivity()
     }
 
     public func runLoop(interval: Duration = .seconds(15)) async {
+        let continuous = ContinuousClock(), suspending = SuspendingClock()
         while !Task.isCancelled {
+            let wallStart = continuous.now, awakeStart = suspending.now
             do { try await tick(); lastError = nil } catch { lastError = String(describing: error) }
             try? await Task.sleep(for: interval)
+            if Self.sleptDuring(wall: wallStart.duration(to: continuous.now), awake: awakeStart.duration(to: suspending.now)) {
+                noteWake()
+            }
         }
+    }
+
+    /// Claims at most one job (unless a run is already active), works it until it is settled
+    /// (closed, waiting for an answer or needing manual reconciliation) and returns the runs.
+    public func runOnce(interval: Duration = .seconds(5), maxDuration: TimeInterval = 7200) async throws -> [LocalRun] {
+        func isActive(_ run: LocalRun) -> Bool {
+            ![RunPhase.closed, .waitingForAnswer, .needsReconciliation].contains(run.phase)
+        }
+        let known = Set(runs.keys)
+        var allowClaim = !runs.values.contains(where: isActive)
+        let deadline = now.addingTimeInterval(maxDuration)
+        let continuous = ContinuousClock(), suspending = SuspendingClock()
+        while !Task.isCancelled {
+            let wallStart = continuous.now, awakeStart = suspending.now
+            try await tick(claim: allowClaim)
+            if runs.keys.contains(where: { !known.contains($0) }) { allowClaim = false }
+            if !runs.values.contains(where: isActive), startupDone, startupPending.isEmpty { break }
+            if now >= deadline { break }
+            try? await Task.sleep(for: interval)
+            if Self.sleptDuring(wall: wallStart.duration(to: continuous.now), awake: awakeStart.duration(to: suspending.now)) {
+                noteWake()
+            }
+        }
+        return snapshot()
     }
 
     // MARK: Startup reconciliation
@@ -168,7 +271,15 @@ public actor Runner {
         guard let run = runs[id], run.phase != .closed, run.phase != .needsReconciliation,
               !startupPending.contains(id) else { return }
         if run.phase == .leaseLost { await confirmLeaseLoss(id); return }
-        guard now < run.leaseUntil else { await loseLease(id, reason: "Lease expired locally."); return }
+        if now >= run.leaseUntil {
+            switch await recoverAfterWake(id) {
+            case .recovered: break
+            case .retryLater: return
+            case .lost: await loseLease(id, reason: wakeGraceUntil == nil ? "Lease expired locally."
+                                                    : "Interrupted by sleep: the server no longer accepts the lease."); return
+            }
+        }
+        guard let run = runs[id] else { return }
         do {
             let remote = try await server.heartbeat(runID: id, generation: run.generation)
             adopt(id, remote)
@@ -179,7 +290,49 @@ public actor Runner {
         guard let current = runs[id], current.phase != .leaseLost, current.phase != .closed else { return }
         if current.phase == .claimed { await beginLaunch(id) }
         await flushOutbox(id)
+        await pumpProgress(id)
         if let after = runs[id], after.phase == .waitingForAnswer, after.outbox.isEmpty { await tryResume(id) }
+    }
+
+    private enum WakeOutcome { case recovered, retryLater, lost }
+
+    /// Within the wake grace period, tells the server that the run is still alive (or paused) so the expired lease is renewed.
+    private func recoverAfterWake(_ id: UUID) async -> WakeOutcome {
+        guard let grace = wakeGraceUntil, now < grace, let run = runs[id] else { return .lost }
+        let observation: ReconcileObservation
+        if let process = run.process {
+            guard await provider.reconcile(process) == .running else { return .lost }
+            observation = .alive
+        } else if run.phase == .waitingForAnswer, run.outbox.isEmpty {
+            observation = .paused
+        } else { return .lost }
+        do {
+            adopt(id, try await server.reconcile(runID: id, generation: run.generation, observation: observation))
+            mutate(id) { $0.note = "Mac aus dem Ruhezustand aufgewacht; Lauf wieder uebernommen." }
+            return .recovered
+        } catch let error as RunnerServerError where error.isOwnershipLoss {
+            return .lost
+        } catch {
+            lastError = "Wake recovery deferred: \(error)"
+            return .retryLater
+        }
+    }
+
+    /// Streams tool steps from the agent output to the board, summarised and throttled.
+    private func pumpProgress(_ id: UUID) async {
+        guard let run = runs[id], run.phase == .running, let process = run.process, run.outbox.isEmpty,
+              !run.stopRequested else { return }
+        var aggregate = progressState[id] ?? ProgressAggregator()
+        aggregate.add(await provider.drainProgress(process))
+        progressState[id] = aggregate
+        guard !aggregate.isEmpty, now.timeIntervalSince(progressSent[id] ?? .distantPast) >= settings.progressInterval,
+              let current = runs[id], current.phase == .running else { return }
+        do {
+            adopt(id, try await server.progress(runID: id, generation: current.generation, text: aggregate.render()))
+            progressState[id] = ProgressAggregator(); progressSent[id] = now
+        } catch let error as RunnerServerError where error.isOwnershipLoss {
+            await handleOwnershipLoss(id)
+        } catch { lastError = "Progress deferred: \(error)" }
     }
 
     private func handleOwnershipLoss(_ id: UUID) async {
@@ -306,6 +459,7 @@ public actor Runner {
                 ? "Mode: clarify. Do not modify any file. Identify what is unclear and ask or summarise."
                 : "Mode: implement. Make the changes within the scope. Do not commit, push or deploy.",
         ]
+        lines.append("If Todo MCP tools are available in this session, call get_manual first and follow it for progress notes and questions; otherwise continue without it.")
         if !answers.isEmpty {
             lines.append("Answers to your earlier questions:")
             lines += answers.map { "- Q: \($0.prompt)\n  A: \($0.answer ?? "")" }
@@ -342,6 +496,7 @@ public actor Runner {
         mutate(id) { $0.phase = .running; $0.note = "Agent process running." }
         watch(id, process)
         if let r = runs[id] {
+            progressSent[id] = now
             _ = try? await server.progress(runID: id, generation: r.generation, text: resume ? "Agent resumed." : "Agent started.")
         }
     }
@@ -358,6 +513,7 @@ public actor Runner {
 
     private func processEnded(_ id: UUID, _ outcome: Result<AgentResult, Error>) async {
         watchers[id] = nil
+        progressState[id] = nil; progressSent[id] = nil
         guard let run = runs[id] else { return }
         mutate(id) { $0.process = nil }
         guard run.phase == .running || run.phase == .launching else { return }

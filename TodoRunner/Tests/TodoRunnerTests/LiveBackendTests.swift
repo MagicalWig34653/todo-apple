@@ -28,7 +28,7 @@ struct LiveBackendTests {
 
     private func runner(_ w: LiveWorld) throws -> Runner {
         let provider = ClaudeProcessAdapter(executable: claude, scratch: w.fixture.directory.appendingPathComponent("out"))
-        var settings = RunnerSettings(); settings.maxTurns = 8; settings.timeout = 240
+        var settings = RunnerSettings(); settings.maxTurns = 8; settings.timeout = 240; settings.progressInterval = 1
         return try Runner(server: w.server, provider: provider, store: LocalStateStore(directory: w.fixture.state),
                           allowlist: w.fixture.allowlist, settings: settings)
     }
@@ -54,7 +54,8 @@ struct LiveBackendTests {
         #expect(written.contains("Live runner proof 4711"))
         #expect(await r.snapshot().first?.phase == .closed)
         #expect(try await w.server.runs().isEmpty)  // seat is free again
-        #expect(job["progress"] is String)
+        // Streamed tool steps reach the board (written by the runner from the stream-json output).
+        #expect((job["progress"] as? String)?.hasPrefix("Agent arbeitet:") == true, "progress: \(String(describing: job["progress"]))")
 
         let accepted = try await w.human.call("POST", "/v1/agents/jobs/\(jobID)/review", ["decision": "accept"])
         #expect(accepted["state"] as? String == "succeeded")
