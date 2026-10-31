@@ -25,17 +25,19 @@ final class TodoUITests: XCTestCase {
         app.buttons["quickAddButton"].tap()
         let field = app.textFields["quickAddTitle"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
+        // Defensive: a simulator with leftover keyboard state must not leak text into the title.
+        if let existing = field.value as? String, !existing.isEmpty, existing != "Was ist zu tun?" {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
+        }
         field.typeText(title)
         app.buttons["quickAddSave"].tap()
 
         // The created task is due today, so it shows up in "Heute".
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
         XCTAssertTrue(field.waitForNonExistence(timeout: 10), "sheet dismissed")
-        app.tabBars.buttons["Eingang"].tap()
-        _ = row.waitForExistence(timeout: 12)
-        for _ in 0..<6 where !row.exists { app.swipeUp(); _ = row.waitForExistence(timeout: 1) }
-        if !row.waitForExistence(timeout: 15) { XCTFail("HIERARCHY " + String(app.debugDescription.prefix(5000))) }
-        XCTAssertTrue(row.exists, "new task row")
+        // The task is created from "Heute" and therefore planned for today; it is not in "Eingang" (tasks without a date).
+        for _ in 0..<6 where !row.waitForExistence(timeout: 3) { app.swipeUp() }
+        XCTAssertTrue(row.exists, "new task row in Heute")
 
         // Open the detail sheet.
         row.tap()
@@ -45,7 +47,7 @@ final class TodoUITests: XCTestCase {
         // Complete through the leading swipe action (the VoiceOver equivalent is a custom action).
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.swipeRight()
-        let done = app.buttons["Als erledigt markieren"]
+        let done = app.buttons.matching(identifier: "Als erledigt markieren").firstMatch // the row also exposes the custom action
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         done.tap()
         let gone = NSPredicate(format: "exists == false")
