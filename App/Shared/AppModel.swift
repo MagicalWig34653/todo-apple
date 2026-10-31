@@ -126,6 +126,7 @@ final class AppModel {
     var visibleTasks: [TodoTask] { tasks.filter { $0.projectID == selectedProjectID } }
 
     func start() async {
+        PushCoordinator.shared.model = self
         #if DEBUG
         DebugLaunch.seedSession(model: self)
         #if os(macOS)
@@ -245,6 +246,7 @@ final class AppModel {
     }
 
     func logout() async {
+        await PushCoordinator.shared.accountWillSignOut(client: client, userID: user?.id)
         syncLoop?.cancel(); syncLoop = nil
         try? await engine?.reset()
         await outbox?.reset()
@@ -277,6 +279,7 @@ final class AppModel {
     /// Falls back to REST if the store cannot be opened.
     private func beginSync() async {
         syncLoop?.cancel()
+        Task { await pushSync() }
         guard let client, let user, let path = storePath(for: user),
             let store = try? SQLiteSyncStore(path: path), let engine = try? SyncEngine(client: client, store: store)
         else { usesREST = true; loadPrefsCache(); await reloadREST(); await refreshServerState(); return }
@@ -292,6 +295,7 @@ final class AppModel {
         publish(cached)
         await syncNow()
         selectDefaultIfNeeded()
+        openPendingPushLink()
         syncLoop = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.syncInterval)
@@ -526,7 +530,10 @@ final class AppModel {
         guard let client else { return }
         var options = CommandCenterOptions(view: .list)
         options.limit = 1; options.updatesLimit = 0
-        if let center = try? await client.commandCenter(options) { commandSummary = center.summary }
+        if let center = try? await client.commandCenter(options) {
+            commandSummary = center.summary
+            PushCoordinator.shared.updateBadge(attentionCount)
+        }
     }
 
     func reloadTeams() async {

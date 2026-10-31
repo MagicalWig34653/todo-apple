@@ -4241,6 +4241,316 @@
           }
         }
       }
+    },
+    "push.action.answer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antworten"
+          }
+        }
+      }
+    },
+    "push.action.done" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erledigen"
+          }
+        }
+      }
+    },
+    "push.action.open" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnen"
+          }
+        }
+      }
+    },
+    "push.action.snooze" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Später"
+          }
+        }
+      }
+    },
+    "push.badge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zähler am App-Symbol"
+          }
+        }
+      }
+    },
+    "push.cat.comments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kommentare"
+          }
+        }
+      }
+    },
+    "push.cat.questions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rückfragen von Agenten"
+          }
+        }
+      }
+    },
+    "push.cat.reminders" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerungen"
+          }
+        }
+      }
+    },
+    "push.cat.reviews" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviews von Agenten"
+          }
+        }
+      }
+    },
+    "push.categories" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anlässe"
+          }
+        }
+      }
+    },
+    "push.categories.footer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gilt für alle deine Geräte mit diesem Konto."
+          }
+        }
+      }
+    },
+    "push.denied.hint" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigungen sind für Todolino ausgeschaltet. Du kannst sie in den Systemeinstellungen wieder erlauben."
+          }
+        }
+      }
+    },
+    "push.enable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigungen aktivieren"
+          }
+        }
+      }
+    },
+    "push.error.prefs" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Einstellung konnte nicht gespeichert werden."
+          }
+        }
+      }
+    },
+    "push.error.rejected" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Server hat die Registrierung dieses Geräts abgelehnt."
+          }
+        }
+      }
+    },
+    "push.error.server" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Registrierung beim Server ist fehlgeschlagen. Sie wird beim nächsten Start erneut versucht."
+          }
+        }
+      }
+    },
+    "push.error.system" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Gerät konnte sich nicht für Push registrieren. Prüfe die Netzwerkverbindung; bei Entwicklungs-Builds fehlt ggf. die Push-Berechtigung der App-ID."
+          }
+        }
+      }
+    },
+    "push.openSettings" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Systemeinstellungen öffnen"
+          }
+        }
+      }
+    },
+    "push.primer.enable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivieren"
+          }
+        }
+      }
+    },
+    "push.primer.later" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht jetzt"
+          }
+        }
+      }
+    },
+    "push.primer.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todolino kann dich melden, wenn ein Agent eine Rückfrage hat, ein Review wartet oder eine Erinnerung fällig ist. Standardmäßig ohne Aufgabentitel. Du kannst das jederzeit in den Einstellungen ändern."
+          }
+        }
+      }
+    },
+    "push.primer.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigungen aktivieren?"
+          }
+        }
+      }
+    },
+    "push.serverOff" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Server hat Push-Benachrichtigungen noch nicht aktiviert. Dein Gerät ist vorgemerkt, sobald es erlaubt ist."
+          }
+        }
+      }
+    },
+    "push.showContent" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inhalt anzeigen"
+          }
+        }
+      }
+    },
+    "push.showContent.footer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus: Benachrichtigungen nennen keinen Aufgabentitel, auch nicht auf dem Sperrbildschirm. Der Zähler zeigt offene Rückfragen und ausstehende Reviews."
+          }
+        }
+      }
+    },
+    "push.status" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Systemstatus"
+          }
+        }
+      }
+    },
+    "push.status.denied" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht erlaubt"
+          }
+        }
+      }
+    },
+    "push.status.notAsked" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht aktiviert"
+          }
+        }
+      }
+    },
+    "push.status.on" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlaubt"
+          }
+        }
+      }
+    },
+    "push.task.fallbackTitle" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufgabe"
+          }
+        }
+      }
+    },
+    "push.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigungen"
+          }
+        }
+      }
     }
   }
 }

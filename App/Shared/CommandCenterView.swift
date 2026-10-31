@@ -22,6 +22,7 @@ struct CommandCenterView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            PushPrimerCard()
             header
             Group {
                 if cc.unsupported {

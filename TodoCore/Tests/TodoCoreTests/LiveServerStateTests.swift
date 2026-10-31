@@ -123,3 +123,31 @@ extension LiveEtappe2Tests {
         XCTAssertEqual(rs.projects.filter { $0.parentID == nil }.first?.id, other)
     }
 }
+
+/// Opt-in live check of ADR 0021 push registration and preferences (skipped without `TODO_LIVE_BASE_URL`).
+extension LiveEtappe2Tests {
+    func testLivePushDevicesAndPrefs() async throws {
+        let f = try await fixture(); let a = f.admin
+        let token = String(repeating: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), count: 2)
+        let reg = PushRegistration(token: token, platform: .ios, environment: .sandbox, bundleId: "de.linolaske.todo", appVersion: "0.1.0", locale: "de-DE")
+        let d1: PushDevice
+        do { d1 = try await a.registerPushDevice(reg) }
+        catch { if APIClient.isPushUnavailable(error) { throw XCTSkip("server without push endpoints") }; throw error }
+        let d2 = try await a.registerPushDevice(reg)
+        XCTAssertEqual(d1.id, d2.id, "registration is idempotent per token")
+        let listed = try await a.pushDevices()
+        XCTAssertTrue(listed.contains { $0.id == d1.id })
+        let prefs = try await a.pushPrefs()
+        XCTAssertEqual(prefs, PushPrefs())
+        let changed = try await a.updatePushPrefs(PushPrefsUpdate(categories: [.comments: true], showContent: true, badge: false))
+        XCTAssertTrue(changed.categories.comments); XCTAssertTrue(changed.showContent); XCTAssertFalse(changed.badge)
+        XCTAssertTrue(changed.categories.reminders, "untouched categories keep their value")
+        // Another account does not see or revoke this device.
+        let bobList = try await f.bob.pushDevices()
+        XCTAssertFalse(bobList.contains { $0.id == d1.id })
+        do { try await f.bob.revokePushDevice(d1.id); XCTFail("foreign device") } catch { XCTAssertEqual(error as? APIError, .notFound) }
+        try await a.revokePushDevice(d1.id)
+        do { try await a.revokePushDevice(d1.id); XCTFail("already revoked") } catch { XCTAssertEqual(error as? APIError, .notFound) }
+        _ = try await a.updatePushPrefs(PushPrefsUpdate(categories: [.comments: false], showContent: false, badge: true))
+    }
+}

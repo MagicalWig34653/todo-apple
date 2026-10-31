@@ -338,6 +338,7 @@ struct AccountView: View {
                 if let u = model.user?.username { LabeledContent("account.username") { Text(verbatim: u) } }
                 LabeledContent("login.server") { Text(verbatim: model.serverURL).textSelection(.enabled) }
             }
+            NotificationSettingsSections()
             Section {
                 Button("logout", role: .destructive) { Task { await model.logout() } }
             }

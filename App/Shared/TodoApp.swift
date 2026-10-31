@@ -3,6 +3,11 @@ import SwiftUI
 @main
 struct TodoApp: App {
     @State private var model = AppModel()
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #elseif os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #endif
 
     var body: some Scene {
         WindowGroup("app.title") {
@@ -23,12 +28,17 @@ struct TodoApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         switch model.phase {
         case .launching: ProgressView()
         case .signedOut: LoginView()
-        case .signedIn: MainView()
+        case .signedIn:
+            MainView().onAppear { model.openPendingPushLink() }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { model.openPendingPushLink(); Task { await model.pushSync() } }
+                }
         }
     }
 }
@@ -82,12 +92,13 @@ struct SettingsView: View {
                 LabeledContent("login.server") { Text(verbatim: model.serverURL).textSelection(.enabled) }
                 LabeledContent("help.version") { Text(verbatim: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }
             }
+            if model.phase == .signedIn { NotificationSettingsSections() }
             if model.phase == .signedIn {
                 Section { Button("logout", role: .destructive) { Task { await model.logout() } } }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 300)
+        .frame(width: 460, height: 560)
     }
 }
 #endif

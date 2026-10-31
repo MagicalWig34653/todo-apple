@@ -4,4 +4,7 @@ TODO_BUNDLE_ID_PREFIX = de.linolaske.todo
 DEVELOPMENT_TEAM =
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
+// APNs: Debug (Xcode run) = development/sandbox, Release (TestFlight/App Store) = production. See docs/PUSH.md.
+APS_ENVIRONMENT = development
+APS_ENVIRONMENT[config=Release] = production
 #include? "Signing.local.xcconfig"

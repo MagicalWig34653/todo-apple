@@ -2,6 +2,13 @@ import Foundation
 
 public struct HealthResponse: Codable, Sendable, Equatable {
     public let status: String
+    /// Informational push state of newer servers (`enabled` = APNs delivery configured); nil on older servers.
+    public let push: PushHealth?
+}
+
+public struct PushHealth: Codable, Sendable, Equatable {
+    public let enabled: Bool
+    public let environment: String?
 }
 
 /// API client for `/v1` of the Todo backend (contract: `contracts/` in the main repository).
