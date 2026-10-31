@@ -225,3 +225,6 @@ Ziel: Client folgt contracts/sync.yaml 1.3.0 (410 `cursor_expired`: Cache des Ko
 - Screenshots `docs/screenshots/hig2-*.png` (iPhone/iPad, hell/dunkel, AX5, Hoher Kontrast).
 - Geprüft: TodoCore 130 Tests (17 live übersprungen) grün; Builds iOS, macOS, watchOS grün; UI-Tests siehe oben.
 - Nicht geprüft: Drag per XCUITest (iOS-Simulator-Geste löste den Drop nicht aus; Logik per Unit-Test, Gerät offen), Haptik am Gerät, VoiceOver real, Mac-UI nach Änderungen nicht gestartet, Board bei AX5 nur Kopf, Hardwaretastatur iPad.
+
+## Checkpoint TestFlight (2026-10-31)
+iOS Build 2610310643 (UUID e3180b33-e969-4948-a445-0dece42d0b4f) und macOS Build 2610310645 (UUID 92716b88-96b1-4d98-9d06-26afa8c546d3) hochgeladen (Details docs/TESTFLIGHT.md). watchOS-Build und TodoCore-Tests (130, 0 Fehler) vorab gruen. App-Store-Connect-Verarbeitung nicht geprueft.

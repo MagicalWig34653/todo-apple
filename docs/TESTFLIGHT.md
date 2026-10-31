@@ -64,3 +64,11 @@ Beide aus sauberem Stand (main, nach `git pull --rebase`), Bundle-ID `de.linolas
 ## Produktname "Todolino" (31.10.2026)
 Der sichtbare Name ist "Todolino": `CFBundleDisplayName` (iOS/macOS/watchOS) per `INFOPLIST_KEY_CFBundleDisplayName`, `CFBundleName` (Mac-Menueleiste "Todolino", "Ueber Todolino", "Todolino beenden") ueber `App/Shared/InfoPlist.xcstrings`, Face-ID-/Netzwerk-Beschreibung, Login-Wortmarke und Fenstertitel ueber den String `app.title`. Unveraendert: Bundle-IDs (`de.linolaske.todo`, `.watch`), Target-/Scheme-Namen, Archivnamen der Skripte, Domain, Schluesselbund-/UserDefaults-Schluessel.
 Hinweis: Den App-Store-Connect-Namen ("Todolino" oder Alternative) legt der Nutzer beim Anlegen des App-Eintrags selbst fest; er muss nicht mit dem Anzeigenamen auf dem Geraet uebereinstimmen, ist aber in App Store Connect eindeutig zu waehlen (ggf. Namenskonflikt pruefen).
+
+## Upload HIG, Sync-410, Todolino (2026-10-31, Universal Purchase)
+Aus sauberem Stand (main, nach `git pull --rebase`, Stand 0b81ee4-Nachfolger), Bundle-ID `de.linolaske.todo`, Version 0.1.0. Inhalt: HIG-Verbesserungen (Dynamic Type AX5, Kontraste, Inspector, Menueleiste, Undo, VoiceOver), 410-`cursor_expired`-Behandlung im Sync, Todolino-Name, Recovery-Flow, Steuerzentrale (Runner nur Mac-seitige Bibliothek, kein App-Feature).
+- Vorab: Todo-watchOS Build (Simulator, unsigniert) erfolgreich; TodoCore-Tests (aus `TodoCore/`): 130 Tests, 17 uebersprungen, 0 Fehler.
+- iOS: Build 2610310643, "Upload succeeded", Delivery UUID `e3180b33-e969-4948-a445-0dece42d0b4f`.
+- macOS: Build 2610310645, "Upload succeeded", Delivery UUID `92716b88-96b1-4d98-9d06-26afa8c546d3`.
+- Hinweis: `xcodebuild test -scheme TodoCore` muss im Verzeichnis `TodoCore/` laufen (im Repo-Root ist das Schema nicht fuer Tests konfiguriert).
+- Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
