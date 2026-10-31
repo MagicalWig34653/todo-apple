@@ -2650,6 +2650,56 @@
         }
       }
     },
+    "board.lane.empty" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Karten. Hierher ziehen oder hinzufügen."
+          }
+        }
+      }
+    },
+    "board.moveToColumn" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Spalte verschieben"
+          }
+        }
+      }
+    },
+    "board.moveTo %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschieben nach %@"
+          }
+        }
+      }
+    },
+    "a11y.board.cards %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Karten"
+          }
+        }
+      }
+    },
+    "a11y.openTask" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet die Aufgabe"
+          }
+        }
+      }
+    },
     "notice.syncRejected" : {
       "localizations" : {
         "de" : {

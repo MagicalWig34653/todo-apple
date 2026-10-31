@@ -22,6 +22,9 @@ final class BoardModel {
 
     init(projectID: UUID) { self.projectID = projectID }
 
+    /// False until the first load finished (the board shows a skeleton instead of nothing).
+    var isLoaded: Bool { board != nil }
+
     var hasOwnColumns: Bool { board?.hasOwnColumns == true }
 
     /// Columns shown on the board, "Ohne Spalte" first if it has tasks.

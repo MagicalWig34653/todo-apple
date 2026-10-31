@@ -62,10 +62,10 @@ struct CommandCenterView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Space.m) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("cc.title").font(.largeTitle.bold()).lineLimit(1).minimumScaleFactor(0.5)
+                    Text("cc.title").font(typeSize.isAccessibilitySize ? Font.system(.title, design: .rounded).weight(.bold) : .screenTitle).fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
                     if let project {
                         Button { app.selectedProjectID = project.id } label: {
                             HStack(spacing: 4) {
@@ -91,7 +91,7 @@ struct CommandCenterView: View {
             }
             .pickerStyle(.segmented).labelsHidden()
         }
-        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 10)
+        .padding(.horizontal, Space.l + 4).padding(.top, Space.s).padding(.bottom, Space.m)
     }
 
     @ViewBuilder private var summaryStrip: some View {
@@ -113,8 +113,9 @@ struct CommandCenterView: View {
                 Text("cc.summary.agents \(cc.summary.activeAgents)")
             }
             .font(.caption.weight(.medium)).foregroundStyle(Color.priority(1))
-            .padding(.horizontal, 10).padding(.vertical, 5)
+            .padding(.horizontal, Space.m).padding(.vertical, 6)
             .background(Color.priority(1).opacity(0.10), in: Capsule())
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -128,7 +129,7 @@ struct CommandCenterView: View {
         .fixedSize(horizontal: false, vertical: true)
         .font(.caption.weight(.medium))
         .foregroundStyle(count > 0 ? color : Color.textSecondary)
-        .padding(.horizontal, 10).padding(.vertical, 5)
+        .padding(.horizontal, Space.m).padding(.vertical, 6)
         .background((count > 0 ? color : Color.textSecondary).opacity(0.10), in: Capsule())
         .accessibilityElement(children: .combine)
     }
@@ -137,7 +138,7 @@ struct CommandCenterView: View {
 
     @ViewBuilder private var overview: some View {
         if cc.data == nil {
-            if cc.loading { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
+            if cc.loading { BoardSkeleton(width: 280).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
             else { EmptyState(symbol: "wifi.exclamationmark", title: "cc.loadFailed").frame(maxWidth: .infinity, maxHeight: .infinity) }
         } else if cc.mode == .kanban {
             KanbanLanes(cc: cc, showProject: true)
@@ -179,24 +180,39 @@ struct CommandCenterView: View {
 
 // MARK: Kanban
 
-/// Lanes side by side (horizontal scroll); the whole board scrolls vertically so pull-to-refresh works.
+/// Lanes side by side (horizontal scroll); the whole board scrolls vertically so pull-to-refresh works. On iPhone a
+/// lane is nearly screen wide (the next one peeks out and the scroll snaps), on iPad and Mac the lanes share the width.
 struct KanbanLanes: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @ScaledMetric(relativeTo: .body) private var baseWidth: CGFloat = 304
     let cc: CommandCenterModel
     let showProject: Bool
 
+    private func laneWidth(_ available: CGFloat) -> CGFloat {
+        let inner = max(available - 2 * Space.l, 240)
+        if sizeClass == .compact { return min(max(inner * 0.86, 240), inner) }
+        let n = max(cc.lanes.count, 1)
+        return min(inner, max(baseWidth, min((inner - CGFloat(n) * Space.m) / CGFloat(n), 420)))
+    }
+
     var body: some View {
-        ScrollView(.vertical) {
-            ScrollView(.horizontal, showsIndicators: true) {
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(cc.lanes) { lane in
-                        LaneColumn(cc: cc, lane: lane, showProject: showProject)
+        GeometryReader { geo in
+            let width = laneWidth(geo.size.width)
+            ScrollView(.vertical) {
+                ScrollView(.horizontal, showsIndicators: true) {
+                    HStack(alignment: .top, spacing: Space.m) {
+                        ForEach(cc.lanes) { lane in
+                            LaneColumn(cc: cc, lane: lane, showProject: showProject, width: width)
+                        }
                     }
+                    .padding(.horizontal, Space.l).padding(.top, Space.xs).padding(.bottom, Space.xl)
+                    .scrollTargetLayout()
                 }
-                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 24)
+                .scrollTargetBehavior(.viewAligned)
             }
+            .refreshable { await cc.refresh(app) }
         }
-        .refreshable { await cc.refresh(app) }
     }
 }
 
@@ -204,22 +220,30 @@ struct LaneColumn: View {
     let cc: CommandCenterModel
     let lane: CommandLaneColumn
     let showProject: Bool
+    var width: CGFloat = 304
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: LanePresentation.symbol(lane.key)).foregroundStyle(LanePresentation.color(lane.key))
-                LanePresentation.title(lane.key, fallback: lane.title).font(.subheadline.weight(.bold))
-                Text(verbatim: String(lane.count)).font(.subheadline).foregroundStyle(Color.textSecondary).monospacedDigit()
-                Spacer()
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.s) {
+                Image(systemName: LanePresentation.symbol(lane.key)).foregroundStyle(LanePresentation.color(lane.key)).accessibilityHidden(true)
+                LanePresentation.title(lane.key, fallback: lane.title).font(.sectionTitle).fixedSize(horizontal: false, vertical: true)
+                CountBadge(count: lane.count, tint: lane.count > 0 ? LanePresentation.color(lane.key) : Color.textSecondary)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, Space.xs).padding(.top, Space.xs)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             if lane.cards.isEmpty {
-                Text("cc.lane.empty").font(.footnote).foregroundStyle(Color.textSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 60)
-                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                VStack(spacing: Space.xs) {
+                    Image(systemName: "tray").font(.title3)
+                    Text("cc.lane.empty").font(.footnote).multilineTextAlignment(.center)
+                }
+                .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 84)
+                .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                .accessibilityElement(children: .combine)
             } else {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: Space.m) {
                     ForEach(lane.cards) { CommandCardView(cc: cc, card: $0, showProject: showProject) }
                 }
                 if lane.truncated {
@@ -227,7 +251,11 @@ struct LaneColumn: View {
                 }
             }
         }
-        .frame(width: 304, alignment: .top)
+        .padding(Space.s)
+        .frame(width: width, alignment: .top)
+        .background(Color.canvasRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline.opacity(0.6), lineWidth: 0.5))
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -240,17 +268,24 @@ struct CommandListSection: View {
 
     var body: some View {
         List {
-            ForEach(cc.items) { card in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Image(systemName: LanePresentation.symbol(card.lane)).foregroundStyle(LanePresentation.color(card.lane))
-                        LanePresentation.title(card.lane, fallback: card.lane).font(.caption.weight(.semibold)).foregroundStyle(LanePresentation.color(card.lane))
+            ForEach(Array(cc.items.enumerated()), id: \.element.id) { index, card in
+                VStack(alignment: .leading, spacing: Space.s) {
+                    // One group header per run of equal lanes (not above every card).
+                    if index == 0 || cc.items[index - 1].lane != card.lane {
+                        HStack(spacing: Space.s) {
+                            Image(systemName: LanePresentation.symbol(card.lane)).foregroundStyle(LanePresentation.color(card.lane)).accessibilityHidden(true)
+                            LanePresentation.title(card.lane, fallback: card.lane).font(.sectionTitle).foregroundStyle(LanePresentation.color(card.lane))
+                            CountBadge(count: cc.items.filter { $0.lane == card.lane }.count, tint: LanePresentation.color(card.lane))
+                        }
+                        .padding(.top, index == 0 ? 0 : Space.s)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isHeader)
                     }
                     CommandCardView(cc: cc, card: card, showProject: showProject)
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowInsets(EdgeInsets(top: Space.xs + 2, leading: Space.l, bottom: Space.xs + 2, trailing: Space.l))
             }
             if let total = cc.data?.total, total > cc.items.count {
                 Text("cc.list.more \(total - cc.items.count)").font(.footnote).foregroundStyle(Color.textSecondary).listRowBackground(Color.clear)
@@ -295,7 +330,7 @@ struct UpdatesSection: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 4) {
                                     CommandFormat.updateKind(update.kind).fontWeight(.semibold)
-                                    Text(verbatim: "·").foregroundStyle(.tertiary)
+                                    Text(verbatim: "·").foregroundStyle(Color.textSecondary)
                                     Text(verbatim: update.taskTitle).lineLimit(1)
                                 }
                                 .font(.subheadline)
@@ -352,7 +387,7 @@ struct QuestionsSection: View {
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowInsets(EdgeInsets(top: Space.xs + 2, leading: Space.l, bottom: Space.xs + 2, trailing: Space.l))
             }
         }
         .listStyle(.plain)
@@ -388,7 +423,7 @@ struct AgentBriefView: View {
                     .font(.system(.body, design: .monospaced))
                     .scrollContentBackground(.hidden)
                     .padding(8)
-                    .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: 10))
+                    .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                     .overlay(alignment: .topLeading) {
                         if text.isEmpty && loaded {
                             Button("cc.brief.insertTemplate") { text = Self.template }

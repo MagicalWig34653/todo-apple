@@ -70,3 +70,6 @@ Ausnahme: Brand dunkel auf 10-%-Tönung 4,4:1 (knapp unter 4,5); weiter aufhelle
 
 ## Verifikation
 Siehe Abschnitt "Checkpoint 31.10.2026 HIG" in `docs/STATUS.md`.
+
+## Nachtrag 31.10.2026: Board und Steuerzentrale
+Board und Steuerzentrale folgen dem Designsystem (Spacing/Radius/Typo, Karten, Zaehler-Kapseln, TextSecondary, 44 pt, sensoryFeedback, Reduce Motion, Skeleton, Leerzustaende, VoiceOver-Header und Verschieben-Aktionen als Drag-Alternative). Screenshots `board2-*`, `cc2-*`. Offen: Steuerzentrale-Kopf bei AX5 (nimmt viel Platz), Gesten-Drag am Geraet, VoiceOver real.

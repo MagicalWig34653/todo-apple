@@ -28,6 +28,19 @@ enum LanePresentation {
         }
     }
 
+    /// Plain-string lane name for VoiceOver values.
+    static func name(_ key: String) -> String {
+        switch key {
+        case "running": String(localized: "cc.lane.running")
+        case "question": String(localized: "cc.lane.question")
+        case "review": String(localized: "cc.lane.review")
+        case "ready": String(localized: "cc.lane.ready")
+        case "blocked": String(localized: "cc.lane.blocked")
+        case "done": String(localized: "cc.lane.done")
+        default: key
+        }
+    }
+
     static func title(_ key: String, fallback: String) -> Text {
         switch key {
         case "running": Text("cc.lane.running")
@@ -276,7 +289,7 @@ struct QuestionAnswerView: View {
                         .textFieldStyle(.roundedBorder).lineLimit(1...5)
                         .onSubmit(send)
                     Button(action: send) { Image(systemName: "paperplane.fill") }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).controlSize(.large)
                         .disabled(busy || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel(Text("cc.question.send"))
                 }
@@ -284,15 +297,14 @@ struct QuestionAnswerView: View {
                 FlowLayout(spacing: 8) {
                     ForEach(options, id: \.self) { option in
                         Button { onAnswer(option) } label: { Text(verbatim: option).lineLimit(2) }
-                            .buttonStyle(.bordered).disabled(busy)
+                            .buttonStyle(.bordered).controlSize(.large).disabled(busy)
                     }
                 }
             }
         }
-        .controlSize(.small)
-        .padding(10)
+        .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.priority(2).opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.priority(2).opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
         .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(8) } }
     }
 
@@ -337,23 +349,22 @@ struct ReviewDecisionView: View {
                     .textFieldStyle(.roundedBorder).lineLimit(2...6)
                 HStack {
                     Button("cc.review.sendChanges") { onDecision(.requestChanges, note); asking = false; note = "" }
-                        .buttonStyle(.borderedProminent).tint(.purple)
+                        .buttonStyle(.borderedProminent).tint(Color.chipPurple).controlSize(.large)
                         .disabled(busy || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button("cancel") { asking = false }.buttonStyle(.bordered)
+                    Button("cancel") { asking = false }.buttonStyle(.bordered).controlSize(.large)
                 }
             } else {
-                HStack {
+                AdaptiveStack(spacing: Space.s) {
                     Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
-                        .buttonStyle(.borderedProminent).tint(.green).disabled(busy)
+                        .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
                     Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
-                        .buttonStyle(.bordered).disabled(busy)
+                        .buttonStyle(.bordered).controlSize(.large).disabled(busy)
                 }
             }
         }
-        .controlSize(.small)
-        .padding(10)
+        .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.chipPurple.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.chipPurple.opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
         .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(8) } }
     }
 }
@@ -369,14 +380,25 @@ struct CommandCardView: View {
 
     private var laneColor: Color { LanePresentation.color(card.lane) }
 
+    /// Lane, progress and agent as one phrase on the title (VoiceOver reads the card as title + state).
+    private var spokenState: String {
+        var parts = [LanePresentation.name(card.lane)]
+        if card.progress.source != "none" { parts.append("\(card.progress.percent) %") }
+        if let who = card.agent?.claimedLabel { parts.append(who) }
+        if card.blockedReason?.isEmpty == false { parts.append(String(localized: "cc.lane.blocked")) }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Space.m) {
             header
             Button { open() } label: {
                 Text(verbatim: card.task.title).font(.headline).multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .accessibilityValue(Text(verbatim: spokenState))
+            .accessibilityHint(Text("a11y.openTask"))
             if card.isFeature || card.progress.source != "none" { progress }
             if let agent = card.agent, agent.claimedLabel != nil || agent.jobState != nil { agentRow(agent) }
             if let reason = card.blockedReason, !reason.isEmpty {
@@ -403,13 +425,13 @@ struct CommandCardView: View {
             if !card.subtasks.isEmpty { subtasks }
             footer
         }
-        .padding(12)
+        .padding(Space.m)
+        .padding(.leading, Space.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: 12))
+        .cardSurface(radius: Radius.m)
         .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2).fill(laneColor).frame(width: 3).padding(.vertical, 10)
+            RoundedRectangle(cornerRadius: 2).fill(laneColor).frame(width: 3).padding(.vertical, Space.m)
         }
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.hairline, lineWidth: 1))
         .accessibilityElement(children: .contain)
     }
 
@@ -430,7 +452,7 @@ struct CommandCardView: View {
 
     private var progress: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ProgressView(value: Double(max(0, min(100, card.progress.percent))), total: 100).tint(laneColor)
+            ProgressView(value: Double(max(0, min(100, card.progress.percent))), total: 100).tint(laneColor).frame(minHeight: 6)
             HStack(spacing: 6) {
                 Text(verbatim: "\(card.progress.percent) %").monospacedDigit().fontWeight(.semibold)
                 CommandFormat.progressText(card.progress)
