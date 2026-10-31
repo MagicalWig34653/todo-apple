@@ -7,37 +7,97 @@ import TodoCore
 /// the task itself, so this is fetched from the planning and discovery endpoints and kept next to `AppModel`.
 @MainActor @Observable
 final class TaskMeta {
-    private(set) var planning: [UUID: PlanningData] = [:]
+    /// Last server-confirmed values (persisted per account so lists keep their chips and due dates offline).
+    private(set) var confirmedPlanning: [UUID: PlanningData] = [:]
     private(set) var overdue: [PlanningTask] = []
     private(set) var allLabels: [TaskLabel] = []
-    private(set) var labelsByTask: [UUID: [TaskLabel]] = [:]
+    private(set) var confirmedLabels: [UUID: [TaskLabel]] = [:]
+    /// Unsent planning/label edits (outbox) shown on top of the confirmed values.
+    var overlay = OutboxSnapshot()
     /// Subtask progress per parent task and the ids of tasks that are subtasks (from the command-center list).
     private(set) var subtaskProgress: [UUID: (done: Int, total: Int)] = [:]
     private(set) var subtaskIDs: Set<UUID> = []
     func isSubtask(_ id: UUID) -> Bool { subtaskIDs.contains(id) }
 
-    func planning(for id: UUID) -> PlanningData? { planning[id] }
-    func labels(for id: UUID) -> [TaskLabel] { labelsByTask[id] ?? [] }
+    func planning(for id: UUID) -> PlanningData? { overlay.planning[id] ?? confirmedPlanning[id] }
+
+    func labels(for id: UUID) -> [TaskLabel] {
+        var list = confirmedLabels[id] ?? []
+        if let removed = overlay.labelRemoves[id] { list.removeAll { removed.contains($0.id) } }
+        for add in overlay.labelAdds[id] ?? [] where !list.contains(where: { $0.id == add }) {
+            if let known = allLabels.first(where: { $0.id == add }) { list.append(known) }
+        }
+        for name in overlay.namedAdds[id] ?? [] where !list.contains(where: { $0.name.lowercased() == name.lowercased() }) {
+            list.append(allLabels.first { $0.name.lowercased() == name.lowercased() } ?? Self.placeholder(name))
+        }
+        return list
+    }
+
+    /// Label that exists only locally until the outbox created it on the server (stable id derived from the name).
+    static func placeholder(_ name: String) -> TaskLabel {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        for (i, b) in name.lowercased().utf8.enumerated() { bytes[i % 16] = bytes[i % 16] &* 31 &+ b &+ UInt8(truncatingIfNeeded: i) }
+        return TaskLabel(id: UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15])), name: name)
+    }
+
+    /// Labels with their task counts (including unsent edits), for the sidebar.
+    func taskCount(for label: TaskLabel) -> Int {
+        var tasks = Set(confirmedLabels.filter { $0.value.contains { $0.id == label.id } }.keys)
+        for (task, ids) in overlay.labelAdds where ids.contains(label.id) { tasks.insert(task) }
+        for (task, ids) in overlay.labelRemoves where ids.contains(label.id) { tasks.remove(task) }
+        return tasks.count
+    }
 
     /// Everything that changes what the lists show; used as `.task(id:)` key.
     static func refreshKey(_ app: AppModel) -> Int {
         var h = Hasher()
         for t in app.tasks { h.combine(t.id); h.combine(t.version); h.combine(t.status) }
         for p in app.today + app.upcoming { h.combine(p.id); h.combine(p.planning.dueAt); h.combine(p.planning.priority) }
+        h.combine(app.metaRevision)
         return h.finalize()
     }
 
+    // MARK: Cache (offline)
+
+    private struct Cache: Codable {
+        var planning: [UUID: PlanningData]
+        var labels: [TaskLabel]
+        var labelsByTask: [UUID: [TaskLabel]]
+    }
+    private var restored = false
+
+    private func restore(from url: URL?) {
+        guard !restored else { return }
+        restored = true
+        guard let url, let data = try? Data(contentsOf: url) else { return }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        guard let cache = try? decoder.decode(Cache.self, from: data) else { return }
+        if confirmedPlanning.isEmpty { confirmedPlanning = cache.planning }
+        if allLabels.isEmpty { allLabels = cache.labels }
+        if confirmedLabels.isEmpty { confirmedLabels = cache.labelsByTask }
+    }
+
+    private func persist(to url: URL?) {
+        guard let url else { return }
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        try? encoder.encode(Cache(planning: confirmedPlanning, labels: allLabels, labelsByTask: confirmedLabels)).write(to: url, options: .atomic)
+    }
+
     func refresh(_ app: AppModel) async {
+        restore(from: app.metaCacheURL)
         guard let client = app.client else { return }
         var known: [UUID: PlanningData] = [:]
         for p in app.today + app.upcoming { known[p.id] = p.planning }
+        // Offline (or any failure) keeps the last confirmed values instead of blanking the lists.
         if let next = try? await client.upNext() {
             for p in next { known[p.id] = p.planning }
             let start = DueFormat.startOfToday()
             overdue = next.filter { ($0.planning.dueAt ?? .distantFuture) < start && !$0.task.isDone }
                 .sorted { ($0.planning.dueAt ?? .distantFuture) < ($1.planning.dueAt ?? .distantFuture) }
+            confirmedPlanning = known
+        } else {
+            confirmedPlanning.merge(known) { _, new in new }
         }
-        planning = known
         var overview = CommandCenterOptions(projectID: nil, view: .list)
         overview.includeSubtasks = true
         overview.limit = 200
@@ -45,46 +105,46 @@ final class TaskMeta {
             var progress: [UUID: (done: Int, total: Int)] = [:]
             var children: Set<UUID> = []
             for card in cards {
-                if let parent = card.parentTaskID { children.insert(card.id); _ = parent }
+                if card.parentTaskID != nil { children.insert(card.id) }
                 if !card.subtasks.isEmpty { progress[card.id] = (card.subtasks.filter { $0.status == "done" }.count, card.subtasks.count) }
             }
             subtaskProgress = progress; subtaskIDs = children
         }
         if let labels = try? await client.labels(limit: 100).items {
-            allLabels = labels
             var map: [UUID: [TaskLabel]] = [:]
+            var complete = true
             for label in labels {
-                guard let hits = try? await client.search(nil, labelID: label.id, limit: 100) else { continue }
+                guard let hits = try? await client.search(nil, labelID: label.id, limit: 100) else { complete = false; break }
                 for hit in hits.items { if let t = hit.task { map[t.id, default: []].append(label) } }
             }
-            labelsByTask = map
+            allLabels = labels
+            if complete { confirmedLabels = map }
         }
+        persist(to: app.metaCacheURL)
+    }
+
+    /// Current planning of the task for a read-modify-write: the known value, else the server's. nil if neither is
+    /// available (offline and never seen); callers then must not guess, because PUT replaces everything.
+    private func basePlanning(_ task: TodoTask, _ app: AppModel) async -> PlanningData? {
+        if let known = planning(for: task.id) { return known }
+        if let client = app.client, let fetched = try? await client.planning(taskID: task.id).planning { return fetched }
+        app.noticeKey = "notice.planningUnavailable"
+        return nil
     }
 
     /// Replaces the priority (0 none ... 3 highest), keeping the other planning values.
     func setPriority(_ task: TodoTask, to value: Int, _ app: AppModel) async {
-        guard let client = app.client else { return }
-        do {
-            var data: PlanningData
-            if let known = planning[task.id] { data = known } else { data = try await client.planning(taskID: task.id).planning }
-            data.priority = value
-            planning[task.id] = data
-            _ = try await client.setPlanning(taskID: task.id, data)
-            await app.reloadAgenda()
-        } catch { await app.handle(error) }
+        guard var data = await basePlanning(task, app) else { return }
+        data.priority = value
+        await app.savePlanning(taskID: task.id, data)
     }
 
     /// Moves the due date (nil clears it). Planning is replaced as a whole, so the current values are kept.
     func schedule(_ task: TodoTask, to date: Date?, _ app: AppModel) async {
-        guard let client = app.client else { return }
-        do {
-            var data: PlanningData
-            if let known = planning[task.id] { data = known } else { data = try await client.planning(taskID: task.id).planning }
-            data.dueAt = date
-            planning[task.id] = data
-            _ = try await client.setPlanning(taskID: task.id, data)
-            await app.reloadAgenda()
-        } catch { await app.handle(error) }
+        guard var data = await basePlanning(task, app) else { return }
+        data.dueAt = date
+        if date == nil && data.plannedAt == nil { data.recurrence = nil }
+        await app.savePlanning(taskID: task.id, data)
     }
 }
 

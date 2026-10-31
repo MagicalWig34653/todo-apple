@@ -47,6 +47,7 @@ struct MainView: View {
         .onChange(of: model.newProjectRequests) { _, _ in newProjectName = ""; newProjectParent = .some(nil) }
         .sheet(isPresented: $showQuickAdd) { QuickAddSheet(projectID: model.selectedProjectID, dueDate: nil).environment(model).environment(meta) }
         .task(id: TaskMeta.refreshKey(model)) { await meta.refresh(model) }
+        .onChange(of: model.outboxSnapshot, initial: true) { _, new in meta.overlay = new }
         // Compact width: task detail as a sheet. Regular width (iPad, Mac): inspector column in `SplitLayout`.
         .sheet(item: Binding(get: { compact ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
@@ -82,12 +83,12 @@ struct SyncStatusBar: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if model.syncStatus == .offline || model.pendingChanges > 0 {
+        if model.syncStatus == .offline || model.unsentChanges > 0 {
             HStack(spacing: 6) {
                 Image(systemName: model.syncStatus == .offline ? "icloud.slash" : "arrow.triangle.2.circlepath")
                 if model.syncStatus == .offline { Text("sync.offline") }
-                if model.pendingChanges > 0 {
-                    Text(verbatim: String(model.pendingChanges))
+                if model.unsentChanges > 0 {
+                    Text(verbatim: String(model.unsentChanges))
                     Text("sync.pending")
                 }
             }

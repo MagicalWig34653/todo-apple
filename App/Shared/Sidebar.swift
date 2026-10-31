@@ -291,7 +291,7 @@ struct LabelsView: View {
                         HStack {
                             Label { Text(verbatim: l.name) } icon: { Image(systemName: "tag").foregroundStyle(Color.project(l.id)) }
                             Spacer()
-                            Text(verbatim: String(meta.labelsByTask.values.filter { $0.contains { $0.id == l.id } }.count)).font(.caption).foregroundStyle(Color.textSecondary)
+                            Text(verbatim: String(meta.taskCount(for: l))).font(.caption).foregroundStyle(Color.textSecondary)
                         }
                         .contentShape(Rectangle())
                     }

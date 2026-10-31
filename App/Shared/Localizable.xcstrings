@@ -2640,6 +2640,16 @@
         }
       }
     },
+    "notice.planningUnavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Planung dieser Aufgabe ist offline noch nicht geladen. Bitte mit Verbindung erneut versuchen."
+          }
+        }
+      }
+    },
     "notice.syncRejected" : {
       "localizations" : {
         "de" : {

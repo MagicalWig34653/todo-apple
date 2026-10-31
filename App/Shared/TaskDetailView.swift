@@ -41,10 +41,10 @@ final class TaskDetailModel {
         } catch { await app.handle(error) }
     }
 
-    func load(_ app: AppModel) async {
+    func load(_ app: AppModel, meta: TaskMeta? = nil) async {
         guard let client = app.client else { return }
-        // The text fields come from the local store (optimistic, works offline); planning, comments, labels and
-        // attachments are REST-only, so a failure here (typically offline) just leaves those sections empty.
+        // The text fields come from the local store (optimistic, works offline). Planning and labels fall back to the
+        // cached values plus the unsent outbox edits; comments, activity and attachments stay empty while offline.
         let local = app.tasks.first { $0.id == task.id }
         if let local { task = local }
         do {
@@ -57,25 +57,41 @@ final class TaskDetailModel {
             let planned = try await p
             // Keep queued (not yet confirmed) edits visible instead of the older server state.
             task = (app.pendingChanges > 0 ? app.tasks.first { $0.id == task.id } : nil) ?? planned.task
-            planning = planned.planning
+            planning = app.outboxSnapshot.planning[task.id] ?? planned.planning
             comments = try await c; activity = try await a.items; attachments = try await f
-            labels = try await l.items; allLabels = try await al.items
+            allLabels = try await al.items
+            labels = Self.applyOutbox(try await l.items, task: task.id, known: allLabels, app.outboxSnapshot)
             loaded = true
             await loadSubtasks(app)
         } catch APIError.transport {
-            // Offline: keep what the local store shows.
+            offlineFallback(app, meta)
         } catch { await app.handle(error) }
     }
 
+    /// Offline: show the cached planning/labels with the unsent edits on top.
+    private func offlineFallback(_ app: AppModel, _ meta: TaskMeta?) {
+        if let cached = app.outboxSnapshot.planning[task.id] ?? meta?.planning(for: task.id) { planning = cached }
+        if let meta {
+            allLabels = meta.allLabels
+            labels = meta.labels(for: task.id)
+        }
+    }
+
+    static func applyOutbox(_ confirmed: [TaskLabel], task: UUID, known: [TaskLabel], _ outbox: OutboxSnapshot) -> [TaskLabel] {
+        var list = confirmed
+        if let removed = outbox.labelRemoves[task] { list.removeAll { removed.contains($0.id) } }
+        for id in outbox.labelAdds[task] ?? [] where !list.contains(where: { $0.id == id }) {
+            if let l = known.first(where: { $0.id == id }) { list.append(l) }
+        }
+        for name in outbox.namedAdds[task] ?? [] where !list.contains(where: { $0.name.lowercased() == name.lowercased() }) {
+            list.append(known.first { $0.name.lowercased() == name.lowercased() } ?? TaskMeta.placeholder(name))
+        }
+        return list
+    }
+
+    /// Queues the edited planning (works offline); the outbox replays it and the task version follows via `apply`.
     func savePlanning(_ app: AppModel) async {
-        guard let client = app.client else { return }
-        do {
-            let result = try await client.setPlanning(taskID: task.id, planning)
-            planning = result.planning
-            if app.pendingChanges == 0 { task = result.task }
-            app.apply(result.task)
-            await app.reloadAgenda()
-        } catch { await app.handle(error); await load(app) }
+        await app.savePlanning(taskID: task.id, planning)
     }
 
     func saveText(title: String, description: String, _ app: AppModel) async {
@@ -108,25 +124,18 @@ final class TaskDetailModel {
     }
 
     func toggleLabel(_ label: TaskLabel, _ app: AppModel) async {
-        guard let client = app.client else { return }
-        do {
-            if labels.contains(where: { $0.id == label.id }) {
-                try await client.removeLabel(label.id, fromTask: task.id); labels.removeAll { $0.id == label.id }
-            } else {
-                try await client.addLabel(label.id, toTask: task.id); labels.append(label)
-            }
-        } catch { await app.handle(error) }
+        let enabled = !labels.contains(where: { $0.id == label.id })
+        if enabled { labels.append(label) } else { labels.removeAll { $0.id == label.id } }
+        await app.setLabel(label, on: task.id, enabled: enabled)
     }
 
     func createLabel(_ name: String, _ app: AppModel) async {
-        guard let client = app.client else { return }
         let name = name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        do {
-            let l = try await client.createLabel(name: name)
-            allLabels.append(l)
-            try await client.addLabel(l.id, toTask: task.id); labels.append(l)
-        } catch { await app.handle(error) }
+        let known = allLabels.first { $0.name.lowercased() == name.lowercased() }
+        let label = known ?? TaskMeta.placeholder(name)
+        if !labels.contains(where: { $0.id == label.id }) { labels.append(label) }
+        await app.addLabel(named: name, to: task.id, known: allLabels)
     }
 }
 
@@ -205,7 +214,7 @@ struct TaskDetailView: View {
                 .accessibilityLabel(Text("project.more"))
             }
         }
-        .task { await model.load(app); title = model.task.title; text = model.task.description }
+        .task { await model.load(app, meta: meta); title = model.task.title; text = model.task.description }
         .onDisappear { saveText() }
     }
 

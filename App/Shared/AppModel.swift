@@ -53,9 +53,19 @@ final class AppModel {
     var syncStatus: SyncStatus = .idle
     /// Changes waiting to be sent.
     var pendingChanges = 0
+    /// Everything not yet confirmed by the server: queued sync mutations plus outbox edits.
+    var unsentChanges: Int { pendingChanges + outboxSnapshot.pending }
     /// First unresolved `version_conflict` (the user decides: keep mine / use server).
     var conflict: QueuedMutation?
     var engine: SyncEngine?
+    /// Offline outbox for planning and label edits (REST-only on the server; see `PlanningOutbox`).
+    var outbox: PlanningOutbox?
+    /// What the outbox still has to send, laid over the confirmed planning and labels by `TaskMeta`.
+    var outboxSnapshot = OutboxSnapshot()
+    /// Bumped when confirmed planning/labels may have changed (lists refresh their metadata).
+    var metaRevision = 0
+    /// Cache file of `TaskMeta` (planning and labels as last confirmed), next to the sync store.
+    var metaCacheURL: URL?
     var hasEngine: Bool { engine != nil && !usesREST }
     var syncLoop: Task<Void, Never>?
     /// True when the sync feed is unavailable and everything goes through REST like before the sync engine.
@@ -220,6 +230,10 @@ final class AppModel {
     func logout() async {
         syncLoop?.cancel(); syncLoop = nil
         try? await engine?.reset()
+        await outbox?.reset()
+        if let url = metaCacheURL { try? FileManager.default.removeItem(at: url) }
+        metaCacheURL = nil
+        outbox = nil; outboxSnapshot = OutboxSnapshot()
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
         Self.cachedUser = nil
@@ -250,6 +264,9 @@ final class AppModel {
             let store = try? SQLiteSyncStore(path: path), let engine = try? SyncEngine(client: client, store: store)
         else { usesREST = true; loadPrefsCache(); await reloadREST(); await refreshServerState(); return }
         self.engine = engine
+        metaCacheURL = URL(fileURLWithPath: path + ".meta.json")
+        outbox = PlanningOutbox(store: FileOutboxStore(url: URL(fileURLWithPath: path + ".outbox.json")))
+        outboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
         usesREST = false
         loadPrefsCache()
         await publish(await engine.snapshot())
@@ -292,7 +309,7 @@ final class AppModel {
             publish(snap)
             syncStatus = report.offline ? .offline : .idle
             selectDefaultIfNeeded()
-            if !report.offline { await reloadAgenda(); await refreshServerState() }
+            if !report.offline { await flushOutbox(); await reloadAgenda(); await refreshServerState() }
         } catch APIError.unauthorized {
             await logout(); errorKey = "error.sessionExpired"
         } catch {
@@ -301,6 +318,77 @@ final class AppModel {
             usesREST = true; syncStatus = .idle; pendingChanges = 0; conflict = nil
             await reloadREST()
         }
+    }
+
+    // MARK: Planning and label edits (outbox)
+
+    /// Queues a full replacement of the task's planning (optimistic; sent as soon as the server is reachable).
+    /// Without a sync engine (REST fallback) it is sent directly. Returns false if that fails.
+    @discardableResult
+    func savePlanning(taskID: UUID, _ data: PlanningData) async -> Bool {
+        if let outbox, !usesREST {
+            await outbox.setPlanning(taskID: taskID, data)
+            await outboxChanged()
+            return true
+        }
+        guard let client else { return false }
+        do { apply(try await client.setPlanning(taskID: taskID, data).task); await reloadAgenda(); metaRevision += 1; return true }
+        catch { await handle(error); return false }
+    }
+
+    func setLabel(_ label: TaskLabel, on taskID: UUID, enabled: Bool) async {
+        if let outbox, !usesREST {
+            if enabled { await outbox.addLabel(label.id, toTask: taskID) } else { await outbox.removeLabel(label.id, fromTask: taskID) }
+            await outboxChanged()
+            return
+        }
+        guard let client else { return }
+        do {
+            if enabled { try await client.addLabel(label.id, toTask: taskID) } else { try await client.removeLabel(label.id, fromTask: taskID) }
+            metaRevision += 1
+        } catch { await handle(error) }
+    }
+
+    /// Adds a label by name: reuses a known one, otherwise it is created on the server during the replay.
+    func addLabel(named name: String, to taskID: UUID, known: [TaskLabel]) async {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        if let match = known.first(where: { $0.name.lowercased() == name.lowercased() }) { await setLabel(match, on: taskID, enabled: true); return }
+        if let outbox, !usesREST {
+            await outbox.addLabel(named: name, toTask: taskID)
+            await outboxChanged()
+            return
+        }
+        guard let client else { return }
+        do { let l = try await client.createLabel(name: name); try await client.addLabel(l.id, toTask: taskID); metaRevision += 1 }
+        catch { await handle(error) }
+    }
+
+    private func outboxChanged() async {
+        outboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
+        Task { await flushOutbox() }
+    }
+
+    /// Replays the outbox after the sync queue (tasks created offline have to exist on the server first).
+    func flushOutbox() async {
+        guard let outbox, let client, !usesREST else { return }
+        let current = await outbox.snapshot()
+        guard current.pending > 0 || !current.rejected.isEmpty else { return }
+        let waiting = await engine?.queuedEntityIDs() ?? []
+        do {
+            let report = try await outbox.flush(client: client, skipping: waiting)
+            for confirmed in report.confirmed where tasks.first(where: { $0.id == confirmed.task.id })?.version != confirmed.task.version {
+                apply(confirmed.task)
+            }
+            let rejected = await outbox.snapshot().rejected
+            for op in rejected { await outbox.dismiss(op.id) }
+            if !rejected.isEmpty { noticeKey = "notice.syncRejected" }
+            outboxSnapshot = await outbox.snapshot()
+            if report.sent > 0 || !rejected.isEmpty { metaRevision += 1; await reloadAgenda() }
+            if report.offline { syncStatus = .offline }
+        } catch APIError.unauthorized {
+            await logout(); errorKey = "error.sessionExpired"
+        } catch {}
     }
 
     func resolveConflict(keepMine: Bool) async {

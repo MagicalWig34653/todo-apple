@@ -108,6 +108,12 @@ public actor SyncEngine {
             cursor: state.cursor)
     }
 
+    /// Entities that still have a queued (pending, conflicting or rejected) mutation. REST-only follow-up writes
+    /// (see `PlanningOutbox`) wait for these, because the server may not know the entity yet.
+    public func queuedEntityIDs() -> Set<UUID> {
+        Set(state.queue.map(\.mutation.id))
+    }
+
     /// Own sibling order of the viewer (ADR 0012): positioned first, then creation time, name and id.
     static func siblingOrder(_ a: Project, _ b: Project) -> Bool {
         let (pa, pb) = (a.position ?? Int.max, b.position ?? Int.max)

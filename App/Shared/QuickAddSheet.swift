@@ -273,26 +273,15 @@ struct QuickAddSheet: View {
             guard let id = await model.createTask(projectID: projectID, title: text) else { saving = false; return }
             Haptics.success()
             dismiss()
-            let needsServer = due != nil || priority > 0 || !labels.isEmpty || !description.isEmpty || !newLabelNames.isEmpty || repeating != nil
-            guard needsServer, let client = model.client else { return }
-            // Planning and labels are REST-only: the task has to reach the server first.
-            await model.syncNow()
-            if model.pendingChanges > 0 { model.noticeKey = "notice.quickAddOffline"; return }
-            do {
-                if due != nil || priority > 0 || repeating != nil {
-                    _ = try await client.setPlanning(taskID: id, PlanningData(dueAt: due, priority: priority, recurrence: repeating.map { RecurrenceRule(frequency: $0) }))
-                }
-                for l in labels { try await client.addLabel(l, toTask: id) }
-                for name in newLabelNames {
-                    if let known = meta.allLabels.first(where: { $0.name.lowercased() == name.lowercased() }) { try await client.addLabel(known.id, toTask: id) }
-                    else { let l = try await client.createLabel(name: name); try await client.addLabel(l.id, toTask: id) }
-                }
-                if !description.isEmpty, let t = model.tasks.first(where: { $0.id == id }) {
-                    let updated = try await client.updateTask(id, version: t.version, TaskUpdate(description: description))
-                    model.apply(updated)
-                }
-                await model.reloadAgenda()
-            } catch { await model.handle(error) }
+            // Planning and labels go through the outbox: it waits until the task exists on the server (offline too).
+            if due != nil || priority > 0 || repeating != nil {
+                await model.savePlanning(taskID: id, PlanningData(dueAt: due, priority: priority, recurrence: repeating.map { RecurrenceRule(frequency: $0) }))
+            }
+            for l in labels { if let known = meta.allLabels.first(where: { $0.id == l }) { await model.setLabel(known, on: id, enabled: true) } }
+            for name in newLabelNames { await model.addLabel(named: name, to: id, known: meta.allLabels) }
+            if !description.isEmpty, let t = model.tasks.first(where: { $0.id == id }) {
+                _ = await model.updateTask(t, TaskUpdate(description: description))
+            }
         }
     }
 }
