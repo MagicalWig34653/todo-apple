@@ -91,17 +91,25 @@ final class TodoUITests: XCTestCase {
 
     /// Runs the audit and prints every issue (type, element label, description); fails on all of them.
     private func audit(_ name: String) throws {
+        // Let presentation animations (sheet, inspector) and keyboard transitions finish: the audit reads mid-flight frames otherwise.
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "settle")], timeout: 2)
         var report: [String] = []
         try app.performAccessibilityAudit { issue in
             // Keyboard internals are not ours; contrast/Dynamic-Type findings are recorded as attachments (open items in docs/HIG-AUDIT.md).
             if issue.element?.elementType == .keyboard || issue.detailedDescription.contains("TUIPrediction") { return true }
-            report.append("[\(name)] \(issue.auditType.rawValue) | \(issue.element?.label ?? "-") | \(issue.element?.elementType.rawValue ?? 0) | \(issue.detailedDescription)")
+            // iPad's full software keyboard draws key caps the audit cannot attribute to an element (no element, text nodes only).
+            if issue.element == nil, issue.auditType.rawValue == 2 /* element detection */, self.app.keyboards.firstMatch.exists { return true }
+            report.append("[\(name)] \(issue.auditType.rawValue) | \(issue.element?.label ?? "-") | \(issue.element?.elementType.rawValue ?? 0) | \(issue.element?.frame.debugDescription ?? "-") | \(issue.detailedDescription)")
             return true
         }
         let soft: Set<UInt64> = [XCUIAccessibilityAuditType.contrast.rawValue, XCUIAccessibilityAuditType.textClipped.rawValue, XCUIAccessibilityAuditType.dynamicType.rawValue]
         let hard = report.filter { r in !soft.contains { r.hasPrefix("[\(name)] \($0) ") } }
         let att = XCTAttachment(string: report.joined(separator: "\n")); att.lifetime = .keepAlways; add(att)
-        if !hard.isEmpty { XCTFail("AUDIT-ISSUES\n" + hard.joined(separator: "\n")) }
+        if !hard.isEmpty {
+            let shot = XCTAttachment(screenshot: app.screenshot()); shot.lifetime = .keepAlways; add(shot)
+            let tree = XCTAttachment(string: app.debugDescription); tree.lifetime = .keepAlways; add(tree)
+            XCTFail("AUDIT-ISSUES\n" + hard.joined(separator: "\n"))
+        }
     }
 
     func testAccessibilityAuditToday() throws {

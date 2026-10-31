@@ -535,9 +535,11 @@ struct TaskDetailView: View {
                         Text(verbatim: String(model.activity.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
                         Spacer()
                     }
+                    .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(.isHeader)
                 if showActivity {
                     ForEach(model.activity) { a in
                         HStack(alignment: .top, spacing: Space.s) {

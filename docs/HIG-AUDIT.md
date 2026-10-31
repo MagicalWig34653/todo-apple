@@ -73,3 +73,8 @@ Siehe Abschnitt "Checkpoint 31.10.2026 HIG" in `docs/STATUS.md`.
 
 ## Nachtrag 31.10.2026: Board und Steuerzentrale
 Board und Steuerzentrale folgen dem Designsystem (Spacing/Radius/Typo, Karten, Zaehler-Kapseln, TextSecondary, 44 pt, sensoryFeedback, Reduce Motion, Skeleton, Leerzustaende, VoiceOver-Header und Verschieben-Aktionen als Drag-Alternative). Screenshots `board2-*`, `cc2-*`. Offen: Steuerzentrale-Kopf bei AX5 (nimmt viel Platz), Gesten-Drag am Geraet, VoiceOver real.
+
+## Nachtrag 31.10.2026: Detail-Audit (Hit-Area)
+- Befund: Der Kopf der Aktivitaets-Karte im Aufgabendetail ("Aktivitaet, n", Auf-/Zuklappen) hatte keine Mindesthoehe (Text ca. 20 pt) und war als Button zu klein; Fix: `frame(minHeight: 44)` + `contentShape`, Trait Ueberschrift.
+- Der Befund trat je nach Geraet/Zeitpunkt auf (iPad Pro, iPhone 18 Pro Max), nicht auf iPhone 18 Pro. Zusaetzlich las der Audit waehrend der Sheet-/Inspector-Animation Zwischenframes ("too small"/ohne Label); der Test wartet jetzt 2 s bis die Praesentation steht (Audit selbst unveraendert, Bericht enthaelt Frame, bei Fehlern Screenshot und Hierarchie als Anhang).
+- Offen: iPad (13-Zoll): Detail-Audit bleibt vereinzelt rot mit "Element appears to display text..." ohne Element (keine Zuordnung moeglich); QuickAdd mit eingeblendeter iPad-Tastatur: Tastenkappen ohne Element, im Test nur dann ausgenommen, wenn die Tastatur sichtbar ist. Ursache fuer das Detail ungeklaert; iPad-Audits laufen nicht im Standardlauf (iPhone 18 Pro).

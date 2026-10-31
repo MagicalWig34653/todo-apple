@@ -254,3 +254,8 @@ Backend ab Commit 15b4f06 liefert `planning` am Task-Upsert, die Feed-Entitaet `
 
 ## Checkpoint TestFlight (2026-10-31, spaeter)
 iOS Build 2610310815 (UUID 6dec881f-608e-43a9-bf33-5b535d12d03c) und macOS Build 2610310818 (UUID 902d14e2-6248-4dd4-9ed4-4d8cf8ed2db6) hochgeladen (Details docs/TESTFLIGHT.md). watchOS-Build und TodoCore-Tests (142, 0 Fehler) vorab gruen. App-Store-Connect-Verarbeitung nicht geprueft.
+
+## Checkpoint 31.10.2026 UI-Test-Audit Detail
+- Ursache des roten `testAccessibilityAuditDetail`: Aktivitaets-Kopf im Detail ohne 44-pt-Flaeche (jetzt behoben) plus Audit-Lesen waehrend der Praesentationsanimation (Test wartet 2 s). Auf iPhone 18 Pro war der Fehler mit dem aktuellen Backend nicht reproduzierbar (haengt von Geraet/Zeitpunkt ab); Reproduktion auf iPhone 18 Pro Max und iPad Pro. Audit nicht abgeschwaecht, Bericht um Frame/Screenshot/Hierarchie erweitert; einzige Ausnahme: Elemente ohne Zuordnung, solange die Tastatur sichtbar ist.
+- Geprueft: UI-Tests Todo-iOS-UITests auf iPhone 18 Pro 3x hintereinander gruen (je 6 Tests, 1 uebersprungen), gegen natives SQLite-Backend aus Hauptrepo origin/main 15b4f06 (Port 28841, danach beendet, Scratch geloescht). TodoCore 159 Tests, 0 Fehler. Builds Todo-iOS, Todo-macOS, Todo-watchOS gruen.
+- Offen: iPad-Detail-Audit vereinzelt rot (siehe HIG-AUDIT), Label umbenennen/loeschen in der Oberflaeche (Engine kann renameLabel/deleteLabel; nicht umgesetzt, braucht Platz im Filter-/Etiketten-Bereich).
