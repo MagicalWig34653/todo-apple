@@ -121,7 +121,7 @@ public struct SyncMutationResult: Codable, Sendable, Equatable {
 extension APIClient {
     /// One page of changes after `cursor` (default `c0` = everything visible). Loop while `hasMore`.
     /// `APIError.invalidInput(reason: "invalid_cursor")` and `APIError.conflict(reason: "cursor_ahead")`
-    /// mean the client should restart at `c0`.
+    /// and `APIError.cursorExpired` (410, ADR 0019) mean the client should restart at `c0`.
     public func syncChanges(cursor: String = "c0", limit: Int? = nil) async throws -> SyncChanges {
         var query = [URLQueryItem(name: "cursor", value: cursor)]
         if let limit { query.append(.init(name: "limit", value: String(limit))) }

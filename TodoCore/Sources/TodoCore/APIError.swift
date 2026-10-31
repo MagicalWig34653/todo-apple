@@ -13,6 +13,9 @@ public enum APIError: Error, Equatable, Sendable {
     case versionConflict
     /// Other 409 (for example `username_taken`, `bootstrap_closed`).
     case conflict(reason: String?)
+    /// 410 `cursor_expired`: the feed cursor is below the server's retention floor (ADR 0019). The client drops its
+    /// confirmed cache for the account and reloads from `c0`; `c0` itself and cursors at or above the floor stay valid.
+    case cursorExpired
     /// 400/422: rejected input (for example `invalid_name`, `project_cycle`).
     case invalidInput(reason: String?)
     /// Any other non-2xx status.
@@ -36,6 +39,7 @@ public enum APIError: Error, Equatable, Sendable {
         case 403: return reason == "password_login_disabled" ? .passwordLoginDisabled : .forbidden(reason: reason)
         case 404: return .notFound
         case 409: return reason == "version_conflict" ? .versionConflict : .conflict(reason: reason)
+        case 410 where reason == "cursor_expired": return .cursorExpired
         case 400, 422: return .invalidInput(reason: reason)
         default: return .server(status: status, reason: reason)
         }

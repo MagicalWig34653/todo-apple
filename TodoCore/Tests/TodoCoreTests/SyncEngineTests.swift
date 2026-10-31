@@ -173,6 +173,110 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertTrue(r.fullResync)
     }
 
+    // MARK: 410 cursor_expired (ADR 0019)
+
+    func testCursorExpiredDropsCacheKeepsQueueAndReloadsFromC0() async throws {
+        let e = try await seeded()  // cursor c2, project + t1 confirmed
+        // A conflicting queued edit stays in the queue (never sent again); a create is sent before the pull.
+        let offline = UUID()
+        try await e.updateTask(t1, TaskUpdate(title: "Mine"))
+        try await e.createTask(id: offline, projectID: pid, title: "Offline")
+        serve(feed: { [self] c in
+            switch c {
+            case "c2": return err(410, "cursor_expired")
+            case "c0": return page([upsertProject(1, pid), upsertTask(5, t2, title: "B"), upsertTask(6, offline, title: "Offline")], cursor: "c6")
+            default: return err(500, "unexpected \(c)")
+            }
+        }, mutation: { [self] m in
+            if m["type"] as? String == "task.update" { return err(409, "version_conflict") }
+            return mutationResult(m, task: taskJSON(offline, title: "Offline"), status: 201)
+        })
+        let before = Date()
+        let r = try await e.sync()
+        XCTAssertTrue(r.fullResync)
+        XCTAssertFalse(r.offline)
+        XCTAssertEqual(r.pushed, 1)
+        XCTAssertEqual(feedRequests.map(cursorQuery), ["c2", "c0"])
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.cursor, "c6")
+        XCTAssertFalse(snap.tasks.contains { $0.id == t1 }, "cache was replaced: t1 is no longer visible on the server")
+        XCTAssertEqual(Set(snap.tasks.map(\.id)), [t2, offline])
+        XCTAssertEqual(snap.conflicts.count, 1, "unsent/stopped queue entries survive the resync")
+        XCTAssertEqual(snap.conflicts.first?.mutation.id, t1)
+        let persisted = try store.load()
+        XCTAssertEqual(Set(persisted.tasks.keys), [t2, offline], "the store itself was emptied of stale entities")
+        XCTAssertEqual(persisted.queue.count, 1)
+        let at = await e.lastFullResyncAt
+        XCTAssertNotNil(at)
+        XCTAssertGreaterThanOrEqual(at!, before)
+    }
+
+    func testCursorExpiredKeepsPendingQueueWhenOffline() async throws {
+        let e = try await seeded()
+        try await e.createTask(projectID: pid, title: "Pending")
+        // Mutations unreachable: nothing is pulled, so no resync and the queue is untouched.
+        serve(feed: { [self] _ in err(410, "cursor_expired") }, mutation: { _ in (-1, Data()) })
+        let r = try await e.sync()
+        XCTAssertTrue(r.offline)
+        XCTAssertFalse(r.fullResync)
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.pending, 1)
+    }
+
+    func testCursorExpiredResyncsOnlyOncePerRun() async throws {
+        let e = try await seeded()
+        serve(feed: { [self] _ in err(410, "cursor_expired") })  // even c0 answers 410
+        do { _ = try await e.sync(); XCTFail("must surface the error") }
+        catch { XCTAssertEqual(error as? APIError, .cursorExpired) }
+        XCTAssertEqual(feedRequests.map(cursorQuery), ["c2", "c0"], "no loop: one retry from c0 only")
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [t1], "failed resync leaves the cache untouched")
+        let at = await e.lastFullResyncAt
+        XCTAssertNil(at)
+    }
+
+    func testCursorC0AndCursorAtFloorStayValid() async throws {
+        serve(feed: { [self] c in
+            c == "c0" ? page([upsertProject(1, pid)], cursor: "c5") : page([upsertTask(6, t1)], cursor: "c6")
+        })
+        let e = try engine()
+        var r = try await e.sync()
+        XCTAssertFalse(r.fullResync, "the initial c0 pull is not a resync")
+        r = try await e.sync()  // cursor c5 = retention floor: valid
+        XCTAssertFalse(r.fullResync)
+        let at = await e.lastFullResyncAt
+        XCTAssertNil(at)
+        XCTAssertEqual(feedRequests.map(cursorQuery), ["c0", "c5"])
+    }
+
+    func testCursorExpiredResyncInterruptedByNetworkKeepsCache() async throws {
+        let e = try await seeded()
+        serve(feed: { [self] c in c == "c2" ? err(410, "cursor_expired") : (-1, Data()) })
+        let r = try await e.sync()
+        XCTAssertTrue(r.fullResync)
+        XCTAssertTrue(r.offline)
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.tasks.map(\.id), [t1])
+        XCTAssertEqual(snap.cursor, "c2", "the old cursor stays, so the next run retries and gets 410 again")
+        let at = await e.lastFullResyncAt
+        XCTAssertNil(at)
+    }
+
+    func testFullResyncEventsEmitOnCompletion() async throws {
+        let e = try await seeded()
+        let stream = await e.fullResyncEvents()
+        serve(feed: { [self] c in c == "c2" ? err(410, "cursor_expired") : page([upsertProject(1, pid)], cursor: "c3") })
+        _ = try await e.sync()
+        var it = stream.makeAsyncIterator()
+        let d = await it.next()
+        XCTAssertNotNil(d)
+    }
+
+    func testOther410IsAPlainServerError() {
+        XCTAssertEqual(APIError.from(status: 410, reason: "cursor_expired"), .cursorExpired)
+        XCTAssertEqual(APIError.from(status: 410, reason: "gone"), .server(status: 410, reason: "gone"))
+    }
+
     func testMissingFeedIsThrownSoTheAppCanFallBackToREST() async throws {
         serve(feed: { [self] _ in err(404, "not_found") })
         do { _ = try await engine().sync(); XCTFail() } catch { XCTAssertEqual(error as? APIError, .notFound) }

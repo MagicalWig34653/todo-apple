@@ -26,7 +26,7 @@ public struct SyncReport: Sendable, Equatable {
     public var pushed = 0
     /// Feed changes applied in this run.
     public var pulled = 0
-    /// The feed answered `cursor_ahead`/`invalid_cursor`; local entities were replaced from `c0`.
+    /// The feed answered `cursor_ahead`/`invalid_cursor`/410 `cursor_expired`; local entities were replaced from `c0`.
     public var fullResync = false
     /// The server could not be reached (transport failure or 5xx). Local state stays usable.
     public var offline = false
@@ -49,6 +49,21 @@ public actor SyncEngine {
     private var syncing = false
     private var rerun = false
     private let pageSize: Int
+    /// When the last full resync from `c0` completed (cursor lost/ahead/expired). UI hint only; not persisted.
+    /// Observe by polling after `sync()` or via `fullResyncEvents()`.
+    public private(set) var lastFullResyncAt: Date?
+    private var resyncContinuations: [UUID: AsyncStream<Date>.Continuation] = [:]
+
+    /// Emits the completion time of every full resync (publisher-style hook for the UI, no UI types involved).
+    public func fullResyncEvents() -> AsyncStream<Date> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<Date>.makeStream()
+        resyncContinuations[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { await self?.removeResyncContinuation(id) } }
+        return stream
+    }
+
+    private func removeResyncContinuation(_ id: UUID) { resyncContinuations[id] = nil }
 
     public init(client: APIClient, store: any SyncStore, pageSize: Int = 200) throws {
         self.client = client
@@ -489,15 +504,26 @@ public actor SyncEngine {
                 try await resync(&report)
             case .invalidInput(let reason) where reason == "invalid_cursor":
                 try await resync(&report)
+            case .cursorExpired:
+                try await resync(&report)
             default:
                 throw error
             }
         }
     }
 
+    /// Reloads everything from `c0`. The confirmed cache is replaced in one commit after the whole feed arrived (no
+    /// empty intermediate state, so no UI flicker); the offline queue is untouched and re-overlaid by `snapshot()`.
+    /// At most one full resync per `sync()` run: a second stale-cursor answer is surfaced as an error (no loops).
     private func resync(_ report: inout SyncReport) async throws {
+        if report.fullResync { throw APIError.cursorExpired }
         report.fullResync = true
-        do { try await pullFeed(from: "c0", report: &report) }
+        do {
+            try await pullFeed(from: "c0", report: &report)
+            let now = Date()
+            lastFullResyncAt = now
+            for c in resyncContinuations.values { c.yield(now) }
+        }
         catch APIError.transport { report.offline = true }
         catch APIError.server { report.offline = true }
     }
