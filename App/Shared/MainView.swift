@@ -148,13 +148,16 @@ struct SplitLayout: View {
 struct PhoneTabs: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
-    @State private var tab = 1
+    @State private var tab = 5
     @State private var browsePath: [SidebarItem] = []
 
     private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
 
     var body: some View {
         TabView(selection: $tab) {
+            NavigationStack { FeedView() }
+                .tabItem { Label("view.feed", systemImage: "sparkles") }.tag(5)
+                .badge(model.attentionCount)
             NavigationStack { InboxView() }
                 .tabItem { Label("view.inbox", systemImage: "tray") }.tag(0)
                 .badge(inboxCount)
@@ -171,13 +174,13 @@ struct PhoneTabs: View {
                     .navigationDestination(for: SidebarItem.self) { SidebarScreen(item: $0) }
             }
             .tabItem { Label("browse.title", systemImage: "square.grid.2x2") }.tag(4)
-            .badge(model.attentionCount)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { SyncStatusBar() }
         .onAppear { syncFromSelection(model.selection) }
         .onChange(of: model.selection) { _, new in syncFromSelection(new) }
         .onChange(of: tab) { _, new in
             switch new {
+            case 5: model.selection = .feed
             case 0: model.selection = .inbox
             case 1: model.selection = .today
             case 2: model.selection = .upcoming
@@ -189,8 +192,9 @@ struct PhoneTabs: View {
 
     private func syncFromSelection(_ item: SidebarItem?) {
         switch item {
+        case .feed, nil: tab = 5
         case .inbox: tab = 0
-        case .today, nil: tab = 1
+        case .today: tab = 1
         case .upcoming: tab = 2
         case .search: tab = 3
         case .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:

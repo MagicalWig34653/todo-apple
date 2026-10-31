@@ -8,8 +8,11 @@ public struct Capabilities: Codable, Sendable, Equatable {
     public let bootstrapOpen: Bool
     /// Live refresh hints of newer servers (ADR 0022); nil on older servers or when disabled.
     public let liveRefresh: LiveRefreshCapability?
+    /// `GET /v1/feed` exists (ADR 0023); nil on older servers.
+    public let feed: Bool?
 
-    public init(passkey: Bool, password: Bool, bootstrapOpen: Bool, liveRefresh: LiveRefreshCapability? = nil) {
+    public init(passkey: Bool, password: Bool, bootstrapOpen: Bool, liveRefresh: LiveRefreshCapability? = nil, feed: Bool? = nil) {
+        self.feed = feed
         self.passkey = passkey
         self.password = password
         self.bootstrapOpen = bootstrapOpen

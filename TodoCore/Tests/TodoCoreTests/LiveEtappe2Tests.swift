@@ -422,6 +422,15 @@ final class LiveEtappe2Tests: XCTestCase {
         try await a.addLabel(blocker.id, toTask: e1.id)
         let done = try await a.createTask(projectID: eingang.id, title: "Paket abholen")
         _ = try await a.updateTask(done.id, version: done.version, TaskUpdate(status: .done))
+        if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_FEED"] == "1" {
+            // "Für dich" demo: agent question with options, review, progress and a build screenshot.
+            let shot = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+            _ = try await a.askQuestion(taskID: t3.id, prompt: "Soll die Startseite zuerst auf Mobil optimiert werden?", options: ["Ja, mobil zuerst", "Desktop zuerst"], blocking: true, agentName: "Claude")
+            _ = try await a.requestReview(taskID: t4.id, summary: "Texte sind eingebaut und getestet.", agentName: "Claude")
+            _ = try await a.postProgressNote(taskID: t3.id, note: "Farbpalette und Typografie sind im Entwurf.", percent: 40)
+            let att = try await a.uploadAttachment(taskID: t3.id, filename: "entwurf.png", role: .result, mediaType: "image/png", data: shot)
+            _ = try await a.registerBuild(attachmentID: att.id, buildID: "seed-1", label: "Entwurf Startseite", platform: "ios")
+        }
         let team = try await a.createTeam(name: "Haushalt")
         _ = try await a.inviteMember(teamID: team.id, userID: f.bobUser.id)
         try await f.bob.acceptTeamInvitation(teamID: team.id)

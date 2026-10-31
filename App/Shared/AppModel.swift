@@ -3,7 +3,7 @@ import Observation
 import TodoCore
 
 enum SidebarItem: Hashable {
-    case inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
+    case feed, inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
     case project(UUID)
     case projectCommandCenter(UUID)
     case label(UUID)
@@ -320,7 +320,7 @@ final class AppModel {
 
     private func selectDefaultIfNeeded() {
         if selection == nil || (selectedProjectID != nil && !projects.contains(where: { $0.id == selectedProjectID })) {
-            selection = .today
+            selection = .feed
         }
     }
 
@@ -501,7 +501,7 @@ final class AppModel {
             async let t = client.tasks()
             (projects, tasks) = try await (p, t)
             if selection == nil || (selectedProjectID != nil && !projects.contains(where: { $0.id == selectedProjectID })) {
-                selection = .today
+                selection = .feed
             }
             await reloadAgenda()
             await refreshServerState()

@@ -76,6 +76,7 @@ enum DebugLaunch {
         await model.reloadTeams()
         defer { Task { await runActions(model: model) } }
         switch target {
+        case "feed": model.selection = .feed
         case "inbox": model.selection = .inbox
         case "today": model.selection = .today
         case "upcoming": model.selection = .upcoming

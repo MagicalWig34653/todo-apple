@@ -130,4 +130,15 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 5))
         try audit("detail")
     }
+
+    /// "Für dich": needs seed data with `TODO_LIVE_SEED_FEED=1`; shows the needs-you card with its option buttons.
+    func testFeedShowsNeedsYouAndAudit() throws {
+        app.terminate()
+        app.launchEnvironment["TODO_DEBUG_SELECT"] = "feed"
+        app.launch()
+        let title = app.staticTexts["Braucht dich"]
+        XCTAssertTrue(title.waitForExistence(timeout: 20), "needs-you section")
+        XCTAssertTrue(app.buttons["Ja, mobil zuerst"].waitForExistence(timeout: 5))
+        try audit("feed")
+    }
 }

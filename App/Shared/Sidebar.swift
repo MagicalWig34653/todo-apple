@@ -41,6 +41,7 @@ struct SidebarList: View {
                 .listRowBackground(Color.clear)
             }
             Section {
+                row(.feed, "view.feed", "sparkles", .tileBlue)
                 row(.search, "view.search", "magnifyingglass", .tileGray)
                 row(.inbox, "view.inbox", "tray.fill", .tileBlue, count: inboxCount)
                 row(.today, "view.today", "sun.max.fill", .tileGreen, count: model.today.count + meta.overdue.count)
@@ -260,8 +261,9 @@ struct SidebarScreen: View {
 
     var body: some View {
         switch item {
+        case .feed, nil: FeedView()
         case .inbox: InboxView()
-        case .today, nil: TodayView()
+        case .today: TodayView()
         case .upcoming: UpcomingView()
         case .search: SearchView()
         case .teams: TeamsView()
