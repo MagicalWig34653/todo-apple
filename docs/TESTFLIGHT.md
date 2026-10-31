@@ -87,3 +87,12 @@ Aus sauberem Stand (main, `git pull --rebase` ohne Aenderungen), Version 0.1.0. 
 - iOS: Build 2610311104, "Upload succeeded", Delivery UUID `762ff3d6-4e2d-4d44-803f-3f50742efae9`.
 - macOS: Build 2610311108, "Upload succeeded", Delivery UUID `f3b8301c-334b-4aa3-a4fa-d7825baf6a91`.
 - Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds auf Geraeten.
+
+## Upload Push/Live-Refresh/Fuer-dich (2026-10-31, Stand ec3ff59, Universal Purchase)
+Aus sauberem Stand (main, `git pull --rebase` ohne Aenderungen), Version 0.1.0, Push-Capability fuer `de.linolaske.todo` im Developer Portal aktiv. Inhalt: APNs-Push-Client, Live-Refresh (Long-Poll), Fuer-dich-Feed als erster Tab, Planung/Labels ueber Sync, HIG-Verbesserungen.
+- **Server-Voraussetzung:** Backend mindestens Image mit `/v1/feed`, `/v1/sync/wait`, `/v1/push/*` (ab sha-02b91a4 oder neuer; Migrationen via update.sh).
+- Vorab: Todo-watchOS Build (unsigniert) und Todo-iOS Simulator-Build (unsigniert) erfolgreich; TodoCore-Tests (aus `TodoCore/`): 192 Tests, 22 uebersprungen, 0 Fehler.
+- iOS: Build 2610311632, "Upload succeeded", Delivery UUID `a0eb6018-3c86-4c43-ae1b-cc8e66d2a55c`.
+- macOS: Build 2610311634, "Upload succeeded", Delivery UUID `0739c61e-8c12-4246-bbec-b837351f0cf9`.
+- Entitlement-Befund: Archivierung lief mit automatischem Signieren ohne Capability-/Profilfehler. Im `.xcarchive` (Entwicklungs-signiert) zeigt `codesign -d --entitlements :-` erwartungsgemaess `aps-environment=development` (iOS) bzw. `com.apple.developer.aps-environment=development` (macOS). Beim Export/Upload signiert Xcode fuer Distribution neu; die xcdistributionlogs (IDEDistributionProvisioning) enthalten `aps-environment = production` fuer beide. Das fertige exportierte Binary wurde nicht separat per codesign geprueft (Export wird nur hochgeladen).
+- Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds und echter Push auf Geraeten.

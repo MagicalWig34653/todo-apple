@@ -286,3 +286,7 @@ Ziel: iOS und macOS (Universal Purchase `de.linolaske.todo`) registrieren sich f
 - Geprüft: `LiveRefreshTests` 16 (Mock/virtuelle Uhr: Schleife, Bündelung, Backoff, Wiederherstellung, 401, 404-Fallback, Sync-Polling, 429, Shutdown-retryAfter, Low Power, Lebenszyklus, Request-Formen), mehrfach wiederholt grün. Live gegen natives SQLite-Backend (Hauptrepo origin/main fd833a2, Port 28947, frische DB): `testLiveRefreshDeliversChangeOfSecondClientQuickly` grün, Latenz einer Änderung eines zweiten Clients ~5 ms (lokal). Builds Todo-iOS/-macOS/-watchOS grün.
 - NICHT geprüft: Verhalten auf Gerät im Hintergrund/Sperre, echter Proxy (Zoraxy) mit Long-Poll, Low-Power-Umschaltung zur Laufzeit, Last/429 am echten Server, sichtbare Entflackerung per Screenshot.
 - Nächster Schritt: Abonnenten für die künftige Für-dich-Ansicht (Feed-Agent) per `LiveHub.shared.subscribe(self) { ... }` in deren `load` registrieren.
+
+
+## Checkpoint TestFlight-Upload (2026-10-31)
+Stand ec3ff59 hochgeladen: iOS 2610311632 (UUID a0eb6018-3c86-4c43-ae1b-cc8e66d2a55c), macOS 2610311634 (UUID 0739c61e-8c12-4246-bbec-b837351f0cf9). Push-Entitlement: Archiv development, Distribution-Export production laut Logs. Details und Server-Voraussetzung (/v1/feed, /v1/sync/wait, /v1/push/*, ab sha-02b91a4) in docs/TESTFLIGHT.md. Offen: Verarbeitung in App Store Connect und echter Push auf Geraet pruefen.
