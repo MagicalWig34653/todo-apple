@@ -13,35 +13,44 @@ struct BoardView: View {
     @State private var newColumnName = ""
     @FocusState private var columnFocus: Bool
     @ScaledMetric(relativeTo: .body) private var baseWidth: CGFloat = 288
+    @ScaledMetric(relativeTo: .body) private var minColumnWidth: CGFloat = 240
+    @ScaledMetric(relativeTo: .body) private var maxSharedWidth: CGFloat = 420
+    @ScaledMetric(relativeTo: .body) private var addButtonMinWidth: CGFloat = 200
+    /// On iPhone a column takes this share of the width so the next column peeks out.
+    private static let compactColumnShare: CGFloat = 0.86
+
+    /// Horizontal page margin, identical to the project header (`pageMargins()`).
+    private var pageMargin: CGFloat { sizeClass == .regular ? Space.pageRegular : Space.page }
 
     /// Column width: on iPhone nearly the screen (the next column peeks out), on iPad/Mac the columns share the
     /// width when there are only a few, otherwise the scaled base width; never wider than the screen.
+    /// `available` is the visible width of the horizontal scroll view (from `containerRelativeFrame`).
     private func columnWidth(_ available: CGFloat) -> CGFloat {
-        let inner = max(available - 2 * Space.l, 240)
-        if sizeClass == .compact { return min(max(inner * 0.86, 240), inner) }
+        let inner = max(available - 2 * pageMargin, minColumnWidth)
+        if sizeClass == .compact { return min(max(inner * Self.compactColumnShare, minColumnWidth), inner) }
         let n = max(board.columns.count, 1)
         let shared = (inner - CGFloat(n) * Space.m) / CGFloat(n)
-        return min(inner, max(baseWidth, min(shared, 420)))
+        return min(inner, max(baseWidth, min(shared, maxSharedWidth)))
     }
 
     var body: some View {
-        GeometryReader { geo in
+        Group {
             if !board.isLoaded {
-                BoardSkeleton(width: columnWidth(geo.size.width))
+                BoardSkeleton(columnWidth: columnWidth)
             } else {
-                let width = columnWidth(geo.size.width)
                 ScrollView(.vertical) {
-                ScrollView(.horizontal, showsIndicators: true) {
-                    HStack(alignment: .top, spacing: Space.m) {
-                        ForEach(board.columns, id: \.stableID) { column in
-                            BoardColumnView(board: board, column: column, showCompleted: showCompleted, width: width)
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        HStack(alignment: .top, spacing: Space.m) {
+                            ForEach(board.columns, id: \.stableID) { column in
+                                BoardColumnView(board: board, column: column, showCompleted: showCompleted)
+                                    .containerRelativeFrame(.horizontal) { available, _ in columnWidth(available) }
+                            }
+                            if !board.unsupported { addColumn }
                         }
-                        if !board.unsupported { addColumn }
+                        .pageMargins().padding(.top, Space.xs).padding(.bottom, Space.xl)
+                        .scrollTargetLayout()
                     }
-                    .padding(.horizontal, Space.l).padding(.top, Space.xs).padding(.bottom, Space.xl)
-                    .scrollTargetLayout()
-                }
-                .scrollTargetBehavior(.viewAligned)
+                    .scrollTargetBehavior(.viewAligned)
                 }
             }
         }
@@ -51,7 +60,7 @@ struct BoardView: View {
     @ViewBuilder private var addColumn: some View {
         Group {
             if addingColumn {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: Space.s) {
                     TextField(accessible: "board.column.name", text: $newColumnName)
                         .textFieldStyle(.roundedBorder).focused($columnFocus)
                         .onSubmit { commit() }
@@ -61,7 +70,9 @@ struct BoardView: View {
                     }
                     .controlSize(.small)
                 }
-                .padding(Space.m).frame(width: baseWidth * 0.95).background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                .padding(Space.m)
+                .containerRelativeFrame(.horizontal) { available, _ in columnWidth(available) }
+                .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
             } else {
                 Menu {
                     Button { addingColumn = true; columnFocus = true } label: { Label("board.column.empty", systemImage: "rectangle.split.1x2") }
@@ -71,16 +82,17 @@ struct BoardView: View {
                 } label: {
                     Label("board.column.add", systemImage: "plus")
                         .font(.subheadline.weight(.medium)).foregroundStyle(Color.textSecondary)
-                        .padding(.horizontal, Space.m + 2).padding(.vertical, Space.m)
-                        .frame(minWidth: 200, minHeight: 44, alignment: .leading)
+                        .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+                        .frame(minWidth: addButtonMinWidth, alignment: .leading)
+                        .tapTarget()
                         .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [Space.xs, Space.xs])))
                 }
                 .menuStyle(.button).buttonStyle(.plain)
                 .menuIndicator(.hidden)
             }
         }
-        .padding(.top, 2)
+        .padding(.top, Space.xxs)
     }
 
     private func commit() {
@@ -96,7 +108,7 @@ struct BoardColumnView: View {
     let board: BoardModel
     let column: BoardColumn
     let showCompleted: Bool
-    var width: CGFloat = 288
+    @ScaledMetric(relativeTo: .subheadline) private var emptyColumnHeight: CGFloat = 84
     @State private var adding = false
     @State private var draft = ""
     @State private var renaming = false
@@ -130,11 +142,10 @@ struct BoardColumnView: View {
                     }
                     footer
                 }
-                .padding(.bottom, 4)
+                .padding(.bottom, Space.xs)
             }
         }
         .padding(.horizontal, Space.s)
-        .frame(width: width, alignment: .top)
         .background(targeted ? Color.brand.opacity(0.10) : Color.canvasRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(targeted ? Color.brand.opacity(0.6) : Color.hairline.opacity(0.6), lineWidth: targeted ? 1.5 : 0.5))
         .accessibilityElement(children: .contain)
@@ -165,13 +176,13 @@ struct BoardColumnView: View {
 
     @ViewBuilder private var header: some View {
         let base = HStack(spacing: Space.s) {
-            if let color = Color(hex: column.color) { Circle().fill(color).frame(width: 10, height: 10).accessibilityHidden(true) }
+            if let color = Color(hex: column.color) { Circle().fill(color).scaledSquare(10, relativeTo: .subheadline).accessibilityHidden(true) }
             title.font(.sectionTitle).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             CountBadge(count: tasks.count)
             Spacer(minLength: Space.xs)
             if column.isReal { columnMenu }
         }
-        .padding(.horizontal, Space.xs).padding(.top, Space.xs).padding(.bottom, Space.xs)
+        .padding(Space.xs)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .accessibilityValue(Text("a11y.board.cards \(tasks.count)"))
@@ -183,8 +194,8 @@ struct BoardColumnView: View {
             Image(systemName: targeted ? "arrow.down.circle.fill" : "tray").font(.title3).foregroundStyle(targeted ? Color.brand : Color.textSecondary)
             Text("board.lane.empty").font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, minHeight: 84)
-        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+        .frame(maxWidth: .infinity, minHeight: emptyColumnHeight)
+        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [Space.xs, Space.xs])))
         .accessibilityElement(children: .combine)
     }
 
@@ -211,7 +222,7 @@ struct BoardColumnView: View {
 
     @ViewBuilder private var footer: some View {
         if adding {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Space.s) {
                 TextField(accessible: "quickAdd.title", text: $draft, axis: .vertical)
                     .textFieldStyle(.plain).focused($focus)
                     .onSubmit { submit() }
@@ -358,28 +369,44 @@ struct BoardCard: View {
 
 /// Placeholder columns while the first load runs.
 struct BoardSkeleton: View {
-    let width: CGFloat
+    /// Column width for the visible scroll width (same rule as the loaded board).
+    let columnWidth: (CGFloat) -> CGFloat
+
+    init(columnWidth: @escaping (CGFloat) -> CGFloat) { self.columnWidth = columnWidth }
+    /// Fixed column width (used by the command center, which has its own column logic).
+    init(width: CGFloat) { columnWidth = { _ in width } }
+
     @State private var pulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var barHeight: CGFloat = 13
+    @ScaledMetric(relativeTo: .body) private var barWidth: CGFloat = 110
+
+    /// Placeholder bar; `seed` varies the length so the cards look like text.
+    private func bar(_ seed: Int, height: CGFloat, opacity: Double = 1) -> some View {
+        RoundedRectangle(cornerRadius: Radius.xs, style: .continuous).fill(Color.hairline.opacity(opacity))
+            .frame(width: barWidth * (0.5 + CGFloat(seed % 8) / 10), height: height)
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: Space.m) {
                 ForEach(0..<3, id: \.self) { col in
                     VStack(alignment: .leading, spacing: Space.s) {
-                        RoundedRectangle(cornerRadius: 4).fill(Color.hairline).frame(width: 90, height: 14).padding(.vertical, Space.s)
+                        bar(4, height: barHeight).padding(.vertical, Space.s)
                         ForEach(0..<(3 - col % 2), id: \.self) { i in
-                            VStack(alignment: .leading, spacing: 8) {
-                                RoundedRectangle(cornerRadius: 4).fill(Color.hairline).frame(width: CGFloat(110 + (i * 41 + col * 23) % 80), height: 13)
-                                RoundedRectangle(cornerRadius: 4).fill(Color.hairline.opacity(0.6)).frame(width: CGFloat(60 + (i * 29) % 60), height: 9)
+                            VStack(alignment: .leading, spacing: Space.s) {
+                                bar(i * 4 + col * 2 + 3, height: barHeight)
+                                bar(i * 3 + 1, height: barHeight * 0.7, opacity: 0.6)
                             }
                             .padding(Space.m).frame(maxWidth: .infinity, alignment: .leading).cardSurface(radius: Radius.m)
                         }
                     }
-                    .padding(.horizontal, Space.s).frame(width: width, alignment: .top)
+                    .padding(.horizontal, Space.s)
+                    .containerRelativeFrame(.horizontal) { available, _ in columnWidth(available) }
                     .background(Color.canvasRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
                 }
             }
-            .padding(.horizontal, Space.l).padding(.top, Space.xs)
+            .pageMargins().padding(.top, Space.xs)
         }
         .opacity(pulse ? 0.5 : 1)
         .onAppear { if !reduceMotion { withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true } } }
@@ -387,3 +414,44 @@ struct BoardSkeleton: View {
         .accessibilityLabel(Text("loading"))
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+@MainActor private enum BoardPreviewData {
+    static let projectID = UUID()
+    static let board = BoardModel(projectID: projectID)
+    static let model = AppModel()
+    static let column = BoardColumn(id: UUID(), name: "In Arbeit", color: "#3B82F6", tasks: [
+        TodoTask(id: UUID(), projectID: projectID, title: "Donaudampfschifffahrtsgesellschaft anrufen", description: "Rückfrage zur Kündigung des Liegeplatzes"),
+        TodoTask(id: UUID(), projectID: projectID, title: "Kartons besorgen"),
+    ])
+}
+
+private struct BoardPreview: View {
+    var body: some View {
+        // The board stays on the skeleton (no sync engine in previews); columns and cards are previewed separately.
+        BoardView(board: BoardPreviewData.board, showCompleted: false)
+            .environment(BoardPreviewData.model).environment(TaskMeta())
+    }
+}
+
+private struct ColumnPreview: View {
+    var body: some View {
+        let column = BoardPreviewData.column
+        ScrollView {
+            BoardColumnView(board: BoardPreviewData.board, column: column, showCompleted: false)
+                .padding(Space.l)
+        }
+        .background(Color.canvas)
+        .environment(BoardPreviewData.model).environment(TaskMeta())
+    }
+}
+
+#Preview("Board skeleton light") { BoardPreview().preferredColorScheme(.light) }
+#Preview("Board skeleton dark") { BoardPreview().preferredColorScheme(.dark) }
+#Preview("Board skeleton accessibility5") { BoardPreview().dynamicTypeSize(.accessibility5) }
+#Preview("Column light") { ColumnPreview().preferredColorScheme(.light) }
+#Preview("Column dark") { ColumnPreview().preferredColorScheme(.dark) }
+#Preview("Column accessibility5") { ColumnPreview().dynamicTypeSize(.accessibility5) }
+#endif
