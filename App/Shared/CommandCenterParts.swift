@@ -362,11 +362,15 @@ struct ReviewDecisionView: View {
                     Button("cancel") { asking = false }.buttonStyle(.bordered).controlSize(.large)
                 }
             } else {
-                AdaptiveStack(spacing: Space.s) {
-                    Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
-                        .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
-                    Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
-                        .buttonStyle(.bordered).controlSize(.large).disabled(busy)
+                // Narrow board columns: side by side only when both labels fit on one line, otherwise stacked
+                // (a squeezed prominent button degrades into a circle).
+                let accept = Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
+                    .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
+                let changes = Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
+                    .buttonStyle(.bordered).controlSize(.large).disabled(busy)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Space.s) { accept.lineLimit(1).fixedSize(); changes.lineLimit(1).fixedSize() }
+                    VStack(alignment: .leading, spacing: Space.s) { accept; changes }
                 }
             }
         }
