@@ -9,6 +9,8 @@ import AppKit
 /// Design tokens. The colors live in `Assets.xcassets` (light and dark variants); nothing else hard-codes colors.
 extension Color {
     static let brand = Color("Brand")
+    /// Foreground on solid `brand` surfaces (white on light, near-black on the lighter dark-mode brand; at least 4.5:1).
+    static let onBrand = Color("OnBrand")
     /// Secondary text with at least 4.5:1 contrast (the system secondary label is about 3.4:1 on white).
     static let textSecondary = Color("TextSecondary")
     static let canvas = Color("Canvas")
@@ -156,10 +158,38 @@ enum DueFormat {
 /// Spacing scale (points). Use these instead of literals so rhythm stays consistent.
 enum Space {
     static let xxs: CGFloat = 2, xs: CGFloat = 4, s: CGFloat = 8, m: CGFloat = 12, l: CGFloat = 16, xl: CGFloat = 24, xxl: CGFloat = 32
+    /// Horizontal page margin on compact width; use `pageMargins()` so regular width gets `pageRegular`.
+    static let page: CGFloat = 16
+    static let pageRegular: CGFloat = 24
+    /// Upper bound of the readable content column on iPad and Mac.
+    static let readableMax: CGFloat = 680
+}
+
+private struct PageMargins: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    func body(content: Content) -> some View {
+        content.padding(.horizontal, sizeClass == .regular ? Space.pageRegular : Space.page)
+    }
+}
+
+private struct ReadableWidth: ViewModifier {
+    var maxWidth: CGFloat
+    func body(content: Content) -> some View {
+        content.frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
+    }
+}
+
+extension View {
+    /// The single horizontal page margin (16 pt compact, 24 pt regular width).
+    func pageMargins() -> some View { modifier(PageMargins()) }
+    /// Limits content to a readable column (default 680 pt), centered; a no-op on narrow screens.
+    func readableWidth(_ maxWidth: CGFloat = Space.readableMax) -> some View { modifier(ReadableWidth(maxWidth: maxWidth)) }
 }
 
 /// Corner radii.
 enum Radius {
+    /// Skeleton bars and other small inline shapes.
+    static let xs: CGFloat = 4
     static let s: CGFloat = 8, m: CGFloat = 12, l: CGFloat = 18, xl: CGFloat = 26
 }
 
@@ -225,15 +255,34 @@ struct IconTile: View {
     }
 }
 
-extension View {
-    /// Guarantees the 44 x 44 pt minimum touch target of the HIG on touch platforms without changing the visual size.
-    func tapTarget() -> some View {
-        #if os(iOS)
-        self.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
-        #else
-        self
-        #endif
+/// Minimum hit size: 44 pt on iOS, 28 pt on macOS.
+enum TapTarget {
+    #if os(iOS)
+    static let minimum: CGFloat = 44
+    #else
+    static let minimum: CGFloat = 28
+    #endif
+}
+
+private struct TapTargetModifier: ViewModifier {
+    @ScaledMetric(relativeTo: .body) private var minimum = TapTarget.minimum
+    func body(content: Content) -> some View {
+        content.frame(minWidth: minimum, minHeight: minimum).contentShape(Rectangle())
     }
+}
+
+private struct ScaledSide: ViewModifier {
+    @ScaledMetric private var side: CGFloat
+    init(_ base: CGFloat, relativeTo style: Font.TextStyle) { _side = ScaledMetric(wrappedValue: base, relativeTo: style) }
+    func body(content: Content) -> some View { content.frame(width: side, height: side) }
+}
+
+extension View {
+    /// Guarantees the minimum touch target (44 pt iOS, 28 pt macOS, scaled with Dynamic Type) without changing the visual size.
+    /// Unlike before it also applies on macOS (28 pt).
+    func tapTarget() -> some View { modifier(TapTargetModifier()) }
+    /// Square frame whose side scales with Dynamic Type (icon columns, avatars).
+    func scaledSquare(_ base: CGFloat, relativeTo style: Font.TextStyle = .body) -> some View { modifier(ScaledSide(base, relativeTo: style)) }
 }
 
 extension TextField where Label == Text {
@@ -246,7 +295,7 @@ extension TextField where Label == Text {
 /// Horizontal stack that becomes a leading-aligned vertical stack from the accessibility text sizes on, so chips and
 /// label/value pairs never get squeezed or clipped next to each other.
 struct AdaptiveStack<Content: View>: View {
-    var spacing: CGFloat = 8
+    var spacing: CGFloat = Space.s
     var verticalAlignment: VerticalAlignment = .center
     @ViewBuilder var content: Content
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -269,7 +318,7 @@ struct CountBadge: View {
         Text(verbatim: String(count))
             .font(.caption.weight(.semibold)).monospacedDigit()
             .foregroundStyle(selected ? Color.white : tint)
-            .padding(.horizontal, 7).padding(.vertical, 1)
+            .padding(.horizontal, Space.s).padding(.vertical, Space.xxs)
             .background(selected ? Color.white.opacity(0.22) : tint.opacity(0.10), in: Capsule())
     }
 }
@@ -287,13 +336,13 @@ struct ProjectDot: View {
 struct LabelChip: View {
     let name: String
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: Space.xs) {
             Image(systemName: "tag.fill").font(.caption2).imageScale(.small).foregroundStyle(Color.textSecondary)
             Text(verbatim: name).lineLimit(1)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(Color.textSecondary)
-        .padding(.horizontal, 7).padding(.vertical, 2)
+        .padding(.horizontal, Space.s).padding(.vertical, Space.xxs)
         .background(Color.project(name.hashValueUUID).opacity(0.10), in: Capsule())
     }
 }
@@ -316,7 +365,7 @@ struct MetaItem: View {
     var textTint: Color?
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: Space.xs) {
             Image(systemName: symbol).font(.caption2.weight(.semibold)).foregroundStyle(tint)
             Text(verbatim: text).lineLimit(typeSize.isAccessibilitySize ? nil : 1).foregroundStyle(textTint ?? tint)
         }
@@ -348,10 +397,10 @@ struct SkeletonRows: View {
         VStack(spacing: 0) {
             ForEach(0..<count, id: \.self) { i in
                 HStack(alignment: .top, spacing: Space.m) {
-                    Circle().fill(Color.hairline).frame(width: 22, height: 22)
-                    VStack(alignment: .leading, spacing: 7) {
-                        RoundedRectangle(cornerRadius: 4).fill(Color.hairline).frame(width: CGFloat(150 + (i * 47) % 120), height: 13)
-                        RoundedRectangle(cornerRadius: 4).fill(Color.hairline.opacity(0.6)).frame(width: CGFloat(80 + (i * 31) % 70), height: 9)
+                    Circle().fill(Color.hairline).frame(width: Space.xl, height: Space.xl)
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        RoundedRectangle(cornerRadius: Radius.xs).fill(Color.hairline).frame(width: CGFloat(150 + (i * 47) % 120), height: 13)
+                        RoundedRectangle(cornerRadius: Radius.xs).fill(Color.hairline.opacity(0.6)).frame(width: CGFloat(80 + (i * 31) % 70), height: 9)
                     }
                     Spacer()
                 }
@@ -379,8 +428,54 @@ struct NoticeBanner: View {
             if let action { Button(action: action) { Image(systemName: "xmark").font(.caption.weight(.bold)) }.buttonStyle(.plain).accessibilityLabel(Text("ok")) }
         }
         .foregroundStyle(tint)
-        .padding(.horizontal, Space.m).padding(.vertical, Space.s + 2)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.m)
         .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
         .padding(.horizontal, Space.l)
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+/// Every Theme component in one scrolling gallery; previewed in light, dark and accessibility5.
+private struct ThemeGallery: View {
+    @State private var text = ""
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.l) {
+                Text(verbatim: "Space.page / readableWidth").font(.sectionTitle)
+                Text(verbatim: "Readable column with page margins").font(.rowTitle)
+                    .padding(Space.m).cardSurface().pageMargins().readableWidth()
+                Button { } label: {
+                    Text(verbatim: "On brand").font(.rowTitle).foregroundStyle(Color.onBrand).padding(Space.m)
+                        .background(Color.brand, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                }
+                .buttonStyle(PressableStyle())
+                HStack(spacing: Space.m) {
+                    IconTile(symbol: "tray", tint: .tileBlue)
+                    IconTile(symbol: "calendar", tint: .tileGreen)
+                    Image(systemName: "plus").tapTarget().background(Color.hairline.opacity(0.4))
+                    Image(systemName: "star").scaledSquare(24)
+                }
+                AdaptiveStack {
+                    CountBadge(count: 12)
+                    LabelChip(name: "Backend")
+                    MetaItem(symbol: "calendar", text: "Heute", tint: .dueToday)
+                    ProjectDot(id: UUID()).environment(AppModel())
+                }
+                TextField(accessible: "Titel", text: $text)
+                EmptyState(symbol: "checkmark.circle", title: "Alles erledigt", message: "Keine offenen Aufgaben")
+                    .frame(height: 220)
+                SkeletonRows(count: 2)
+                NoticeBanner(symbol: "exclamationmark.triangle", text: "Server nicht erreichbar", action: { })
+            }
+            .padding(.vertical, Space.l)
+        }
+        .background(Color.canvas)
+    }
+}
+
+#Preview("Theme light") { ThemeGallery().preferredColorScheme(.light) }
+#Preview("Theme dark") { ThemeGallery().preferredColorScheme(.dark) }
+#Preview("Theme accessibility5") { ThemeGallery().dynamicTypeSize(.accessibility5) }
+#endif
