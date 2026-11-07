@@ -98,7 +98,13 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 560)
+        .frame(minWidth: 460, idealWidth: 460, minHeight: 480, idealHeight: 560)
     }
 }
+#endif
+
+#if DEBUG && os(macOS)
+#Preview("Settings light") { SettingsView().environment(AppModel()).preferredColorScheme(.light) }
+#Preview("Settings dark") { SettingsView().environment(AppModel()).preferredColorScheme(.dark) }
+#Preview("Settings accessibility5") { SettingsView().environment(AppModel()).dynamicTypeSize(.accessibility5) }
 #endif

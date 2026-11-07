@@ -65,7 +65,7 @@ struct MainView: View {
             NavigationStack { TaskDetailView(task: task) }
                 .environment(model).environment(meta)
                 #if os(macOS)
-                .frame(minWidth: 520, idealWidth: 560, minHeight: 600)
+                .frame(minWidth: 520, idealWidth: 560, minHeight: 600, idealHeight: 680)
                 #endif
                 .presentationDragIndicator(.visible)
         }
@@ -96,7 +96,7 @@ struct SyncStatusBar: View {
 
     var body: some View {
         if model.syncStatus == .offline || model.unsentChanges > 0 {
-            HStack(spacing: 6) {
+            HStack(spacing: Space.s) {
                 Image(systemName: model.syncStatus == .offline ? "icloud.slash" : "arrow.triangle.2.circlepath")
                 if model.syncStatus == .offline { Text("sync.offline") }
                 if model.unsentChanges > 0 {
@@ -106,7 +106,7 @@ struct SyncStatusBar: View {
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(model.syncStatus == .offline ? Color.dueTomorrow : Color.textSecondary)
-            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
             .background(.regularMaterial, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 0.5))
             .padding(.bottom, Space.xs)
@@ -119,6 +119,8 @@ struct SyncStatusBar: View {
 
 // MARK: iPad / Mac: sidebar + detail
 
+private enum InspectorMetrics { static let min: CGFloat = 340, ideal: CGFloat = 420, max: CGFloat = 560 }
+
 struct SplitLayout: View {
     @Environment(AppModel.self) private var model
 
@@ -126,6 +128,7 @@ struct SplitLayout: View {
         NavigationSplitView {
             SidebarList(linking: false)
                 .navigationTitle("app.title")
+                .navigationSplitViewColumnWidth(min: SidebarMetrics.columnMin, ideal: SidebarMetrics.columnIdeal, max: SidebarMetrics.columnMax)
                 .safeAreaInset(edge: .bottom) { SyncStatusBar() }
         } detail: {
             NavigationStack {
@@ -136,7 +139,7 @@ struct SplitLayout: View {
                 if let task = model.path.last {
                     NavigationStack { TaskDetailView(task: task) }
                         .id(task.id)
-                        .inspectorColumnWidth(min: 340, ideal: 420, max: 560)
+                        .inspectorColumnWidth(min: InspectorMetrics.min, ideal: InspectorMetrics.ideal, max: InspectorMetrics.max)
                 }
             }
         }
@@ -226,3 +229,30 @@ struct InboxView: View {
         .quickAdd()
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+private struct NavPreviewHost<Content: View>: View {
+    @State private var model = AppModel()
+    @State private var meta = TaskMeta()
+    @ViewBuilder var content: () -> Content
+    var body: some View { content().environment(model).environment(meta) }
+}
+
+#Preview("Sync bar light") { NavPreviewHost { SyncStatusBar() }.preferredColorScheme(.light) }
+#Preview("Sync bar dark") { NavPreviewHost { SyncStatusBar() }.preferredColorScheme(.dark) }
+#Preview("Sync bar accessibility5") { NavPreviewHost { SyncStatusBar() }.dynamicTypeSize(.accessibility5) }
+
+#Preview("Split light") { NavPreviewHost { SplitLayout() }.preferredColorScheme(.light) }
+#Preview("Split dark") { NavPreviewHost { SplitLayout() }.preferredColorScheme(.dark) }
+#Preview("Split accessibility5") { NavPreviewHost { SplitLayout() }.dynamicTypeSize(.accessibility5) }
+
+#Preview("Tabs light") { NavPreviewHost { PhoneTabs() }.preferredColorScheme(.light) }
+#Preview("Tabs dark") { NavPreviewHost { PhoneTabs() }.preferredColorScheme(.dark) }
+#Preview("Tabs accessibility5") { NavPreviewHost { PhoneTabs() }.dynamicTypeSize(.accessibility5) }
+
+#Preview("Inbox light") { NavPreviewHost { NavigationStack { InboxView() } }.preferredColorScheme(.light) }
+#Preview("Inbox dark") { NavPreviewHost { NavigationStack { InboxView() } }.preferredColorScheme(.dark) }
+#Preview("Inbox accessibility5") { NavPreviewHost { NavigationStack { InboxView() } }.dynamicTypeSize(.accessibility5) }
+#endif
