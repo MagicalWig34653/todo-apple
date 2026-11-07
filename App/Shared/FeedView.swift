@@ -22,8 +22,8 @@ struct FeedView: View {
                     if !model.state.posts.isEmpty { posts }
                 }
             }
-            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
-            .frame(maxWidth: 720).frame(maxWidth: .infinity)
+            .pageMargins().padding(.vertical, Space.m)
+            .readableWidth()
         }
         .background(Color.canvas)
         .navigationTitle("view.feed")
@@ -31,7 +31,7 @@ struct FeedView: View {
         .task { await model.load(app) }
         .sheet(item: $shown) { image in
             NavigationStack {
-                RemoteImage(attachmentID: image.attachmentID, contentMode: .fit).padding()
+                RemoteImage(attachmentID: image.attachmentID, contentMode: .fit).padding(Space.l)
                     .navigationTitle(Text(verbatim: image.label ?? image.filename))
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
@@ -39,7 +39,7 @@ struct FeedView: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("done") { shown = nil } } }
             }
             #if os(macOS)
-            .frame(minWidth: 420, minHeight: 520)
+            .frame(minWidth: 420, idealWidth: 520, minHeight: 520, idealHeight: 640)
             #endif
         }
         .alert(LocalizedStringKey(model.errorKey ?? ""), isPresented: Binding(get: { model.errorKey != nil }, set: { if !$0 { model.errorKey = nil } })) {
@@ -79,6 +79,14 @@ struct FeedView: View {
     }
 }
 
+/// The leading action of a card is filled (brand with on-brand text); the others stay quiet and neutral.
+private struct PrimaryActionStyle: ViewModifier {
+    let primary: Bool
+    @ViewBuilder func body(content: Content) -> some View {
+        if primary { content.buttonStyle(.borderedProminent) } else { content.buttonStyle(.bordered) }
+    }
+}
+
 private struct NeedsYouCard: View {
     let item: FeedNeedsYou
     let busy: Bool
@@ -110,8 +118,8 @@ private struct NeedsYouCard: View {
         VStack(alignment: .leading, spacing: Space.s) {
             Button(action: open) {
                 HStack(alignment: .top, spacing: Space.s) {
-                    Image(systemName: symbol).foregroundStyle(tint).accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
+                    Image(systemName: symbol).foregroundStyle(tint).scaledSquare(24, relativeTo: .subheadline).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Space.xxs) {
                         Text(kindLabel).font(.caption.weight(.semibold)).foregroundStyle(tint)
                         Text(verbatim: item.title).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                         if let detail = item.detail { Text(verbatim: detail).font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading) }
@@ -120,7 +128,7 @@ private struct NeedsYouCard: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .contentShape(Rectangle())
+                .tapTarget()
             }
             .buttonStyle(.plain)
             .accessibilityHint(Text("feed.openTask"))
@@ -135,8 +143,13 @@ private struct NeedsYouCard: View {
                 } else {
                     FlowLayout(spacing: Space.s) {
                         ForEach(item.actions) { action in
-                            Button { if action.requiresInput { input = action } else { act(action, nil) } } label: { Text(verbatim: action.label).lineLimit(2) }
-                                .buttonStyle(.bordered).controlSize(.large).disabled(busy)
+                            let primary = item.kind != "question" && action.id == item.actions.first?.id
+                            Button { if action.requiresInput { input = action } else { act(action, nil) } } label: {
+                                Text(verbatim: action.label).lineLimit(2).foregroundStyle(primary ? Color.onBrand : Color.primary)
+                            }
+                            .modifier(PrimaryActionStyle(primary: primary))
+                            .buttonBorderShape(.capsule).controlSize(.large).disabled(busy)
+                            .tint(primary ? Color.brand : Color.primary)
                         }
                     }
                 }
@@ -163,6 +176,9 @@ private struct PostCard: View {
     let post: FeedPost
     let showImage: (FeedImage) -> Void
     let open: () -> Void
+    @ScaledMetric(relativeTo: .body) private var singleWidth: CGFloat = 220
+    @ScaledMetric(relativeTo: .body) private var multiWidth: CGFloat = 150
+    private static let imageAspect: CGFloat = 11.0 / 15.0
 
     private var title: LocalizedStringKey {
         switch (post.postKind, post.state) {
@@ -198,8 +214,8 @@ private struct PostCard: View {
         VStack(alignment: .leading, spacing: Space.s) {
             Button(action: open) {
                 HStack(alignment: .top, spacing: Space.s) {
-                    Image(systemName: symbol).foregroundStyle(Color.brand).frame(width: 24).accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
+                    Image(systemName: symbol).foregroundStyle(Color.brand).scaledSquare(24, relativeTo: .subheadline).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Space.xxs) {
                         (Text(verbatim: actor.isEmpty ? "" : actor + " ") + Text(title)).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading)
                         if let text = post.text, !text.isEmpty { Text(verbatim: text).font(.subheadline).multilineTextAlignment(.leading).lineLimit(6) }
                         if let detail = post.detail { Text(verbatim: "→ " + detail).font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading) }
@@ -209,7 +225,7 @@ private struct PostCard: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .contentShape(Rectangle())
+                .tapTarget()
             }
             .buttonStyle(.plain)
             if !post.images.isEmpty {
@@ -218,7 +234,8 @@ private struct PostCard: View {
                         ForEach(post.images) { image in
                             Button { showImage(image) } label: {
                                 RemoteImage(attachmentID: image.attachmentID)
-                                    .frame(width: post.images.count == 1 ? 220 : 150, height: post.images.count == 1 ? 300 : 200)
+                                    .aspectRatio(Self.imageAspect, contentMode: .fit)
+                                    .frame(width: post.images.count == 1 ? singleWidth : multiWidth)
                                     .clipShape(RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                                     .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).stroke(Color.hairline, lineWidth: 0.5))
                             }
@@ -235,3 +252,41 @@ private struct PostCard: View {
         .cardSurface()
     }
 }
+
+// MARK: Previews
+
+private enum FeedPreviewData {
+    static let needsYou: FeedNeedsYou? = {
+        let json = """
+        {"id":"q1","kind":"review","projectID":"\(UUID())","projectName":"Website-Relaunch","taskID":"\(UUID())","taskTitle":"Texte für Startseite freigeben","taskVersion":1,
+         "title":"Texte sind eingebaut und getestet.","options":[],"blocking":false,
+         "actions":[{"key":"accept","label":"Annehmen","method":"POST","path":"/x","requiresInput":false},{"key":"changes","label":"Änderungen anfordern","method":"POST","path":"/x","requiresInput":true}]}
+        """
+        return try? JSONDecoder().decode(FeedNeedsYou.self, from: Data(json.utf8))
+    }()
+
+    static let post: FeedPost? = {
+        let json = """
+        {"id":"\(UUID())","kind":"progress","event":"progress.posted","projectID":"\(UUID())","projectName":"Website-Relaunch","taskID":"\(UUID())","taskTitle":"Design-Review vorbereiten",
+         "actor":{"type":"Agent","id":"\(UUID())","name":"Claude"},"text":"Farbpalette und Typografie sind im Entwurf.","percent":40,
+         "images":[{"attachmentID":"\(UUID())","filename":"a.png","mediaType":"image/png","previewURL":"/x","label":"Entwurf"}]}
+        """
+        return try? JSONDecoder().decode(FeedPost.self, from: Data(json.utf8))
+    }()
+}
+
+private struct FeedPreviewCards: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            if let item = FeedPreviewData.needsYou { NeedsYouCard(item: item, busy: false, act: { _, _ in }, open: {}) }
+            if let post = FeedPreviewData.post { PostCard(post: post, showImage: { _ in }, open: {}) }
+        }
+        .environment(AppModel())
+        .pageMargins().padding(.vertical, Space.l).readableWidth().background(Color.canvas)
+    }
+}
+
+#Preview("Feed Karten, Light") { ScrollView { FeedPreviewCards() } }
+#Preview("Feed Karten, Dark") { ScrollView { FeedPreviewCards() }.preferredColorScheme(.dark) }
+#Preview("Feed Karten, accessibility5") { ScrollView { FeedPreviewCards() }.dynamicTypeSize(.accessibility5) }
+#Preview("Feed, Light") { NavigationStack { FeedView() }.environment(AppModel()) }
