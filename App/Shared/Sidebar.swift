@@ -1,6 +1,15 @@
 import SwiftUI
 import TodoCore
 
+/// Shared metrics so tile rows and project rows have the same height and icon column (scaled with Dynamic Type at the use site).
+enum SidebarMetrics {
+    static let rowMinHeight: CGFloat = 32
+    static let iconColumn: CGFloat = 26
+    static let avatar: CGFloat = 28
+    static let popoverMinWidth: CGFloat = 240
+    static let columnMin: CGFloat = 240, columnIdeal: CGFloat = 280, columnMax: CGFloat = 360
+}
+
 /// Sidebar (iPad/Mac) and Browse list (iPhone): account header, quick add, main entries, "Mehr", favorites,
 /// project tree, teams, help.
 struct SidebarList: View {
@@ -15,6 +24,7 @@ struct SidebarList: View {
     @State private var moreExpanded = false
     @State private var showHelp = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var rowMinHeight = SidebarMetrics.rowMinHeight
 
     private var dayNumber: Int { Calendar.current.component(.day, from: Date()) }
     private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
@@ -29,12 +39,12 @@ struct SidebarList: View {
         List(selection: $model.selection) {
             Section {
                 Button { actions.addTask() } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Space.s) {
                         Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(Color.brand)
                         Text("task.add").font(.body.weight(.semibold)).foregroundStyle(Color.brand)
                         Spacer()
                     }
-                    .padding(.vertical, 4)
+                    .frame(minHeight: rowMinHeight)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -50,20 +60,22 @@ struct SidebarList: View {
                 row(.labels, "view.labels", "tag.fill", .tileTeal)
                 Button { withAnimation(reduceMotion ? nil : .default) { moreExpanded.toggle() } } label: {
                     HStack(spacing: Space.m) {
-                        IconTile(symbol: "ellipsis", tint: .tileGray, size: 26)
+                        IconTile(symbol: "ellipsis", tint: .tileGray, size: SidebarMetrics.iconColumn)
                         Text("view.more").font(.body.weight(.medium))
                         Spacer()
-                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.tertiary).rotationEffect(.degrees(moreExpanded ? 90 : 0))
+                        // Decorative chevron; the expanded state is announced through accessibilityValue.
+                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.textSecondary).rotationEffect(.degrees(moreExpanded ? 90 : 0))
                     }
+                    .frame(minHeight: rowMinHeight)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityValue(Text(moreExpanded ? "a11y.expanded" : "a11y.collapsed"))
                 if moreExpanded {
-                    row(.teams, "view.teams", "person.2.fill", .tileBlue, count: model.teamInvitations.count, badgeTint: .brand).padding(.leading, 12)
-                    row(.account, "view.account", "gearshape.fill", .tileGray).padding(.leading, 12)
-                    row(.activity, "view.activity", "clock.arrow.circlepath", .tileOrange).padding(.leading, 12)
-                    row(.runner, "view.runner", "terminal.fill", .tilePurple).padding(.leading, 12)
+                    row(.teams, "view.teams", "person.2.fill", .tileBlue, count: model.teamInvitations.count, badgeTint: .brand).padding(.leading, Space.m)
+                    row(.account, "view.account", "gearshape.fill", .tileGray).padding(.leading, Space.m)
+                    row(.activity, "view.activity", "clock.arrow.circlepath", .tileOrange).padding(.leading, Space.m)
+                    row(.runner, "view.runner", "terminal.fill", .tilePurple).padding(.leading, Space.m)
                 }
             }
             if !favoriteProjects.isEmpty {
@@ -118,14 +130,14 @@ struct SidebarList: View {
         .safeAreaInset(edge: .top, spacing: 0) { AccountHeader() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button { showHelp = true } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: Space.s) {
                     Image(systemName: "questionmark.circle")
                     Text("help.title")
                     Spacer()
                 }
                 .font(.subheadline).foregroundStyle(Color.textSecondary)
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .contentShape(Rectangle())
+                .padding(.horizontal, Space.page)
+                .tapTarget()
             }
             .buttonStyle(.plain)
             // Opaque footer: scrolled rows must not show through the help label (overlap at large text sizes).
@@ -157,12 +169,12 @@ struct SidebarList: View {
     private func row(_ item: SidebarItem, _ title: LocalizedStringKey, _ symbol: String, _ tint: Color, count: Int = 0, badgeTint: Color = Color.textSecondary) -> some View {
         link(item) {
             HStack(spacing: Space.m) {
-                IconTile(symbol: symbol, tint: tint, size: 26)
+                IconTile(symbol: symbol, tint: tint, size: SidebarMetrics.iconColumn)
                 Text(title).font(.body.weight(.medium))
-                Spacer(minLength: 4)
+                Spacer(minLength: Space.xs)
                 if count > 0 { CountBadge(count: count, tint: badgeTint) }
             }
-            .padding(.vertical, 1)
+            .frame(minHeight: rowMinHeight)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(title))
             .accessibilityValue(Text(verbatim: count > 0 ? String(localized: "agenda.openCount \(count)") : ""))
@@ -174,6 +186,7 @@ struct SidebarList: View {
 struct AccountHeader: View {
     @Environment(AppModel.self) private var model
     @State private var showNotifications = false
+    @ScaledMetric(relativeTo: .body) private var avatarSide = SidebarMetrics.avatar
 
     private var initials: String {
         let parts = (model.user?.displayName ?? "?").split(separator: " ").prefix(2)
@@ -181,7 +194,7 @@ struct AccountHeader: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Space.s) {
             Menu {
                 Text(verbatim: model.user?.displayName ?? "")
                 Button { model.selection = .account } label: { Label("view.account", systemImage: "gearshape") }
@@ -189,13 +202,13 @@ struct AccountHeader: View {
                 Divider()
                 Button("logout", role: .destructive) { Task { await model.logout() } }
             } label: {
-                HStack(spacing: 8) {
-                    Text(verbatim: initials).font(.caption.weight(.bold)).foregroundStyle(.white)
-                        .frame(width: 28, height: 28).background(Color.brand, in: Circle())
+                HStack(spacing: Space.s) {
+                    Text(verbatim: initials).font(.caption.weight(.bold)).foregroundStyle(Color.onBrand)
+                        .frame(width: avatarSide, height: avatarSide).background(Color.brand, in: Circle())
                     Text(verbatim: model.user?.displayName ?? "").font(.body.weight(.semibold)).lineLimit(1)
                     Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.textSecondary)
                 }
-                .contentShape(Rectangle())
+                .tapTarget()
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
             Spacer()
@@ -206,7 +219,7 @@ struct AccountHeader: View {
             .accessibilityLabel(Text("notifications.title"))
             .accessibilityValue(Text(verbatim: model.teamInvitations.isEmpty ? "" : String(localized: "notifications.invitations \(model.teamInvitations.count)")))
             .popover(isPresented: $showNotifications) {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: Space.s) {
                     Text("notifications.title").font(.headline)
                     if model.teamInvitations.isEmpty {
                         Text("notifications.empty").font(.subheadline).foregroundStyle(Color.textSecondary)
@@ -217,11 +230,11 @@ struct AccountHeader: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(16).frame(minWidth: 240, alignment: .leading)
+                .padding(Space.l).frame(minWidth: SidebarMetrics.popoverMinWidth, alignment: .leading)
                 .presentationCompactAdaptation(.popover)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .padding(.horizontal, Space.page).padding(.vertical, Space.xs)
         .background(Color.canvasRaised)
     }
 }
@@ -250,7 +263,7 @@ struct HelpView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("ok") { dismiss() } } }
         }
         #if os(macOS)
-        .frame(minWidth: 420, minHeight: 380)
+        .frame(minWidth: 420, idealWidth: 480, minHeight: 380, idealHeight: 480)
         #endif
     }
 }
@@ -387,10 +400,11 @@ struct ProjectDropTarget: ViewModifier {
 struct RootDropZone: View {
     @Environment(AppModel.self) private var model
     @State private var targeted = false
+    @ScaledMetric(relativeTo: .caption) private var minHeight = TapTarget.minimum
     var body: some View {
         Text("projects.dropRoot").font(.caption).foregroundStyle(Color.textSecondary)
-            .frame(maxWidth: .infinity, minHeight: 28)
-            .background(targeted ? Color.brand.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+            .frame(maxWidth: .infinity, minHeight: minHeight)
+            .background(targeted ? Color.brand.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: Radius.s))
             .dropDestination(for: BoardDrag.self) { items, _ in
                 guard let drag = items.first, drag.kind == .project else { return false }
                 Task { await model.moveProject(drag.id, toParent: nil, at: nil) }
@@ -405,17 +419,47 @@ struct ProjectRowLabel: View {
     let color: Color
     let count: Int
     @Environment(\.backgroundProminence) private var prominence
+    @ScaledMetric(relativeTo: .body) private var rowMinHeight = SidebarMetrics.rowMinHeight
+    @ScaledMetric(relativeTo: .body) private var iconColumn = SidebarMetrics.iconColumn
 
     var body: some View {
         let selected = prominence == .increased
-        HStack(spacing: 8) {
-            Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(selected ? Color.white : color).frame(width: 18)
+        HStack(spacing: Space.m) {
+            Text(verbatim: "#").font(.system(.headline, design: .rounded)).foregroundStyle(selected ? Color.onBrand : color).frame(width: iconColumn)
             Text(verbatim: name).lineLimit(1)
-            Spacer(minLength: 4)
-            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(selected ? Color.white : Color.textSecondary).monospacedDigit() }
+            Spacer(minLength: Space.xs)
+            if count > 0 { Text(verbatim: String(count)).font(.caption).foregroundStyle(selected ? Color.onBrand : Color.textSecondary).monospacedDigit() }
         }
+        .frame(minHeight: rowMinHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: name))
         .accessibilityValue(Text(verbatim: count > 0 ? String(localized: "agenda.openCount \(count)") : ""))
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+private struct SidebarPreviewHost<Content: View>: View {
+    @State private var model = AppModel()
+    @State private var meta = TaskMeta()
+    @ViewBuilder var content: () -> Content
+    var body: some View { content().environment(model).environment(meta) }
+}
+
+#Preview("Sidebar light") { SidebarPreviewHost { NavigationStack { SidebarList(linking: true) } }.preferredColorScheme(.light) }
+#Preview("Sidebar dark") { SidebarPreviewHost { NavigationStack { SidebarList(linking: true) } }.preferredColorScheme(.dark) }
+#Preview("Sidebar accessibility5") { SidebarPreviewHost { NavigationStack { SidebarList(linking: true) } }.dynamicTypeSize(.accessibility5) }
+
+#Preview("Account header light") { SidebarPreviewHost { AccountHeader() }.preferredColorScheme(.light) }
+#Preview("Account header dark") { SidebarPreviewHost { AccountHeader() }.preferredColorScheme(.dark) }
+#Preview("Account header accessibility5") { SidebarPreviewHost { AccountHeader() }.dynamicTypeSize(.accessibility5) }
+
+#Preview("Help light") { SidebarPreviewHost { HelpView() }.preferredColorScheme(.light) }
+#Preview("Help dark") { SidebarPreviewHost { HelpView() }.preferredColorScheme(.dark) }
+#Preview("Help accessibility5") { SidebarPreviewHost { HelpView() }.dynamicTypeSize(.accessibility5) }
+
+#Preview("Project row light") { List { ProjectRowLabel(name: "Website-Relaunch", color: .brand, count: 4) }.preferredColorScheme(.light) }
+#Preview("Project row dark") { List { ProjectRowLabel(name: "Website-Relaunch", color: .brand, count: 4) }.preferredColorScheme(.dark) }
+#Preview("Project row accessibility5") { List { ProjectRowLabel(name: "Datenschutzgrundverordnung", color: .brand, count: 12) }.dynamicTypeSize(.accessibility5) }
+#endif
