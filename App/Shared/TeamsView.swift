@@ -6,14 +6,14 @@ struct TeamsView: View {
     @State private var newTeam = ""
 
     var body: some View {
-        List {
+        Form {
             if !model.teamInvitations.isEmpty {
                 Section("teams.invitations") {
                     ForEach(model.teamInvitations) { invitation in
-                        HStack {
+                        AdaptiveStack(spacing: Space.s) {
                             Text(verbatim: invitation.teamName ?? "")
-                            Spacer()
-                            Button("teams.accept") { Task { await accept(invitation) } }
+                            Spacer(minLength: Space.s)
+                            Button("teams.accept") { Task { await accept(invitation) } }.tapTarget()
                         }
                     }
                 }
@@ -25,6 +25,8 @@ struct TeamsView: View {
                 TextField(accessible: "teams.new", text: $newTeam).onSubmit { Task { await create() } }
             }
         }
+        .formStyle(.grouped)
+        .readableWidth()
         .navigationTitle("view.teams")
         .refreshable { await model.reloadTeams() }
         .task { await model.reloadTeams() }
@@ -51,12 +53,12 @@ struct TeamMembersView: View {
     @State private var found: [DirectoryUser] = []
 
     var body: some View {
-        List {
+        Form {
             Section("teams.members") {
                 ForEach(members) { m in
-                    HStack {
+                    AdaptiveStack(spacing: Space.s) {
                         Text(verbatim: m.displayName ?? "?")
-                        Spacer()
+                        Spacer(minLength: Space.s)
                         if m.isAdmin { Text("teams.admin").font(.caption).foregroundStyle(Color.textSecondary) }
                         if !m.accepted { Text("teams.pending").font(.caption).foregroundStyle(Color.textSecondary) }
                     }
@@ -72,6 +74,8 @@ struct TeamMembersView: View {
                 }
             }
         }
+        .formStyle(.grouped)
+        .readableWidth()
         .navigationTitle(team.name)
         .task { await reload() }
     }
@@ -121,10 +125,10 @@ struct ShareView: View {
             Form {
                 Section("share.grants") {
                     ForEach(grants) { g in
-                        HStack {
+                        AdaptiveStack(spacing: Space.s) {
                             Image(systemName: g.principalType == .team ? "person.2" : "person")
                             Text(verbatim: name(of: g))
-                            Spacer()
+                            Spacer(minLength: Space.s)
                             roleText(g.role).foregroundStyle(Color.textSecondary)
                         }
                         .swipeActions { Button("share.remove", role: .destructive) { Task { await remove(g) } } }
@@ -154,7 +158,7 @@ struct ShareView: View {
             .task { await model.reloadTeams(); await reload() }
         }
         #if os(macOS)
-        .frame(minWidth: 420, minHeight: 480)
+        .frame(minWidth: 420, idealWidth: 480, minHeight: 480, idealHeight: 600)
         #endif
     }
 
@@ -200,3 +204,36 @@ struct ShareView: View {
     case .manage: Text("role.manage")
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+private struct TeamsPreview: View {
+    let model: AppModel
+    init() {
+        let model = AppModel()
+        let founder = UUID()
+        let teams: [Team] = Self.decode("""
+        [{"id":"\(UUID())","name":"Produktentwicklung","founderID":"\(founder)"},
+         {"id":"\(UUID())","name":"Qualitaetssicherungsbeauftragte","founderID":"\(founder)"}]
+        """)
+        let invitations: [TeamMembership] = Self.decode("""
+        [{"id":"\(UUID())","teamID":"\(UUID())","userID":"\(founder)","isAdmin":false,"accepted":false,"teamName":"Design","displayName":null}]
+        """)
+        model.teams = teams
+        model.teamInvitations = invitations
+        self.model = model
+    }
+
+    static func decode<T: Decodable>(_ json: String) -> T {
+        // swiftlint:disable:next force_try
+        try! JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    var body: some View { NavigationStack { TeamsView() }.environment(model) }
+}
+
+#Preview("Teams light") { TeamsPreview().preferredColorScheme(.light) }
+#Preview("Teams dark") { TeamsPreview().preferredColorScheme(.dark) }
+#Preview("Teams accessibility5") { TeamsPreview().dynamicTypeSize(.accessibility5) }
+#endif

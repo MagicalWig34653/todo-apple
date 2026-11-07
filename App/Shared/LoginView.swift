@@ -20,7 +20,7 @@ struct LogoMark: View {
                 .overlay {
                     Image(systemName: "checkmark")
                         .font(.system(size: card * 0.46, weight: .heavy))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onBrand)
                         .offset(x: step * 2, y: step * 2)
                 }
         }
@@ -39,24 +39,49 @@ private enum LoginSheet: String, Identifiable {
     var id: String { rawValue }
 }
 
+/// Named sizes of this screen (no tokens exist for them in `Theme`).
+private enum LoginMetrics {
+    /// Width of the sign-in column and the sheet column.
+    static let columnMax: CGFloat = 460
+    static let sheetColumnMax: CGFloat = 520
+    static let logo: CGFloat = 96
+    static let logoMax: CGFloat = 144
+    #if os(macOS)
+    static let sheetMin = CGSize(width: 440, height: 420)
+    static let sheetIdeal = CGSize(width: 520, height: 560)
+    #endif
+}
+
 struct LoginView: View {
     @Environment(AppModel.self) private var model
     @State private var sheet: LoginSheet?
-    @State private var connection: ConnectionState = .unknown
+    @State private var connection: ConnectionState
+    @ScaledMetric(relativeTo: .largeTitle) private var logoSize = LoginMetrics.logo
+    /// `false` in previews: the server check would replace the prepared state.
+    private let runsCheck: Bool
+
+    init() {
+        _connection = State(initialValue: .unknown)
+        runsCheck = true
+    }
+
+    fileprivate init(connection: ConnectionState, runsCheck: Bool) {
+        _connection = State(initialValue: connection)
+        self.runsCheck = runsCheck
+    }
 
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
             ScrollView {
-                VStack(spacing: 28) {
+                VStack(spacing: Space.xl) {
                     header
                     card
                     secondaryActions
                 }
-                .frame(maxWidth: 460)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 32)
-                .frame(maxWidth: .infinity)
+                .readableWidth(LoginMetrics.columnMax)
+                .pageMargins()
+                .padding(.vertical, Space.xxl)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
@@ -70,6 +95,7 @@ struct LoginView: View {
             }
         }
         .task {
+            guard runsCheck else { return }
             await check()
             #if DEBUG
             sheet = LoginSheet(rawValue: ProcessInfo.processInfo.environment["TODO_DEBUG_LOGIN_SHEET"] ?? "")
@@ -86,18 +112,18 @@ struct LoginView: View {
     // MARK: Parts
 
     private var header: some View {
-        VStack(spacing: 14) {
-            LogoMark(size: 96)
+        VStack(spacing: Space.m) {
+            LogoMark(size: min(logoSize, LoginMetrics.logoMax))
             Text("app.title").font(.system(.largeTitle, design: .rounded, weight: .bold))
             Text("login.tagline").font(.body).foregroundStyle(Color.textSecondary).multilineTextAlignment(.center)
         }
-        .padding(.top, 24)
+        .padding(.top, Space.xl)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
 
     private var card: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Space.l) {
             serverRow
             if let key = model.errorKey, sheet == nil {
                 ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost)
@@ -106,8 +132,8 @@ struct LoginView: View {
                 Haptics.tap()
                 Task { await model.loginWithPasskey() }
             } label: {
-                HStack(spacing: 10) {
-                    if model.busy { ProgressView().tint(.white) } else { Image(systemName: "key.fill") }
+                HStack(spacing: Space.s) {
+                    if model.busy { ProgressView().tint(Color.onBrand) } else { Image(systemName: "key.fill") }
                     Text("login.passkey")
                 }
             }
@@ -115,27 +141,25 @@ struct LoginView: View {
             .disabled(model.busy || model.capabilities?.passkey != true)
             .accessibilityHint(Text("login.passkey.hint"))
         }
-        .padding(20)
-        .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.hairline, lineWidth: 1))
-        .shadow(color: .black.opacity(0.05), radius: 16, y: 6)
+        .padding(Space.l)
+        .cardSurface(radius: Radius.l)
     }
 
     private var serverRow: some View {
         Button { sheet = .server } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "server.rack").foregroundStyle(Color.textSecondary).frame(width: 22)
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Space.m) {
+                Image(systemName: "server.rack").foregroundStyle(Color.textSecondary).scaledSquare(Space.xl, relativeTo: .subheadline)
+                VStack(alignment: .leading, spacing: Space.xxs) {
                     Text("login.server").font(.caption).foregroundStyle(Color.textSecondary)
                     Text(verbatim: hostText).font(.subheadline.weight(.medium)).lineLimit(1).truncationMode(.middle)
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: Space.s)
                 ConnectionBadge(state: connection)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.textSecondary)
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Color.canvas, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .contentShape(Rectangle())
+            .padding(.horizontal, Space.m).padding(.vertical, Space.m)
+            .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .tapTarget()
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("login.server"))
@@ -151,13 +175,13 @@ struct LoginView: View {
     }
 
     private var secondaryActions: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Space.xs) {
             Button("login.recovery") { model.resetRecovery(); sheet = .recovery }
-                .disabled(model.capabilities == nil)
+                .disabled(model.capabilities == nil).tapTarget()
             Button("login.register") { sheet = .register }
-                .disabled(model.capabilities == nil)
+                .disabled(model.capabilities == nil).tapTarget()
             if model.capabilities?.password == true {
-                Button("login.passwordOption") { sheet = .password }
+                Button("login.passwordOption") { sheet = .password }.tapTarget()
             }
         }
         .buttonStyle(.borderless)
@@ -185,7 +209,7 @@ private struct ConnectionBadge: View {
 
     var body: some View {
         switch state {
-        case .unknown: Circle().fill(Color.secondary.opacity(0.4)).frame(width: 9, height: 9)
+        case .unknown: Circle().fill(Color.textSecondary.opacity(0.5)).scaledSquare(Space.s, relativeTo: .caption)
         case .checking: ProgressView().controlSize(.small)
         case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.dueToday)
         case .failed: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.dueOverdue)
@@ -206,19 +230,19 @@ struct ErrorBanner: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.dueOverdue)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 Text(verbatim: message).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                 if let detail {
-                    Text(verbatim: detail).font(.caption2).foregroundStyle(Color.textSecondary)
+                    Text(verbatim: detail).font(.caption).foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(Color.dueOverdue.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(Space.m)
+        .background(Color.dueOverdue.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }
@@ -229,11 +253,12 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 28)
-            .padding(.vertical, 14).padding(.horizontal, 16)
-            .background(Color.brand.opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4),
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .foregroundStyle(isEnabled ? Color.onBrand : Color.textSecondary)
+            .frame(maxWidth: .infinity)
+            .tapTarget()
+            .padding(.vertical, Space.s).padding(.horizontal, Space.l)
+            .background(isEnabled ? Color.brand.opacity(configuration.isPressed ? 0.85 : 1) : Color.hairline,
+                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
             .contentShape(Rectangle())
     }
 }
@@ -243,13 +268,13 @@ private struct FieldRow<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Space.xs) {
             Text(title).font(.footnote.weight(.medium)).foregroundStyle(Color.textSecondary)
             content
                 .textFieldStyle(.plain)
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.hairline, lineWidth: 1))
+                .padding(.horizontal, Space.m).padding(.vertical, Space.m)
+                .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).stroke(Color.hairline, lineWidth: 1))
         }
     }
 }
@@ -265,8 +290,10 @@ private struct SheetScaffold<Content: View>: View {
             ZStack {
                 Color.canvas.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) { content }
-                        .frame(maxWidth: 520).padding(20).frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: Space.l) { content }
+                        .readableWidth(LoginMetrics.sheetColumnMax)
+                        .pageMargins()
+                        .padding(.vertical, Space.l)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -279,7 +306,8 @@ private struct SheetScaffold<Content: View>: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 440, minHeight: 420)
+        .frame(minWidth: LoginMetrics.sheetMin.width, idealWidth: LoginMetrics.sheetIdeal.width,
+               minHeight: LoginMetrics.sheetMin.height, idealHeight: LoginMetrics.sheetIdeal.height)
         #endif
     }
 }
@@ -306,8 +334,8 @@ private struct ServerSheet: View {
             Button {
                 Task { await check() }
             } label: {
-                HStack(spacing: 10) {
-                    if connection == .checking { ProgressView().tint(.white) } else { Image(systemName: "bolt.horizontal.fill") }
+                HStack(spacing: Space.s) {
+                    if connection == .checking { ProgressView().tint(Color.onBrand) } else { Image(systemName: "bolt.horizontal.fill") }
                     Text("login.checkServer")
                 }
             }
@@ -369,8 +397,8 @@ private struct RegistrationSheet: View {
             }
             if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }
             Button(action: submit) {
-                HStack(spacing: 10) {
-                    if model.busy { ProgressView().tint(.white) } else { Image(systemName: "key.fill") }
+                HStack(spacing: Space.s) {
+                    if model.busy { ProgressView().tint(Color.onBrand) } else { Image(systemName: "key.fill") }
                     Text("login.setup.create")
                 }
             }
@@ -420,8 +448,8 @@ private struct PasswordSheet: View {
             }
             if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }
             Button(action: submit) {
-                HStack(spacing: 10) {
-                    if model.busy { ProgressView().tint(.white) }
+                HStack(spacing: Space.s) {
+                    if model.busy { ProgressView().tint(Color.onBrand) }
                     Text("login.passwordSignIn")
                 }
             }
@@ -469,8 +497,8 @@ private struct RecoverySheet: View {
             }
             if let key = model.errorKey { ErrorBanner(key: key, detail: model.errorDetail, host: model.serverHost) }
             Button(action: submit) {
-                HStack(spacing: 10) {
-                    if model.busy { ProgressView().tint(.white) } else { Image(systemName: "key.fill") }
+                HStack(spacing: Space.s) {
+                    if model.busy { ProgressView().tint(Color.onBrand) } else { Image(systemName: "key.fill") }
                     Text(model.recoveryToken == nil ? "recovery.submit" : "recovery.retry")
                 }
             }
@@ -489,3 +517,73 @@ private struct RecoverySheet: View {
         Task { await model.recover(code: code, passkeyName: passkeyName) }
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+private enum LoginPreviewState: String, CaseIterable {
+    case unreachable, connected, error, registration, password, recovery
+
+    @MainActor var model: AppModel {
+        let model = AppModel()
+        model.serverURL = "https://todo.example.com"
+        let caps = Capabilities(passkey: true, password: true, bootstrapOpen: false)
+        switch self {
+        case .unreachable:
+            model.capabilities = nil
+            model.errorKey = "error.network"
+        case .connected, .registration, .password, .recovery:
+            model.capabilities = caps
+        case .error:
+            model.capabilities = caps
+            model.errorKey = "error.passkey.failed"
+            model.errorDetail = "ASAuthorizationError 1001"
+        }
+        return model
+    }
+}
+
+private struct LoginPreview: View {
+    let state: LoginPreviewState
+    var body: some View {
+        let model = state.model
+        Group {
+            switch state {
+            case .unreachable: LoginView(connection: .failed, runsCheck: false)
+            case .connected, .error: LoginView(connection: .ok, runsCheck: false)
+            case .registration: RegistrationSheet()
+            case .password: PasswordSheet()
+            case .recovery: RecoverySheet()
+            }
+        }
+        .environment(model)
+    }
+}
+
+#Preview("Login unreachable light") { LoginPreview(state: .unreachable).preferredColorScheme(.light) }
+#Preview("Login unreachable dark") { LoginPreview(state: .unreachable).preferredColorScheme(.dark) }
+#Preview("Login unreachable accessibility5") { LoginPreview(state: .unreachable).dynamicTypeSize(.accessibility5) }
+#Preview("Login connected light") { LoginPreview(state: .connected).preferredColorScheme(.light) }
+#Preview("Login connected dark") { LoginPreview(state: .connected).preferredColorScheme(.dark) }
+#Preview("Login connected accessibility5") { LoginPreview(state: .connected).dynamicTypeSize(.accessibility5) }
+#Preview("Login error light") { LoginPreview(state: .error).preferredColorScheme(.light) }
+#Preview("Login error dark") { LoginPreview(state: .error).preferredColorScheme(.dark) }
+#Preview("Login error accessibility5") { LoginPreview(state: .error).dynamicTypeSize(.accessibility5) }
+#Preview("Registration light") { LoginPreview(state: .registration).preferredColorScheme(.light) }
+#Preview("Registration dark") { LoginPreview(state: .registration).preferredColorScheme(.dark) }
+#Preview("Registration accessibility5") { LoginPreview(state: .registration).dynamicTypeSize(.accessibility5) }
+#Preview("Password light") { LoginPreview(state: .password).preferredColorScheme(.light) }
+#Preview("Password dark") { LoginPreview(state: .password).preferredColorScheme(.dark) }
+#Preview("Password accessibility5") { LoginPreview(state: .password).dynamicTypeSize(.accessibility5) }
+#Preview("Recovery light") { LoginPreview(state: .recovery).preferredColorScheme(.light) }
+#Preview("Recovery dark") { LoginPreview(state: .recovery).preferredColorScheme(.dark) }
+#Preview("Recovery accessibility5") { LoginPreview(state: .recovery).dynamicTypeSize(.accessibility5) }
+
+private struct ServerSheetPreview: View {
+    var body: some View {
+        ServerSheet(connection: .constant(.failed)).environment(LoginPreviewState.unreachable.model)
+    }
+}
+#Preview("Server sheet unreachable light") { ServerSheetPreview().preferredColorScheme(.light) }
+#Preview("Server sheet unreachable accessibility5") { ServerSheetPreview().dynamicTypeSize(.accessibility5) }
+#endif

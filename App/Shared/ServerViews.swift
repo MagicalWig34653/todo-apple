@@ -41,17 +41,18 @@ struct ProjectCommentsView: View {
     @State private var draft = ""
 
     init(projectID: UUID) { _model = State(initialValue: ProjectCommentsModel(projectID: projectID)) }
+    init(model: ProjectCommentsModel) { _model = State(initialValue: model) }
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(model.comments) { c in
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .top, spacing: Space.m) {
                         Text(verbatim: String((c.authorName ?? "?").prefix(1)).uppercased())
                             .font(.caption.weight(.bold)).foregroundStyle(.white)
-                            .frame(width: 28, height: 28).background(Color.project(c.authorID), in: Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
+                            .scaledSquare(Space.xxl, relativeTo: .caption).background(Color.project(c.authorID), in: Circle())
+                        VStack(alignment: .leading, spacing: Space.xxs) {
+                            AdaptiveStack(spacing: Space.s) {
                                 Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
                                 if let d = c.createdAt { Text(d, style: .relative).font(.caption).foregroundStyle(Color.textSecondary) }
                             }
@@ -79,7 +80,7 @@ struct ProjectCommentsView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                HStack(alignment: .bottom) {
+                HStack(alignment: .bottom, spacing: Space.s) {
                     TextField(accessible: "comment.new", text: $draft, axis: .vertical).lineLimit(1...5).textFieldStyle(.roundedBorder)
                     Button {
                         let t = draft; draft = ""
@@ -88,10 +89,11 @@ struct ProjectCommentsView: View {
                         Image(systemName: "arrow.up.circle.fill").font(.title)
                             .foregroundStyle(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.textSecondary : Color.brand)
                     }
-                    .buttonStyle(.plain).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .buttonStyle(.plain).tapTarget().disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel(Text("comment.send"))
                 }
-                .padding(12).background(.bar)
+                .readableWidth().pageMargins().padding(.vertical, Space.m)
+                .background(.bar)
             }
             .navigationTitle("project.comments")
             #if os(iOS)
@@ -101,7 +103,7 @@ struct ProjectCommentsView: View {
             .task { await model.load(app) }
         }
         #if os(macOS)
-        .frame(minWidth: 460, minHeight: 480)
+        .frame(minWidth: 460, idealWidth: 520, minHeight: 480, idealHeight: 600)
         #endif
     }
 }
@@ -132,21 +134,23 @@ final class ActivityModel {
 
 struct ActivityView: View {
     @Environment(AppModel.self) private var app
-    @State private var model = ActivityModel()
+    @State private var model: ActivityModel
+
+    init(model: ActivityModel? = nil) { _model = State(initialValue: model ?? ActivityModel()) }
 
     var body: some View {
         List {
             ForEach(model.items) { item in
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: Self.symbol(item)).foregroundStyle(Color.textSecondary).frame(width: 22)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                HStack(alignment: .top, spacing: Space.m) {
+                    Image(systemName: Self.symbol(item)).foregroundStyle(Color.textSecondary).scaledSquare(Space.xl, relativeTo: .subheadline)
+                    VStack(alignment: .leading, spacing: Space.xxs) {
+                        AdaptiveStack(spacing: Space.xs) {
                             Text(verbatim: actor(item)).fontWeight(.semibold)
                             activityText(item.kind).foregroundStyle(Color.textSecondary)
                         }
                         .font(.subheadline)
                         if let title = item.taskTitle { Text(verbatim: title).font(.subheadline).lineLimit(2) }
-                        HStack(spacing: 6) {
+                        AdaptiveStack(spacing: Space.xs) {
                             ProjectDot(id: item.projectID, size: 7)
                             Text(verbatim: item.projectName)
                             if let d = item.createdAt { Text(d, style: .relative) }
@@ -232,14 +236,16 @@ final class AgentsModel {
 
 struct AgentsView: View {
     @Environment(AppModel.self) private var app
-    @State private var model = AgentsModel()
+    @State private var model: AgentsModel
+
+    init(model: AgentsModel? = nil) { _model = State(initialValue: model ?? AgentsModel()) }
 
     var body: some View {
         List {
             Section {
                 ForEach(model.devices) { d in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        AdaptiveStack(spacing: Space.s) {
                             Image(systemName: "desktopcomputer").foregroundStyle(Color.textSecondary)
                             Text(verbatim: d.label).font(.body.weight(.semibold))
                             Spacer()
@@ -250,7 +256,7 @@ struct AgentsView: View {
                         }
                         .font(.subheadline)
                         ForEach(d.bindings) { b in
-                            HStack(spacing: 6) {
+                            AdaptiveStack(spacing: Space.xs) {
                                 ProjectDot(id: b.projectID, size: 7)
                                 Text(verbatim: app.projects.first { $0.id == b.projectID }?.name ?? b.label)
                                 Text(verbatim: b.repositoryKey).foregroundStyle(Color.textSecondary)
@@ -258,7 +264,7 @@ struct AgentsView: View {
                             .font(.caption).foregroundStyle(Color.textSecondary)
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, Space.xxs)
                 }
                 if model.loaded && model.devices.isEmpty {
                     Text("runner.noDevices").font(.subheadline).foregroundStyle(Color.textSecondary)
@@ -266,18 +272,18 @@ struct AgentsView: View {
             } header: { SectionHeaderLabel(title: "runner.devices") }
             Section {
                 ForEach(model.jobs) { item in
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        AdaptiveStack(spacing: Space.s) {
                             Text(verbatim: item.taskTitle).font(.body).lineLimit(2)
                             Spacer()
                             jobStateText(item.job.state).font(.caption.weight(.semibold))
-                                .padding(.horizontal, 8).padding(.vertical, 2)
+                                .padding(.horizontal, Space.s).padding(.vertical, Space.xxs)
                                 .background(Self.tint(item.job.state).opacity(0.10), in: Capsule())
                                 .foregroundStyle(Self.tint(item.job.state))
                         }
                         if let p = item.job.progress, !p.isEmpty { Text(verbatim: p).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(2) }
                         if let r = item.job.result { Text(verbatim: r.summary).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3) }
-                        HStack(spacing: 6) {
+                        AdaptiveStack(spacing: Space.xs) {
                             ProjectDot(id: item.job.projectID, size: 7)
                             Text(verbatim: item.projectName)
                             Text(item.job.mode == "clarify" ? "job.mode.clarify" : "job.mode.implement")
@@ -311,3 +317,83 @@ struct AgentsView: View {
         }
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+private enum ServerPreviewData {
+    static func decode<T: Decodable>(_ json: String) -> T {
+        // swiftlint:disable:next force_try
+        try! JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    static let user = "11111111-1111-1111-1111-111111111111"
+    static let project = "22222222-2222-2222-2222-222222222222"
+
+    @MainActor static var comments: ProjectCommentsModel {
+        let model = ProjectCommentsModel(projectID: UUID())
+        let items: [ProjectComment] = decode("""
+        [{"id":"\(UUID())","projectID":"\(project)","authorID":"\(user)","authorName":"Lino","body":"Der Zeitplan steht, die Abnahme ist am Freitag.","version":1,"createdAt":0},
+         {"id":"\(UUID())","projectID":"\(project)","authorID":"\(UUID())","authorName":"Annalena","body":"Donaudampfschifffahrtsgesellschaftskapitaensmuetze ist als Beispiel fuer ein sehr langes deutsches Wort gedacht.","version":1,"createdAt":0}]
+        """)
+        model.comments = items
+        model.loaded = true
+        return model
+    }
+
+    @MainActor static var activity: ActivityModel {
+        let model = ActivityModel()
+        let items: [ActivityItem] = decode("""
+        [{"source":"task","id":"\(UUID())","projectID":"\(project)","projectName":"Todolino","taskID":"\(UUID())","taskTitle":"Registrierung per Einladung pruefen","sequence":1,"actorType":"Person","actorID":"\(user)","actorName":"Lino","kind":"comment.created","createdAt":0},
+         {"source":"task","id":"\(UUID())","projectID":"\(project)","projectName":"Todolino","taskID":null,"taskTitle":null,"sequence":2,"actorType":"Run","actorID":"\(UUID())","actorName":null,"kind":"agent.released","createdAt":0}]
+        """)
+        model.items = items
+        model.loaded = true
+        return model
+    }
+
+    @MainActor static var agents: AgentsModel {
+        let model = AgentsModel()
+        let devices: [RunnerDevice] = decode("""
+        [{"id":"\(UUID())","label":"Mac mini im Buero","paired":true,"revokedAt":null,"activeRunCount":1,
+          "bindings":[{"id":"\(UUID())","projectID":"\(project)","deviceID":"\(UUID())","repositoryKey":"todo/apple","label":"Apple"}]},
+         {"id":"\(UUID())","label":"MacBook","paired":false,"revokedAt":null,"activeRunCount":0,"bindings":[]}]
+        """)
+        let jobs: [AgentJobListItem] = decode("""
+        [{"job":{"id":"\(UUID())","taskID":"\(UUID())","projectID":"\(project)","mode":"implement","state":"running","progress":"Baue iOS und macOS","result":null},
+          "taskTitle":"Anmeldung: Lesebreite fuer Formulare","projectName":"Todolino","createdAt":0},
+         {"job":{"id":"\(UUID())","taskID":"\(UUID())","projectID":"\(project)","mode":"clarify","state":"waiting_for_answer","progress":null,"result":null},
+          "taskTitle":"Rueckfrage zur Passkey-Wiederherstellung","projectName":"Todolino","createdAt":0}]
+        """)
+        model.devices = devices
+        model.jobs = jobs
+        model.loaded = true
+        return model
+    }
+}
+
+private struct ServerPreview: View {
+    enum Kind { case comments, activity, agents }
+    let kind: Kind
+    var body: some View {
+        Group {
+            switch kind {
+            case .comments: ProjectCommentsView(model: ServerPreviewData.comments)
+            case .activity: NavigationStack { ActivityView(model: ServerPreviewData.activity) }
+            case .agents: NavigationStack { AgentsView(model: ServerPreviewData.agents) }
+            }
+        }
+        .environment(AppModel())
+    }
+}
+
+#Preview("Kommentare light") { ServerPreview(kind: .comments).preferredColorScheme(.light) }
+#Preview("Kommentare dark") { ServerPreview(kind: .comments).preferredColorScheme(.dark) }
+#Preview("Kommentare accessibility5") { ServerPreview(kind: .comments).dynamicTypeSize(.accessibility5) }
+#Preview("Aktivitaet light") { ServerPreview(kind: .activity).preferredColorScheme(.light) }
+#Preview("Aktivitaet dark") { ServerPreview(kind: .activity).preferredColorScheme(.dark) }
+#Preview("Aktivitaet accessibility5") { ServerPreview(kind: .activity).dynamicTypeSize(.accessibility5) }
+#Preview("Runner light") { ServerPreview(kind: .agents).preferredColorScheme(.light) }
+#Preview("Runner dark") { ServerPreview(kind: .agents).preferredColorScheme(.dark) }
+#Preview("Runner accessibility5") { ServerPreview(kind: .agents).dynamicTypeSize(.accessibility5) }
+#endif
