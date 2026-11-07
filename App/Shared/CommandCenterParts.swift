@@ -170,10 +170,14 @@ struct RemoteImage: View {
     var contentMode: ContentMode = .fill
     @State private var image: PlatformImage?
     @State private var failed = false
+    /// Images this small (placeholder pixels, broken uploads) would be stretched into a flat colour block.
+    private static let minUsableSide: CGFloat = 16
+
+    private func isUsable(_ image: PlatformImage) -> Bool { min(image.size.width, image.size.height) >= Self.minUsableSide }
 
     var body: some View {
         Group {
-            if let image {
+            if let image, isUsable(image) {
                 #if canImport(UIKit)
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
                 #else
@@ -182,7 +186,9 @@ struct RemoteImage: View {
             } else {
                 ZStack {
                     Color.hairline.opacity(0.4)
-                    if failed {
+                    if image != nil {
+                        Image(systemName: "photo").foregroundStyle(Color.textSecondary).accessibilityHidden(true)
+                    } else if failed {
                         Image(systemName: "photo.badge.exclamationmark").foregroundStyle(Color.textSecondary)
                             .accessibilityLabel(Text("cc.loadFailed"))
                     } else {

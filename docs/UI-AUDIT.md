@@ -178,3 +178,8 @@ Methode: Simulator-Klone (iPhone 17 Pro, iPad Pro 13"), Backend `.build/debug/Ap
 - Zurück-Schaltfläche nicht per echtem Tippen geprüft (`simctl` kann nicht tippen), nur per Deep Link; kein Test dafür.
 - Teams (Form) und Schnellerfassung iPhone (medium) nach den Korrekturen nicht (brauchbar) aufgenommen, daher nicht bewertet; iPad-Querformat nicht gemacht; Dunkel/AX nur Stichprobe; Sync-Statusleiste und Animationen nicht beurteilt.
 - Tests: Todo-iOS-UITests auf iPhone-Klon, 7 Tests: 5 bestanden (Detail-Audit, Heute-Audit, Anlegen/Abschließen, Für-dich-Audit, testQuickAddReturnKeySaves), 1 übersprungen (iPad-Inspector, nur iPad), 1 fehlgeschlagen (Quick-Add-Audit). TodoCore `xcodebuild test` (macOS): 192 Tests, 22 übersprungen (Live), 0 Fehler. Builds iOS und macOS grün.
+
+### Nachtrag Quick-Add-Audit und Thumbnail (07.11.2026)
+- `testAccessibilityAuditQuickAdd` war auch auf `f84f055` (vor den UI-Paketen) rot, gleiche Meldung ("VerticalTextView is too small", 370 x 54,7 pt): keine Regression der UI-Pakete, sondern ein älterer Befund. Behoben: Beschreibungsfeld im `QuickAddSheet` mit `lineLimit(2...5)` und `frame(minHeight: TapTarget.minimum)` (Identifier unverändert). Danach 3 von 3 Läufen grün; ganze Klasse: 7 Tests, 6 bestanden, 1 übersprungen (iPad), 0 Fehler. `lineLimit(1...3)` mit minHeight allein reichte nicht.
+- Thumbnail: `RemoteImage` zeigt Bilder mit einer Kantenlänge unter 16 px (z. B. das 1x1-px-Demobild) als neutralen Platzhalter mit Foto-Symbol statt als aufgezogenen Farbblock. Nur gebaut, nicht erneut angesehen.
+- Builds iOS und macOS nach den Änderungen grün.
