@@ -73,7 +73,7 @@ struct ProjectView: View {
     }
 
     private func header(_ project: Project) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let content = VStack(alignment: .leading, spacing: Space.xs) {
             TextField(accessible: "project.name", text: $title, axis: .vertical)
                 .lineLimit(1...3).fixedSize(horizontal: false, vertical: true)
                 .font(.screenTitle).textFieldStyle(.plain).focused($titleFocus)
@@ -87,7 +87,12 @@ struct ProjectView: View {
                 .font(.body).foregroundStyle(Color.textSecondary).textFieldStyle(.plain).lineLimit(1...4).fixedSize(horizontal: false, vertical: true).focused($descriptionFocus)
                 .onChange(of: descriptionFocus) { _, f in if !f { commitDescription(project) } }
         }
-        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
+        // Same page margin as the list rows below, so the title lines up with the row content.
+        .pageMargins().padding(.top, Space.s).padding(.bottom, Space.m)
+        // List mode uses the readable column; the board keeps its full width and starts at the same margin.
+        return Group {
+            if mode == .list { content.readableWidth() } else { content.frame(maxWidth: .infinity, alignment: .leading) }
+        }
     }
 
     private func commitDescription(_ project: Project) {
@@ -135,11 +140,11 @@ struct ProjectView: View {
     }
 
     private var breadcrumb: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Space.xs) {
             Text("projects.mine").foregroundStyle(Color.textSecondary)
             ForEach(ancestors) { p in
                 Text(verbatim: "/").foregroundStyle(.tertiary)
-                Button { model.selectedProjectID = p.id } label: { Text(verbatim: p.name) }.buttonStyle(.plain).foregroundStyle(Color.textSecondary)
+                Button { model.selectedProjectID = p.id } label: { Text(verbatim: p.name).tapTarget() }.buttonStyle(.plain).foregroundStyle(Color.textSecondary)
             }
             if !ancestors.isEmpty || project != nil { Text(verbatim: "/").foregroundStyle(.tertiary) }
         }
@@ -151,13 +156,15 @@ struct DisplayOptions: View {
     @Environment(AppModel.self) private var model
     let projectID: UUID
     let hasColumns: Bool
+    @ScaledMetric(relativeTo: .body) private var minWidth: CGFloat = 300
+    @ScaledMetric(relativeTo: .body) private var maxWidth: CGFloat = 420
 
     var body: some View {
         let p = model.prefs(for: projectID)
         func binding<T>(_ get: @escaping (ProjectDisplayPrefs) -> T, _ patch: @escaping (T) -> ProjectPrefsPatch) -> Binding<T> {
             Binding(get: { get(model.prefs(for: projectID)) }, set: { model.setPrefs(patch($0), for: projectID) })
         }
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: Space.m) {
             Picker("display.layout", selection: binding(\.view, { ProjectPrefsPatch(view: $0) })) {
                 Label("display.list", systemImage: "list.bullet").tag(ProjectDisplayPrefs.View.list.rawValue)
                 Label("display.board", systemImage: "rectangle.split.3x1").tag(ProjectDisplayPrefs.View.board.rawValue)
@@ -177,9 +184,14 @@ struct DisplayOptions: View {
             }
             Toggle("display.completed", isOn: binding(\.showCompleted, { ProjectPrefsPatch(showCompleted: $0) }))
         }
-        .padding(16).frame(minWidth: 300)
+        .padding(Space.l).frame(minWidth: minWidth, maxWidth: maxWidth)
         .id(p.revision)
     }
+}
+
+private enum Metrics {
+    /// Base side of the folder tile in sub-project rows (scales with Dynamic Type inside `IconTile`).
+    static let folderTile: CGFloat = 26
 }
 
 /// List layout: sorted/grouped sections plus sub-projects and a "completed" section.
@@ -190,6 +202,10 @@ struct ProjectListView: View {
     let board: BoardModel
     let options: ProjectDisplayPrefs
     @State private var doneExpanded = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    /// `taskRowInsets` indent rows by `Space.page`; on regular width the page margin is larger, so the list adds the difference.
+    private var rowMargin: CGFloat { sizeClass == .regular ? Space.pageRegular - Space.page : 0 }
 
     private var children: [Project] { model.projects.filter { $0.parentID == projectID } }
     private var mine: [TodoTask] { model.tasks.filter { $0.projectID == projectID } }
@@ -239,14 +255,14 @@ struct ProjectListView: View {
                     ForEach(children) { child in
                         Button { model.selectedProjectID = child.id } label: {
                             HStack(spacing: Space.m) {
-                                IconTile(symbol: "folder.fill", tint: model.projectColor(child.id), size: 26)
+                                IconTile(symbol: "folder.fill", tint: model.projectColor(child.id), size: Metrics.folderTile)
                                 Text(verbatim: child.name).font(.body.weight(.medium))
                                 Spacer()
                                 let n = model.tasks.filter { $0.projectID == child.id && !$0.isDone }.count
                                 if n > 0 { CountBadge(count: n) }
                                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                             }
-                            .contentShape(Rectangle())
+                            .tapTarget()
                         }
                         .buttonStyle(.plain).taskRowInsets()
                     }
@@ -264,19 +280,53 @@ struct ProjectListView: View {
                     if doneExpanded || options.showCompleted { ForEach(done) { TaskRow(task: $0, showProject: false).taskRowInsets() } }
                 } header: {
                     Button { withAnimation { doneExpanded.toggle() } } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: Space.s) {
                             Image(systemName: "chevron.right").rotationEffect(.degrees(doneExpanded || options.showCompleted ? 90 : 0)).font(.caption.weight(.bold))
                             Text("task.completed")
                             Text(verbatim: String(done.count)).fontWeight(.regular)
                             Spacer()
                         }
                         .font(.subheadline.weight(.bold)).foregroundStyle(Color.textSecondary).textCase(nil)
+                        .tapTarget()
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
         .taskListStyle()
+        .contentMargins(.horizontal, rowMargin, for: .scrollContent)
+        .readableWidth()
         .overlay { if open.isEmpty && done.isEmpty && children.isEmpty { EmptyState(symbol: "checklist", title: "project.empty", message: "project.emptyHint", tint: model.projectColor(projectID)) } }
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+@MainActor private enum ProjectPreviewData {
+    static let projectID = UUID()
+    static let model: AppModel = {
+        let m = AppModel()
+        m.projects = [Project(id: projectID, parentID: nil, name: "Wohnungsumzug mit Donaudampfschifffahrtsgesellschaft", version: 1, description: "Alles rund um den Umzug im Herbst")]
+        m.tasks = [
+            TodoTask(id: UUID(), projectID: projectID, title: "Kartons besorgen und beschriften"),
+            TodoTask(id: UUID(), projectID: projectID, title: "Nachsendeauftrag einrichten", status: "done"),
+        ]
+        return m
+    }()
+}
+
+private struct ProjectPreview: View {
+    var body: some View {
+        NavigationStack { ProjectView(projectID: ProjectPreviewData.projectID) }
+            .environment(ProjectPreviewData.model).environment(TaskMeta())
+    }
+}
+
+#Preview("Project light") { ProjectPreview().preferredColorScheme(.light) }
+#Preview("Project dark") { ProjectPreview().preferredColorScheme(.dark) }
+#Preview("Project accessibility5") { ProjectPreview().dynamicTypeSize(.accessibility5) }
+#Preview("Display options light") { DisplayOptions(projectID: ProjectPreviewData.projectID, hasColumns: true).environment(ProjectPreviewData.model).preferredColorScheme(.light) }
+#Preview("Display options dark") { DisplayOptions(projectID: ProjectPreviewData.projectID, hasColumns: true).environment(ProjectPreviewData.model).preferredColorScheme(.dark) }
+#Preview("Display options accessibility5") { DisplayOptions(projectID: ProjectPreviewData.projectID, hasColumns: true).environment(ProjectPreviewData.model).dynamicTypeSize(.accessibility5) }
+#endif
