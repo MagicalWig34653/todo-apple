@@ -37,9 +37,12 @@ struct CommandCenterView: View {
             }
         }
         .background(Color.canvas)
-        .navigationTitle("cc.title")
+        // The page header already shows the title; an inline copy in the bar would duplicate it.
         #if os(iOS)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        #else
+        .navigationTitle("cc.title")
         #endif
         .toolbar { toolbarContent }
         .task { await cc.refresh(app) }

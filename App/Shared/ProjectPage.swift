@@ -111,7 +111,8 @@ struct ProjectView: View {
         #else
         ToolbarItem(placement: .navigation) { breadcrumb }
         #endif
-        if let project {
+        // While a task is open in the iPad inspector its own bar is shown; the project actions would pile up next to it.
+        if let project, model.path.isEmpty {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button { showComments = true } label: { Label("project.comments", systemImage: "bubble.left") }
                 Button { model.selection = .projectCommandCenter(projectID) } label: { Label("cc.title", systemImage: "rectangle.3.group") }

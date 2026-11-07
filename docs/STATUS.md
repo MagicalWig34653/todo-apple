@@ -24,6 +24,9 @@ Stand 26.10.2026, Branch `feature/etappe1-client`. Globale Doku und Arbeitsplan:
 Echte Domain/RP-ID festlegen, Entitlement aktivieren, Passkey auf Gerät prüfen; UI im Simulator ansehen; Watch-Sitzungsübernahme entwerfen.
 Nach Backend-Auth (Etappe 1): Login/Passkey und Projekt-/Aufgabenliste im Client gegen `contracts/openapi.yaml`.
 
+## Checkpoint 07.11.2026 Sichtprüfung nach UI-Überarbeitung (Branch ui-verify, nicht gemergt)
+Details und Screenshots: docs/UI-AUDIT.md "Nachher", docs/screenshots/after/. Behoben: doppelte Zurück-Schaltfläche (Suche in den Browse-Tab, sonst iOS-"Mehr" über dem Stack), Inspector-Toolbar, Steuerzentrale-Titel, Review-Buttons in schmaler Spalte, iPad-Sidebar bei AX. Offen: Quick-Add-Accessibility-Audit (VerticalTextView zu klein), Thumbnail-Platzhalter, macOS-Fenster nicht gesehen (keine Bildschirmaufnahme im Agentenlauf), Tippen nicht verifiziert. Tests: UI-Tests 5 grün/1 übersprungen/1 rot, TodoCore 192 Tests 0 Fehler.
+
 ## Runner (TodoRunner, 26.10.2026, Branch feature/runner)
 Stand: Swift Package `TodoRunner/` (macOS 14, Bibliothek + CLI `todo-runner`) auf Basis des Server-Vertrags `contracts/agents.yaml` (Hauptrepo, nur gelesen). Der unverifizierte Codex-WIP wurde ersetzt.
 - `ClaudeProcessAdapter` (hinter `AgentProvider`): `claude -p ... --session-id|--resume <uuid> --output-format json --allowedTools ... --permission-mode dontAsk --max-turns N`, `--json-schema` fuer `text`/`question`/`options`, keine MCP-Server. Eigene Prozessgruppe (posix_spawn), Ausgabe in Dateien, Timeout/Stop per SIGKILL auf die Gruppe, PID-Identitaet ueber Startzeit (kein Signal an wiederverwendete PIDs), Adoption eines verwaisten Prozesses nach Runner-Neustart.

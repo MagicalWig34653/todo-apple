@@ -123,12 +123,16 @@ private enum InspectorMetrics { static let min: CGFloat = 340, ideal: CGFloat = 
 
 struct SplitLayout: View {
     @Environment(AppModel.self) private var model
+    /// Sidebar width follows the text size so entries wrap at word boundaries instead of mid-word; capped so the detail keeps room.
+    @ScaledMetric(relativeTo: .body) private var sidebarMin = SidebarMetrics.columnMin
+    @ScaledMetric(relativeTo: .body) private var sidebarIdeal = SidebarMetrics.columnIdeal
 
     var body: some View {
         NavigationSplitView {
             SidebarList(linking: false)
                 .navigationTitle("app.title")
-                .navigationSplitViewColumnWidth(min: SidebarMetrics.columnMin, ideal: SidebarMetrics.columnIdeal, max: SidebarMetrics.columnMax)
+                .navigationSplitViewColumnWidth(
+                    min: min(sidebarMin, 400), ideal: min(sidebarIdeal, 400), max: max(SidebarMetrics.columnMax, min(sidebarIdeal, 400)))
                 .safeAreaInset(edge: .bottom) { SyncStatusBar() }
         } detail: {
             NavigationStack {
@@ -169,8 +173,6 @@ struct PhoneTabs: View {
                 .badge(model.today.count + meta.overdue.count)
             NavigationStack { UpcomingView() }
                 .tabItem { Label("view.upcoming", systemImage: "calendar") }.tag(2)
-            NavigationStack { SearchView() }
-                .tabItem { Label("view.search", systemImage: "magnifyingglass") }.tag(3)
             NavigationStack(path: $browsePath) {
                 SidebarList(linking: true)
                     .navigationTitle("browse.title")
@@ -187,7 +189,6 @@ struct PhoneTabs: View {
             case 0: model.selection = .inbox
             case 1: model.selection = .today
             case 2: model.selection = .upcoming
-            case 3: model.selection = .search
             default: break
             }
         }
@@ -199,8 +200,9 @@ struct PhoneTabs: View {
         case .inbox: tab = 0
         case .today: tab = 1
         case .upcoming: tab = 2
-        case .search: tab = 3
-        case .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:
+        // Search lives in the browse tab: with six tabs iOS wraps the extra ones in its own "More" navigation controller,
+        // which put a second back button above the stack's own one.
+        case .search, .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:
             tab = 4
             if let item, browsePath.last != item { browsePath = [item] }
         }

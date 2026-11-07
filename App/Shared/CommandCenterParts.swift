@@ -170,10 +170,14 @@ struct RemoteImage: View {
     var contentMode: ContentMode = .fill
     @State private var image: PlatformImage?
     @State private var failed = false
+    /// Images this small (placeholder pixels, broken uploads) would be stretched into a flat colour block.
+    private static let minUsableSide: CGFloat = 16
+
+    private func isUsable(_ image: PlatformImage) -> Bool { min(image.size.width, image.size.height) >= Self.minUsableSide }
 
     var body: some View {
         Group {
-            if let image {
+            if let image, isUsable(image) {
                 #if canImport(UIKit)
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
                 #else
@@ -182,7 +186,9 @@ struct RemoteImage: View {
             } else {
                 ZStack {
                     Color.hairline.opacity(0.4)
-                    if failed {
+                    if image != nil {
+                        Image(systemName: "photo").foregroundStyle(Color.textSecondary).accessibilityHidden(true)
+                    } else if failed {
                         Image(systemName: "photo.badge.exclamationmark").foregroundStyle(Color.textSecondary)
                             .accessibilityLabel(Text("cc.loadFailed"))
                     } else {
@@ -362,11 +368,15 @@ struct ReviewDecisionView: View {
                     Button("cancel") { asking = false }.buttonStyle(.bordered).controlSize(.large)
                 }
             } else {
-                AdaptiveStack(spacing: Space.s) {
-                    Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
-                        .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
-                    Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
-                        .buttonStyle(.bordered).controlSize(.large).disabled(busy)
+                // Narrow board columns: side by side only when both labels fit on one line, otherwise stacked
+                // (a squeezed prominent button degrades into a circle).
+                let accept = Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
+                    .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
+                let changes = Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
+                    .buttonStyle(.bordered).controlSize(.large).disabled(busy)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Space.s) { accept.lineLimit(1).fixedSize(); changes.lineLimit(1).fixedSize() }
+                    VStack(alignment: .leading, spacing: Space.s) { accept; changes }
                 }
             }
         }

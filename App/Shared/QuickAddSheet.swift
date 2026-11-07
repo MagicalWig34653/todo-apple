@@ -108,7 +108,8 @@ struct QuickAddSheet: View {
                 .transition(.opacity)
             }
             TextField(accessible: "quickAdd.notes", text: $notes, axis: .vertical)
-                .font(.subheadline).foregroundStyle(Color.textSecondary).lineLimit(1...3)
+                .font(.subheadline).foregroundStyle(Color.textSecondary).lineLimit(2...5)
+                .frame(maxWidth: .infinity, minHeight: TapTarget.minimum, alignment: .topLeading).contentShape(Rectangle())
 
             dueChips
 
