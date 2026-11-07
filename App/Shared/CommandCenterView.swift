@@ -22,8 +22,8 @@ struct CommandCenterView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PushPrimerCard()
             header
+            PushPrimerCard()
             Group {
                 if cc.unsupported {
                     EmptyState(symbol: "exclamationmark.triangle", title: "cc.unsupported", message: "cc.unsupportedHint")
@@ -65,11 +65,11 @@ struct CommandCenterView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Space.xxs) {
                     Text("cc.title").font(typeSize.isAccessibilitySize ? Font.system(.title, design: .rounded).weight(.bold) : .screenTitle).fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
                     if let project {
                         Button { app.selectedProjectID = project.id } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: Space.xs) {
                                 Text(verbatim: "#").foregroundStyle(Color.project(project.id))
                                 Text(verbatim: project.name)
                                 Image(systemName: "chevron.right").font(.caption2)
@@ -77,6 +77,7 @@ struct CommandCenterView: View {
                             .font(.subheadline).foregroundStyle(Color.textSecondary)
                         }
                         .buttonStyle(.plain)
+                        .tapTarget()
                     } else {
                         Text("cc.scope.account").font(.subheadline).foregroundStyle(Color.textSecondary)
                     }
@@ -92,15 +93,15 @@ struct CommandCenterView: View {
             }
             .pickerStyle(.segmented).labelsHidden()
         }
-        .padding(.horizontal, Space.l + 4).padding(.top, Space.s).padding(.bottom, Space.m)
+        .pageMargins().padding(.top, Space.s).padding(.bottom, Space.m)
     }
 
     @ViewBuilder private var summaryStrip: some View {
         if typeSize.isAccessibilitySize {
             // Accessibility sizes: wrap into a column instead of a clipped horizontal strip.
-            VStack(alignment: .leading, spacing: 8) { summaryChips }
+            VStack(alignment: .leading, spacing: Space.s) { summaryChips }
         } else {
-            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { summaryChips } }
+            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: Space.s) { summaryChips } }
         }
     }
 
@@ -109,12 +110,12 @@ struct CommandCenterView: View {
             chip(lane.rawValue, cc.summary.count(for: lane))
         }
         if cc.summary.activeAgents > 0 {
-            HStack(spacing: 4) {
+            HStack(spacing: Space.xs) {
                 Image(systemName: "cpu")
                 Text("cc.summary.agents \(cc.summary.activeAgents)")
             }
             .font(.caption.weight(.medium)).foregroundStyle(Color.priority(1))
-            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
             .background(Color.priority(1).opacity(0.10), in: Capsule())
             .accessibilityElement(children: .combine)
         }
@@ -122,7 +123,7 @@ struct CommandCenterView: View {
 
     private func chip(_ key: String, _ count: Int) -> some View {
         let color = LanePresentation.color(key)
-        return HStack(spacing: 4) {
+        return HStack(spacing: Space.xs) {
             Image(systemName: LanePresentation.symbol(key))
             LanePresentation.title(key, fallback: key).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
             Text(verbatim: String(count)).monospacedDigit().fontWeight(.bold)
@@ -130,7 +131,7 @@ struct CommandCenterView: View {
         .fixedSize(horizontal: false, vertical: true)
         .font(.caption.weight(.medium))
         .foregroundStyle(count > 0 ? color : Color.textSecondary)
-        .padding(.horizontal, Space.m).padding(.vertical, 6)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
         .background((count > 0 ? color : Color.textSecondary).opacity(0.10), in: Capsule())
         .accessibilityElement(children: .combine)
     }
@@ -157,6 +158,8 @@ struct CommandCenterView: View {
                 Label("cc.mode.list", systemImage: "list.bullet").tag(CommandCenterModel.Mode.list)
             }
             .pickerStyle(.segmented)
+            .labelStyle(.iconOnly)
+            .fixedSize()
             Menu {
                 Button { Task { await cc.refresh(app) } } label: { Label("cc.refresh", systemImage: "arrow.clockwise") }
                     .keyboardShortcut("r", modifiers: .command)
@@ -187,33 +190,34 @@ struct KanbanLanes: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
     @ScaledMetric(relativeTo: .body) private var baseWidth: CGFloat = 304
+    @ScaledMetric(relativeTo: .body) private var minLaneWidth: CGFloat = 240
     let cc: CommandCenterModel
     let showProject: Bool
 
     private func laneWidth(_ available: CGFloat) -> CGFloat {
-        let inner = max(available - 2 * Space.l, 240)
-        if sizeClass == .compact { return min(max(inner * 0.86, 240), inner) }
+        let inner = max(available - 2 * margin, minLaneWidth)
+        if sizeClass == .compact { return min(max(inner * 0.86, minLaneWidth), inner) }
         let n = max(cc.lanes.count, 1)
         return min(inner, max(baseWidth, min((inner - CGFloat(n) * Space.m) / CGFloat(n), 420)))
     }
 
+    private var margin: CGFloat { sizeClass == .regular ? Space.pageRegular : Space.page }
+
     var body: some View {
-        GeometryReader { geo in
-            let width = laneWidth(geo.size.width)
-            ScrollView(.vertical) {
-                ScrollView(.horizontal, showsIndicators: true) {
-                    HStack(alignment: .top, spacing: Space.m) {
-                        ForEach(cc.lanes) { lane in
-                            LaneColumn(cc: cc, lane: lane, showProject: showProject, width: width)
-                        }
+        ScrollView(.vertical) {
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(alignment: .top, spacing: Space.m) {
+                    ForEach(cc.lanes) { lane in
+                        LaneColumn(cc: cc, lane: lane, showProject: showProject)
+                            .containerRelativeFrame(.horizontal, alignment: .top) { available, _ in laneWidth(available) }
                     }
-                    .padding(.horizontal, Space.l).padding(.top, Space.xs).padding(.bottom, Space.xl)
-                    .scrollTargetLayout()
                 }
-                .scrollTargetBehavior(.viewAligned)
+                .padding(.horizontal, margin).padding(.top, Space.xs).padding(.bottom, Space.xl)
+                .scrollTargetLayout()
             }
-            .refreshable { await cc.refresh(app) }
+            .scrollTargetBehavior(.viewAligned)
         }
+        .refreshable { await cc.refresh(app) }
     }
 }
 
@@ -221,7 +225,7 @@ struct LaneColumn: View {
     let cc: CommandCenterModel
     let lane: CommandLaneColumn
     let showProject: Bool
-    var width: CGFloat = 304
+    @ScaledMetric(relativeTo: .body) private var emptyHeight: CGFloat = 84
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -240,8 +244,8 @@ struct LaneColumn: View {
                     Text("cc.lane.empty").font(.footnote).multilineTextAlignment(.center)
                 }
                 .foregroundStyle(Color.textSecondary)
-                .frame(maxWidth: .infinity, minHeight: 84)
-                .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                .frame(maxWidth: .infinity, minHeight: emptyHeight)
+                .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [Space.xs, Space.xs])))
                 .accessibilityElement(children: .combine)
             } else {
                 LazyVStack(spacing: Space.m) {
@@ -253,7 +257,6 @@ struct LaneColumn: View {
             }
         }
         .padding(Space.s)
-        .frame(width: width, alignment: .top)
         .background(Color.canvasRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline.opacity(0.6), lineWidth: 0.5))
         .accessibilityElement(children: .contain)
@@ -286,7 +289,7 @@ struct CommandListSection: View {
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: Space.xs + 2, leading: Space.l, bottom: Space.xs + 2, trailing: Space.l))
+                .listRowInsets(EdgeInsets(top: Space.xs, leading: Space.page, bottom: Space.xs, trailing: Space.page))
             }
             if let total = cc.data?.total, total > cc.items.count {
                 Text("cc.list.more \(total - cc.items.count)").font(.footnote).foregroundStyle(Color.textSecondary).listRowBackground(Color.clear)
@@ -294,6 +297,7 @@ struct CommandListSection: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .readableWidth()
         .overlay { if cc.items.isEmpty { EmptyState(symbol: "tray", title: "cc.empty", message: "cc.emptyHint") } }
         .refreshable { await cc.refresh(app) }
     }
@@ -310,8 +314,8 @@ struct UpdatesSection: View {
             if !cc.builds.isEmpty {
                 Section {
                     ForEach(cc.builds) { group in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: Space.s) {
+                            HStack(spacing: Space.s) {
                                 Text(verbatim: group.label ?? group.buildID).font(.subheadline.weight(.semibold))
                                 if let platform = group.platform { Text(verbatim: platform).font(.caption).foregroundStyle(Color.textSecondary) }
                                 Spacer()
@@ -319,17 +323,17 @@ struct UpdatesSection: View {
                             }
                             BuildStrip(builds: group.items, total: group.items.count)
                         }
-                        .padding(.vertical, 4)
+                        
                     }
                 } header: { Text("cc.builds.title") }
             }
             Section {
                 ForEach(cc.updates) { update in
                     Button { openTask(update) } label: {
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: CommandFormat.updateSymbol(update.kind)).foregroundStyle(Color.brand).frame(width: 22)
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 4) {
+                        HStack(alignment: .top, spacing: Space.m) {
+                            Image(systemName: CommandFormat.updateSymbol(update.kind)).foregroundStyle(Color.brand).scaledSquare(24, relativeTo: .subheadline).accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: Space.xxs) {
+                                HStack(spacing: Space.xs) {
                                     CommandFormat.updateKind(update.kind).fontWeight(.semibold)
                                     Text(verbatim: "·").foregroundStyle(Color.textSecondary)
                                     Text(verbatim: update.taskTitle).lineLimit(1)
@@ -338,7 +342,7 @@ struct UpdatesSection: View {
                                 if let text = update.text, !text.isEmpty {
                                     Text(verbatim: text).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3)
                                 }
-                                HStack(spacing: 6) {
+                                HStack(spacing: Space.s) {
                                     Text(verbatim: update.projectName)
                                     if let who = update.actorName { Text(verbatim: who) }
                                     Text(verbatim: CommandFormat.relative(update.createdAt))
@@ -346,7 +350,7 @@ struct UpdatesSection: View {
                                 .font(.caption2).foregroundStyle(Color.textSecondary)
                             }
                         }
-                        .contentShape(Rectangle())
+                        .tapTarget()
                     }
                     .buttonStyle(.plain)
                 }
@@ -354,6 +358,7 @@ struct UpdatesSection: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .readableWidth()
         .overlay { if cc.updates.isEmpty && cc.builds.isEmpty { EmptyState(symbol: "bell", title: "cc.updates.empty", message: "cc.updates.emptyHint") } }
         .refreshable { await cc.refresh(app) }
     }
@@ -373,9 +378,9 @@ struct QuestionsSection: View {
     var body: some View {
         List {
             ForEach(cc.questions) { q in
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Space.s) {
                     if let project = q.projectName {
-                        HStack(spacing: 4) {
+                        HStack(spacing: Space.xs) {
                             Text(verbatim: "#").foregroundStyle(Color.project(q.projectID))
                             Text(verbatim: project)
                         }
@@ -388,11 +393,12 @@ struct QuestionsSection: View {
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: Space.xs + 2, leading: Space.l, bottom: Space.xs + 2, trailing: Space.l))
+                .listRowInsets(EdgeInsets(top: Space.xs, leading: Space.page, bottom: Space.xs, trailing: Space.page))
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .readableWidth()
         .overlay { if cc.questions.isEmpty { EmptyState(symbol: "checkmark.bubble", title: "cc.questions.empty", message: "cc.questions.emptyHint") } }
         .refreshable { await cc.refresh(app) }
     }
@@ -418,17 +424,17 @@ struct AgentBriefView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Space.s) {
                 Text("cc.brief.hint").font(.footnote).foregroundStyle(Color.textSecondary)
                 TextEditor(text: $text)
                     .font(.system(.body, design: .monospaced))
                     .scrollContentBackground(.hidden)
-                    .padding(8)
+                    .padding(Space.s)
                     .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                     .overlay(alignment: .topLeading) {
                         if text.isEmpty && loaded {
                             Button("cc.brief.insertTemplate") { text = Self.template }
-                                .buttonStyle(.bordered).padding(14)
+                                .buttonStyle(.bordered).padding(Space.m)
                         }
                     }
                 HStack {
@@ -440,7 +446,8 @@ struct AgentBriefView: View {
                     Button("cc.brief.reload") { Task { await load() } }.buttonStyle(.bordered)
                 }
             }
-            .padding(16)
+            .pageMargins().padding(.vertical, Space.l)
+            .readableWidth()
             .background(Color.canvas)
             .navigationTitle(Text("cc.brief.title"))
             #if os(iOS)
@@ -456,7 +463,7 @@ struct AgentBriefView: View {
             .task { await load() }
         }
         #if os(macOS)
-        .frame(minWidth: 520, minHeight: 480)
+        .frame(minWidth: 520, idealWidth: 560, minHeight: 480, idealHeight: 560)
         #endif
     }
 
@@ -486,5 +493,27 @@ struct AgentBriefView: View {
         } catch {
             errorKey = AppModel.key(for: error)
         }
+    }
+}
+
+// MARK: Previews
+
+#Preview("Steuerzentrale, Light") {
+    NavigationStack { CommandCenterView(projectID: nil) }.environment(AppModel())
+}
+
+#Preview("Steuerzentrale, Dark") {
+    NavigationStack { CommandCenterView(projectID: nil) }.environment(AppModel()).preferredColorScheme(.dark)
+}
+
+#Preview("Steuerzentrale, accessibility5") {
+    NavigationStack { CommandCenterView(projectID: nil) }.environment(AppModel()).dynamicTypeSize(.accessibility5)
+}
+
+#Preview("Lane leer, klein") {
+    let json = #"{"key":"running","title":"Läuft","count":0,"truncated":false,"cards":[]}"#
+    if let lane = try? JSONDecoder().decode(CommandLaneColumn.self, from: Data(json.utf8)) {
+        LaneColumn(cc: CommandCenterModel(projectID: nil), lane: lane, showProject: true)
+            .frame(width: 280).padding(Space.l).background(Color.canvas)
     }
 }

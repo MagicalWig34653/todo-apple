@@ -118,7 +118,7 @@ enum CommandFormat {
 // MARK: Flow layout (option buttons wrap onto several lines)
 
 struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
+    var spacing: CGFloat = Space.s
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrange(width: proposal.width ?? .infinity, subviews: subviews).size
@@ -181,8 +181,13 @@ struct RemoteImage: View {
                 #endif
             } else {
                 ZStack {
-                    Color.canvasRaised
-                    if failed { Image(systemName: "photo").foregroundStyle(.tertiary) } else { ProgressView().controlSize(.small) }
+                    Color.hairline.opacity(0.4)
+                    if failed {
+                        Image(systemName: "photo.badge.exclamationmark").foregroundStyle(Color.textSecondary)
+                            .accessibilityLabel(Text("cc.loadFailed"))
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
                 }
             }
         }
@@ -206,19 +211,22 @@ struct BuildStrip: View {
     let builds: [BuildArtifact]
     let total: Int
     @State private var shown: BuildArtifact?
+    @ScaledMetric(relativeTo: .caption) private var thumbWidth: CGFloat = 84
+    private static let thumbAspect: CGFloat = 3.0 / 4.0
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: Space.s) {
                 ForEach(builds) { b in
                     Button { shown = b } label: {
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: Space.xs) {
                             RemoteImage(attachmentID: b.attachmentID)
-                                .frame(width: 84, height: 112)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.hairline, lineWidth: 1))
+                                .aspectRatio(Self.thumbAspect, contentMode: .fit)
+                                .frame(width: thumbWidth)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: Radius.s, style: .continuous).stroke(Color.hairline, lineWidth: 1))
                             if let label = b.label ?? b.platform {
-                                Text(verbatim: label).font(.caption2).foregroundStyle(Color.textSecondary).lineLimit(1).frame(width: 84, alignment: .leading)
+                                Text(verbatim: label).font(.caption2).foregroundStyle(Color.textSecondary).lineLimit(1).frame(width: thumbWidth, alignment: .leading)
                             }
                         }
                     }
@@ -226,7 +234,7 @@ struct BuildStrip: View {
                     .accessibilityLabel(Text("cc.build.open"))
                 }
                 if total > builds.count {
-                    Text("cc.build.more \(total - builds.count)").font(.caption).foregroundStyle(Color.textSecondary).padding(.horizontal, 4)
+                    Text("cc.build.more \(total - builds.count)").font(.caption).foregroundStyle(Color.textSecondary).padding(.horizontal, Space.xs)
                 }
             }
         }
@@ -241,7 +249,7 @@ struct BuildViewer: View {
     var body: some View {
         NavigationStack {
             RemoteImage(attachmentID: build.attachmentID, contentMode: .fit)
-                .padding()
+                .padding(Space.l)
                 .navigationTitle(Text(verbatim: build.label ?? build.filename))
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -249,7 +257,7 @@ struct BuildViewer: View {
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("done") { dismiss() } } }
         }
         #if os(macOS)
-        .frame(minWidth: 420, minHeight: 520)
+        .frame(minWidth: 420, idealWidth: 520, minHeight: 520, idealHeight: 640)
         #endif
     }
 }
@@ -269,13 +277,13 @@ struct QuestionAnswerView: View {
     @State private var text = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.priority(2))
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.priority(2)).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Space.xxs) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text(verbatim: prompt).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 6) {
+                    HStack(spacing: Space.s) {
                         if let asker { Text(verbatim: asker) }
                         if askedAt != nil { Text(verbatim: CommandFormat.relative(askedAt)) }
                         if blocking { Text("cc.question.blocking").foregroundStyle(Color.priority(2)) }
@@ -284,17 +292,17 @@ struct QuestionAnswerView: View {
                 }
             }
             if options.isEmpty {
-                HStack(alignment: .bottom, spacing: 8) {
+                HStack(alignment: .bottom, spacing: Space.s) {
                     TextField(accessible: "cc.question.placeholder", text: $text, axis: .vertical)
                         .textFieldStyle(.roundedBorder).lineLimit(1...5)
                         .onSubmit(send)
-                    Button(action: send) { Image(systemName: "paperplane.fill") }
+                    Button(action: send) { Image(systemName: "paperplane.fill").tapTarget() }
                         .buttonStyle(.borderedProminent).controlSize(.large)
                         .disabled(busy || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel(Text("cc.question.send"))
                 }
             } else {
-                FlowLayout(spacing: 8) {
+                FlowLayout(spacing: Space.s) {
                     ForEach(options, id: \.self) { option in
                         Button { onAnswer(option) } label: { Text(verbatim: option).lineLimit(2) }
                             .buttonStyle(.bordered).controlSize(.large).disabled(busy)
@@ -305,7 +313,7 @@ struct QuestionAnswerView: View {
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.priority(2).opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-        .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(8) } }
+        .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(Space.s) } }
     }
 
     private func send() {
@@ -330,14 +338,14 @@ struct ReviewDecisionView: View {
     @State private var note = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "eye.fill").foregroundStyle(Color.chipPurple)
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Image(systemName: "eye.fill").foregroundStyle(Color.chipPurple).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Space.xxs) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text("cc.review.title").font(.subheadline.weight(.semibold))
                     Text(verbatim: summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 6) {
+                    HStack(spacing: Space.s) {
                         if let requestedBy { Text(verbatim: requestedBy) }
                         if requestedAt != nil { Text(verbatim: CommandFormat.relative(requestedAt)) }
                     }
@@ -347,7 +355,7 @@ struct ReviewDecisionView: View {
             if asking {
                 TextField(accessible: "cc.review.notePlaceholder", text: $note, axis: .vertical)
                     .textFieldStyle(.roundedBorder).lineLimit(2...6)
-                HStack {
+                AdaptiveStack(spacing: Space.s) {
                     Button("cc.review.sendChanges") { onDecision(.requestChanges, note); asking = false; note = "" }
                         .buttonStyle(.borderedProminent).tint(Color.chipPurple).controlSize(.large)
                         .disabled(busy || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -365,7 +373,7 @@ struct ReviewDecisionView: View {
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.chipPurple.opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-        .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(8) } }
+        .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(Space.s) } }
     }
 }
 
@@ -394,7 +402,7 @@ struct CommandCardView: View {
             header
             Button { open() } label: {
                 Text(verbatim: card.task.title).font(.headline).multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading).tapTarget()
             }
             .buttonStyle(.plain)
             .accessibilityValue(Text(verbatim: spokenState))
@@ -430,30 +438,30 @@ struct CommandCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface(radius: Radius.m)
         .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2).fill(laneColor).frame(width: 3).padding(.vertical, Space.m)
+            Capsule().fill(laneColor).frame(width: Space.xs - 1).padding(.vertical, Space.m)
         }
         .accessibilityElement(children: .contain)
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Space.s) {
             if showProject {
                 Text(verbatim: "#").font(.caption.weight(.bold)).foregroundStyle(Color.project(card.project.id))
                 Text(verbatim: card.project.name).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: Space.xs)
             if card.isFeature {
                 Label("cc.feature", systemImage: "square.stack.3d.up.fill")
                     .font(.caption2.weight(.semibold)).foregroundStyle(Color.chipPurple)
-                    .padding(.horizontal, 6).padding(.vertical, 2).background(Color.chipPurple.opacity(0.10), in: Capsule())
+                    .padding(.horizontal, Space.s).padding(.vertical, Space.xxs).background(Color.chipPurple.opacity(0.10), in: Capsule())
             }
         }
     }
 
     private var progress: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Space.xs) {
             ProgressView(value: Double(max(0, min(100, card.progress.percent))), total: 100).tint(laneColor).frame(minHeight: 6)
-            HStack(spacing: 6) {
+            HStack(spacing: Space.s) {
                 Text(verbatim: "\(card.progress.percent) %").monospacedDigit().fontWeight(.semibold)
                 CommandFormat.progressText(card.progress)
             }
@@ -463,8 +471,8 @@ struct CommandCardView: View {
     }
 
     private func agentRow(_ agent: CommandCardAgent) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "cpu").foregroundStyle(Color.priority(1))
+        HStack(spacing: Space.s) {
+            Image(systemName: "cpu").foregroundStyle(Color.priority(1)).accessibilityHidden(true)
             if let label = agent.claimedLabel { Text(verbatim: label).fontWeight(.medium) }
             if let state = agent.jobState { CommandFormat.jobState(state).foregroundStyle(Color.textSecondary) }
         }
@@ -472,9 +480,9 @@ struct CommandCardView: View {
     }
 
     private func latest(_ update: CommandCardUpdate) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Space.xxs) {
             Text(verbatim: update.text).font(.footnote).lineLimit(3).foregroundStyle(.primary.opacity(0.85))
-            HStack(spacing: 4) {
+            HStack(spacing: Space.xs) {
                 if let who = update.actorLabel { Text(verbatim: who) }
                 if update.at != nil { Text(verbatim: CommandFormat.relative(update.at)) }
             }
@@ -483,13 +491,13 @@ struct CommandCardView: View {
     }
 
     private var subtasks: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Space.xs) {
             ForEach(card.subtasks) { s in
-                HStack(spacing: 6) {
+                HStack(spacing: Space.s) {
                     Image(systemName: s.status == "done" ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(s.status == "done" ? Color.dueToday : Color.textSecondary)
                     Text(verbatim: s.title).lineLimit(1).strikethrough(s.status == "done")
-                    Spacer(minLength: 4)
+                    Spacer(minLength: Space.xs)
                     Text(verbatim: "\(s.progressPercent) %").foregroundStyle(Color.textSecondary).monospacedDigit()
                 }
                 .font(.caption)
@@ -499,7 +507,7 @@ struct CommandCardView: View {
 
     @ViewBuilder private var footer: some View {
         if card.nextDue != nil || card.priority > 1 {
-            HStack(spacing: 8) {
+            HStack(spacing: Space.s) {
                 if let due = card.nextDue {
                     Label { Text(verbatim: DueFormat.text(due)) } icon: { Image(systemName: "calendar") }
                         .foregroundStyle(DueFormat.style(due).color)
@@ -514,4 +522,33 @@ struct CommandCardView: View {
         let known = app.tasks.first { $0.id == card.task.id }
         app.path = [known ?? TodoTask(id: card.task.id, projectID: card.project.id, title: card.task.title, status: card.task.status, version: card.task.version)]
     }
+}
+
+// MARK: Previews
+
+#Preview("Question, Light") {
+    QuestionAnswerView(prompt: "Soll die Startseite zuerst auf Mobil optimiert werden?", options: ["Ja, mobil zuerst", "Desktop zuerst"], asker: "Claude", blocking: true, askedAt: nil, taskTitle: "Design-Review vorbereiten", busy: false) { _ in }
+        .pageMargins().padding(.vertical, Space.l).background(Color.canvas)
+}
+
+#Preview("Question, Dark, klein") {
+    QuestionAnswerView(prompt: "Welche Farbe?", options: [], asker: "Claude", blocking: false, askedAt: nil, busy: false) { _ in }
+        .pageMargins().padding(.vertical, Space.l).background(Color.canvas)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Review, accessibility5") {
+    ReviewDecisionView(summary: "Texte sind eingebaut und getestet. Bitte die Datenschutzerklärung prüfen.", requestedBy: "Claude", requestedAt: nil, taskTitle: "Texte für Startseite freigeben", busy: false) { _, _ in }
+        .pageMargins().padding(.vertical, Space.l).background(Color.canvas)
+        .dynamicTypeSize(.accessibility5)
+}
+
+#Preview("Build strip, Light") {
+    let json = """
+    [{"id":"\(UUID())","attachmentID":"\(UUID())","taskID":"\(UUID())","buildID":"b1","label":"Entwurf Startseite","platform":"iOS","filename":"a.png","mediaType":"image/png","size":1,"previewURL":"/x"}]
+    """
+    let builds = (try? JSONDecoder().decode([BuildArtifact].self, from: Data(json.utf8))) ?? []
+    BuildStrip(builds: builds, total: 3)
+        .environment(AppModel())
+        .pageMargins().padding(.vertical, Space.l).background(Color.canvas)
 }
