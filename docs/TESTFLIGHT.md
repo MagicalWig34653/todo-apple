@@ -96,3 +96,11 @@ Aus sauberem Stand (main, `git pull --rebase` ohne Aenderungen), Version 0.1.0, 
 - macOS: Build 2610311634, "Upload succeeded", Delivery UUID `0739c61e-8c12-4246-bbec-b837351f0cf9`.
 - Entitlement-Befund: Archivierung lief mit automatischem Signieren ohne Capability-/Profilfehler. Im `.xcarchive` (Entwicklungs-signiert) zeigt `codesign -d --entitlements :-` erwartungsgemaess `aps-environment=development` (iOS) bzw. `com.apple.developer.aps-environment=development` (macOS). Beim Export/Upload signiert Xcode fuer Distribution neu; die xcdistributionlogs (IDEDistributionProvisioning) enthalten `aps-environment = production` fuer beide. Das fertige exportierte Binary wurde nicht separat per codesign geprueft (Export wird nur hochgeladen).
 - Nicht geprueft: Verarbeitung/Freigabe in App Store Connect, Funktion der Builds und echter Push auf Geraeten.
+
+## Upload Stand adb01e8 (2026-11-07, Universal Purchase)
+Aus sauberem Stand (main adb01e8), Version 0.1.0, Bundle-ID `de.linolaske.todo`.
+- iOS: Build 2611071735, "Upload succeeded", Delivery UUID `d64fc499-5026-46cd-91fa-f8d882d17d91`.
+- macOS: Build 2611071736, "Upload succeeded", Delivery UUID `578b812a-f448-40dc-9790-da3bc950aae9`.
+- Trockenlauf (Export ohne Upload, Build 2611071733): IPA entstand, Bundle-ID/Version/Build im Archiv geprueft.
+- Stolperstein: Mit Homebrew-`rsync` 3.x vor `/usr/bin` im PATH scheitert der Export ("exportArchive Copy failed", `--extended-attributes: unknown option`). Loesung: `PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin` setzen.
+- Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
