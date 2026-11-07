@@ -1,6 +1,27 @@
 import SwiftUI
 import TodoCore
 
+/// Sheet sizing: a centered form sheet on iPad and Mac (iOS 18/macOS 15), detents only where it is a bottom sheet.
+private struct QuickAddPresentation: ViewModifier {
+    var largeOnly: Bool
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.presentationSizing(.form).presentationDetents(detents)
+        } else {
+            content.presentationDetents(detents)
+        }
+    }
+    /// Regular width has no medium bottom sheet to fall back on: always full height so nothing is cut off.
+    private var detents: Set<PresentationDetent> { largeOnly || sizeClass == .regular ? [.large] : [.medium, .large] }
+}
+
+/// Mac sheet size (min and ideal); the sheet scrolls when Dynamic Type needs more room.
+private enum QuickAddLayout {
+    static let macMinWidth: CGFloat = 440, macIdealWidth: CGFloat = 480
+    static let macMinHeight: CGFloat = 380, macIdealHeight: CGFloat = 420
+}
+
 /// Bottom-sheet quick add: title, due chips, priority flag, project and label pickers.
 struct QuickAddSheet: View {
     @Environment(AppModel.self) private var model
@@ -28,7 +49,7 @@ struct QuickAddSheet: View {
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
-    @ScaledMetric(relativeTo: .body) private var sendSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var sendSize: CGFloat = TapTarget.minimum
 
     private var chosenProject: Project? { model.projects.first { $0.id == project } }
     private var parsedTitle: String { QuickAddParser.parse(title).title }
@@ -41,11 +62,12 @@ struct QuickAddSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.canvas)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: recognized)
-        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        .modifier(QuickAddPresentation(largeOnly: typeSize.isAccessibilitySize))
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         #if os(macOS)
-        .frame(width: 440, height: 380)
+        .frame(minWidth: QuickAddLayout.macMinWidth, idealWidth: QuickAddLayout.macIdealWidth,
+               minHeight: QuickAddLayout.macMinHeight, idealHeight: QuickAddLayout.macIdealHeight)
         #endif
         .onAppear {
             if project == nil {
@@ -60,7 +82,7 @@ struct QuickAddSheet: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Space.m) {
             TextField(accessible: "quickAdd.title", text: $title, axis: .vertical)
                 .lineLimit(1...6)
                 .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -78,7 +100,7 @@ struct QuickAddSheet: View {
                 }
                 .accessibilityIdentifier("quickAddTitle")
             if !recognized.isEmpty {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
                     Image(systemName: "sparkles").foregroundStyle(Color.tileOrange)
                     Text("quickAdd.recognized") + Text(verbatim: " ") + Text(verbatim: recognized.joined(separator: " · ")).fontWeight(.semibold)
                 }
@@ -90,14 +112,14 @@ struct QuickAddSheet: View {
 
             dueChips
 
-            let bottomLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+            let bottomLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.s)) : AnyLayout(HStackLayout(spacing: Space.s))
             bottomLayout {
                 priorityMenu
                 labelMenu
                 if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
                 Button { save() } label: {
                     Image(systemName: "arrow.up")
-                        .font(.body.weight(.bold)).foregroundStyle(.white)
+                        .font(.body.weight(.bold)).foregroundStyle(Color.onBrand)
                         .frame(width: sendSize, height: sendSize)
                         .background(canSave ? Color.brand : Color.brand.opacity(0.35), in: Circle())
                         .shadow(color: canSave ? Color.brand.opacity(0.35) : .clear, radius: 6, y: 3)
@@ -110,8 +132,10 @@ struct QuickAddSheet: View {
             Divider()
             projectMenu
         }
-        .padding(16)
+        .padding(.vertical, Space.l)
+        .pageMargins()
         .frame(maxWidth: .infinity, alignment: .leading)
+        .readableWidth()
     }
 
     // MARK: pieces
@@ -119,9 +143,9 @@ struct QuickAddSheet: View {
     /// Due chips: one scrolling row, or a column from the accessibility sizes on so no chip is cut off.
     @ViewBuilder private var dueChips: some View {
         if typeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 8) { dueChipItems }
+            VStack(alignment: .leading, spacing: Space.s) { dueChipItems }
         } else {
-            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { dueChipItems } }
+            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: Space.s) { dueChipItems } }
         }
     }
 
@@ -135,7 +159,7 @@ struct QuickAddSheet: View {
         .buttonStyle(.plain)
         .popover(isPresented: $pickingDate) {
             DatePicker("", selection: Binding(get: { due ?? DueFormat.tomorrow() }, set: { dueTouched = true; due = $0 }), displayedComponents: [.date, .hourAndMinute])
-                .datePickerStyle(.graphical).labelsHidden().padding()
+                .datePickerStyle(.graphical).labelsHidden().padding(Space.l)
                 .presentationCompactAdaptation(.popover)
         }
     }
@@ -161,14 +185,14 @@ struct QuickAddSheet: View {
     }
 
     private func chip(icon: String, text: String?, key: LocalizedStringKey? = nil, active: Bool, tint: Color) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: Space.xs) {
             Image(systemName: icon).font(.footnote)
             if let key { Text(key) } else if let text { Text(verbatim: text) }
         }
         .fixedSize(horizontal: true, vertical: false)
         .font(.footnote.weight(.medium))
         .foregroundStyle(active ? tint : Color.textSecondary)
-        .padding(.horizontal, 11).padding(.vertical, 7)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .background(active ? tint.opacity(0.10) : Color.canvasRaised, in: Capsule())
         .overlay(Capsule().strokeBorder(active ? tint.opacity(0.5) : Color.hairline, lineWidth: 1))
         .contentShape(Capsule())
@@ -212,7 +236,7 @@ struct QuickAddSheet: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: Space.s) {
                 ProjectDot(id: project)
                 Text(verbatim: chosenProject?.name ?? String(localized: "projects.none"))
                 Image(systemName: "chevron.down").font(.caption2)
@@ -285,3 +309,13 @@ struct QuickAddSheet: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor private func quickAddPreview() -> some View {
+    QuickAddSheet(projectID: nil, dueDate: nil)
+        .environment(AppModel()).environment(TaskMeta())
+}
+#Preview("Quick add light") { quickAddPreview().preferredColorScheme(.light) }
+#Preview("Quick add dark") { quickAddPreview().preferredColorScheme(.dark) }
+#Preview("Quick add accessibility5") { quickAddPreview().dynamicTypeSize(.accessibility5) }
+#endif

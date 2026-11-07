@@ -94,16 +94,17 @@ struct AttachmentsSection: View {
     @State private var model = AttachmentsModel()
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var importing = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             Text("task.attachments").font(.sectionTitle)
             ForEach(attachments) { a in
                 Button { Task { await model.open(a, app) } } label: {
-                    HStack {
+                    HStack(spacing: Space.m) {
                         AttachmentThumbnail(attachment: a)
-                        VStack(alignment: .leading) {
-                            Text(verbatim: a.filename).lineLimit(1)
+                        VStack(alignment: .leading, spacing: Space.xxs) {
+                            Text(verbatim: a.filename).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                             Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(a.size), countStyle: .file))
                                 .font(.caption).foregroundStyle(Color.textSecondary)
                         }
@@ -163,7 +164,7 @@ private struct AttachmentThumbnail: View {
                 Image(systemName: attachment.isImage ? "photo" : "doc.richtext").foregroundStyle(Color.textSecondary)
             }
         }
-        .frame(width: 44, height: 44)
+        .scaledSquare(TapTarget.minimum)
         .clipShape(RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
         .accessibilityHidden(true)
         .task(id: attachment.id) {
@@ -182,3 +183,15 @@ private struct AttachmentThumbnail: View {
         #endif
     }
 }
+
+#if DEBUG
+@MainActor private func attachmentsPreview() -> some View {
+    AttachmentsSection(taskID: UUID(), attachments: .constant([]))
+        .cardSurface().pageMargins().readableWidth()
+        .environment(AppModel())
+        .background(Color.canvas)
+}
+#Preview("Attachments light") { attachmentsPreview().preferredColorScheme(.light) }
+#Preview("Attachments dark") { attachmentsPreview().preferredColorScheme(.dark) }
+#Preview("Attachments accessibility5") { attachmentsPreview().dynamicTypeSize(.accessibility5) }
+#endif
