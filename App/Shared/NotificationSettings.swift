@@ -31,10 +31,10 @@ struct NotificationSettingsSections: View {
             switch push.authorization {
             case .notDetermined, .unknown:
                 Button("push.enable") { Task { await app.enablePush() } }
-                    .frame(minHeight: 44)
+                    .tapTarget()
             case .denied:
                 Text("push.denied.hint").font(.footnote).foregroundStyle(Color.textSecondary)
-                Button("push.openSettings") { push.openSystemSettings() }.frame(minHeight: 44)
+                Button("push.openSettings") { push.openSystemSettings() }.tapTarget()
             case .authorized: EmptyView()
             }
             if push.serverPushEnabled == false {
@@ -71,9 +71,9 @@ struct NotificationSettingsSections: View {
             Toggle("push.cat.reviews", isOn: binding(.agentReviews))
             Toggle("push.cat.comments", isOn: binding(.comments))
         } header: { Text("push.categories") } footer: {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 Text("push.categories.footer")
-                if let key = push.prefsErrorKey { Text(LocalizedStringKey(key)).foregroundStyle(Color.red) }
+                if let key = push.prefsErrorKey { Text(LocalizedStringKey(key)).foregroundStyle(Color.dueOverdue) }
             }
         }
     }
@@ -102,23 +102,48 @@ struct PushPrimerCard: View {
 
     var body: some View {
         if visible {
-            VStack(alignment: .leading, spacing: 10) {
-                Label { Text("push.primer.title").font(.headline) } icon: { Image(systemName: "bell.badge").foregroundStyle(Color.brand) }
-                    .accessibilityAddTraits(.isHeader)
-                Text("push.primer.message").font(.subheadline).foregroundStyle(Color.textSecondary)
-                HStack {
-                    Button("push.primer.enable") { hide(); Task { await app.enablePush() } }
-                        .buttonStyle(.borderedProminent).frame(minHeight: 44)
-                    Button("push.primer.later") { hide() }.buttonStyle(.bordered).frame(minHeight: 44)
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: 14))
-            .padding(.horizontal, 16).padding(.top, 8)
-            .accessibilityElement(children: .contain)
+            PushPrimerContent(
+                enable: { hide(); Task { await app.enablePush() } },
+                later: { hide() })
         }
     }
 
     private func hide() { push.primerDismissed = true; hidden = true }
 }
+
+/// Layout of the explainer card (separate so previews can show it without push state).
+struct PushPrimerContent: View {
+    let enable: () -> Void
+    let later: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Label { Text("push.primer.title").font(.headline) } icon: { Image(systemName: "bell.badge").foregroundStyle(Color.brand) }
+                .accessibilityAddTraits(.isHeader)
+            Text("push.primer.message").font(.subheadline).foregroundStyle(Color.textSecondary)
+            AdaptiveStack(spacing: Space.s) {
+                Button("push.primer.enable", action: enable).buttonStyle(.borderedProminent).tapTarget()
+                Button("push.primer.later", action: later).buttonStyle(.bordered).tapTarget()
+            }
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(radius: Radius.m)
+        .readableWidth()
+        .pageMargins()
+        .padding(.top, Space.s)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+#if DEBUG
+private struct PrimerPreview: View {
+    var body: some View {
+        VStack(spacing: 0) { PushPrimerContent(enable: {}, later: {}); Spacer() }
+            .background(Color.canvas)
+    }
+}
+#Preview("Primer light") { PrimerPreview().preferredColorScheme(.light) }
+#Preview("Primer dark") { PrimerPreview().preferredColorScheme(.dark) }
+#Preview("Primer accessibility5") { PrimerPreview().dynamicTypeSize(.accessibility5) }
+#endif
