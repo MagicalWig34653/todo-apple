@@ -182,21 +182,28 @@ struct TaskCheckbox: View {
     let action: () -> Void
     @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Circle diameter: scales with the text, but from the accessibility sizes on it stops growing (the circle would dominate the row).
+    private var diameter: CGFloat {
+        let scaled = size * scale
+        return typeSize.isAccessibilitySize ? min(scaled, Space.xxl + Space.xs) : scaled
+    }
 
     var body: some View {
         let color = Color.priority(priority)
-        let size = size * scale
+        let size = diameter
         Button(action: action) {
             ZStack {
                 Circle().fill(color.opacity(checked ? 1 : (priority > 0 ? 0.14 : 0.05)))
                 Circle().strokeBorder(color.opacity(checked ? 1 : 0.9), lineWidth: priority > 0 ? 2 : 1.6)
                 CheckShape()
                     .trim(from: 0, to: checked ? 1 : 0)
-                    .stroke(.white, style: StrokeStyle(lineWidth: size * 0.1, lineCap: .round, lineJoin: .round))
+                    .stroke(Color.onBrand, style: StrokeStyle(lineWidth: size * 0.1, lineCap: .round, lineJoin: .round))
             }
             .frame(width: size, height: size)
             .scaleEffect(checked ? 1.08 : 1.0)
-            .frame(minWidth: 44, minHeight: 44)
+            .frame(minWidth: TapTarget.minimum, minHeight: TapTarget.minimum)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -228,7 +235,6 @@ struct TaskRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             TaskCheckbox(checked: checked, priority: planning?.priority ?? 0) { toggle() }
-                .padding(.leading, -10).padding(.top, -6)
             Button { model.path = [task] } label: { content }
                 .buttonStyle(.plain)
         }
@@ -307,7 +313,7 @@ struct TaskRow: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: Space.xs) {
             Text(verbatim: task.title)
                 .font(.rowTitle)
                 .strikethrough(checked, color: Color.textSecondary)
@@ -319,7 +325,8 @@ struct TaskRow: View {
             }
             metaLine
         }
-        .padding(.top, 3)
+        // Centers the first title line on the 44 pt checkbox next to it.
+        .padding(.top, typeSize.isAccessibilitySize ? Space.s : Space.m)
         .contentShape(Rectangle())
     }
 
@@ -338,15 +345,15 @@ struct TaskRow: View {
                 }
                 if let due {
                     MetaItem(symbol: planning?.recurrence != nil ? "arrow.triangle.2.circlepath" : "calendar", text: DueFormat.text(due),
-                             tint: task.isDone ? .secondary : DueFormat.style(due).color)
+                             tint: task.isDone ? Color.textSecondary : DueFormat.style(due).color)
                 }
                 if let sub { MetaItem(symbol: "checklist", text: "\(sub.done)/\(sub.total)") }
                 ForEach(labels.prefix(2)) { LabelChip(name: $0.name) }
                 if !typeSize.isAccessibilitySize { Spacer(minLength: Space.xs) }
                 if showsProject, let project {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Space.xs) {
                         Text(verbatim: project.name).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-                        ProjectDot(id: project.id, size: 7)
+                        ProjectDot(id: project.id, size: Space.s)
                     }
                     .foregroundStyle(Color.textSecondary)
                     .layoutPriority(-1)
@@ -374,17 +381,30 @@ struct TaskRow: View {
 
 // MARK: List styling
 
+/// List row insets on the page margin (`Space.page`, `Space.pageRegular` on regular width). `listRowInsets` cannot read the
+/// environment, so the margin is resolved here; this keeps list rows, headers and card pages on the same edge.
+struct PageRowInsets: ViewModifier {
+    var top: CGFloat = Space.s
+    var bottom: CGFloat = Space.s
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    func body(content: Content) -> some View {
+        let margin = sizeClass == .regular ? Space.pageRegular : Space.page
+        content.listRowInsets(EdgeInsets(top: top, leading: margin, bottom: bottom, trailing: margin))
+    }
+}
+
 extension View {
     /// Plain Todoist-like list: hairline separators, canvas background, compact row insets.
     func taskListStyle() -> some View {
         self.listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .contentMargins(.bottom, 84, for: .scrollContent)
+            .contentMargins(.bottom, Space.xxl * 2, for: .scrollContent)
+            .readableWidth()
             .background(Color.canvas)
     }
 
     func taskRowInsets() -> some View {
-        self.listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+        modifier(PageRowInsets(top: Space.xs, bottom: Space.s))
             .listRowSeparatorTint(Color.hairline)
             .listRowBackground(Color.canvas)
     }
@@ -397,7 +417,7 @@ struct SectionHeaderLabel: View {
     var tint: Color = .primary
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Space.s) {
             if let title { Text(title) } else if let verbatim { Text(verbatim: verbatim) }
             if let count { Text(verbatim: String(count)).foregroundStyle(Color.textSecondary).fontWeight(.regular) }
             Spacer()
@@ -405,7 +425,7 @@ struct SectionHeaderLabel: View {
         .font(.sectionTitle)
         .foregroundStyle(tint)
         .textCase(nil)
-        .padding(.vertical, 2)
+        .padding(.vertical, Space.xxs)
     }
 }
 
@@ -414,27 +434,31 @@ struct SectionHeaderLabel: View {
 /// Floating red "+" on iOS, toolbar button with ⌘N on macOS. Both open the quick-add sheet.
 struct QuickAddButton: ViewModifier {
     @State private var show = false
-    @ScaledMetric(relativeTo: .title) private var fabSize: CGFloat = 60
+    @ScaledMetric(relativeTo: .title) private var scaledFabSize: CGFloat = 60
+    @Environment(\.dynamicTypeSize) private var typeSize
     var projectID: UUID?
     var dueDate: Date?
+
+    /// Compact from the accessibility sizes on, so the button does not grow over the row text.
+    private var fabSize: CGFloat { typeSize.isAccessibilitySize ? TapTarget.minimum + Space.m : scaledFabSize }
 
     func body(content: Content) -> some View {
         #if os(iOS)
         content
             // The floating button must never cover the last rows: scroll content gets room for it.
-            .contentMargins(.bottom, fabSize + 28, for: .scrollContent)
+            .contentMargins(.bottom, fabSize + Space.xl + Space.s, for: .scrollContent)
             .overlay(alignment: .bottomTrailing) {
                 Button { Haptics.tap(); show = true } label: {
                     Image(systemName: "plus")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onBrand)
                         .frame(width: fabSize, height: fabSize)
                         .background(LinearGradient(colors: [Color.brand.opacity(0.92), Color.brand], startPoint: .top, endPoint: .bottom), in: Circle())
-                        .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-                        .shadow(color: Color.brand.opacity(0.4), radius: 12, y: 6)
+                        .overlay(Circle().strokeBorder(Color.onBrand.opacity(0.25), lineWidth: 1))
+                        .shadow(color: Color.brand.opacity(0.4), radius: Space.m, y: Space.xs + Space.xxs)
                 }
                 .buttonStyle(PressableStyle())
-                .padding(.trailing, 20).padding(.bottom, 14)
+                .padding(.trailing, Space.l).padding(.bottom, Space.l)
                 .accessibilityLabel(Text("task.add"))
                 .accessibilityIdentifier("quickAddButton")
             }
@@ -460,3 +484,34 @@ extension View {
         modifier(QuickAddButton(projectID: projectID, dueDate: dueDate))
     }
 }
+
+// MARK: Previews
+
+#if DEBUG
+private enum PreviewData {
+    static let project = Project(id: UUID(), parentID: nil, name: "Website-Relaunch", version: 1)
+    static func task(_ title: String, done: Bool = false, description: String = "") -> TodoTask {
+        TodoTask(id: UUID(), projectID: project.id, title: title, description: description, status: done ? "done" : "open")
+    }
+}
+
+private struct TaskRowGallery: View {
+    @State private var model = AppModel()
+    @State private var meta = TaskMeta()
+    var body: some View {
+        List {
+            TaskRow(task: PreviewData.task("Angebot für die Datenschutzerklärung überarbeiten", description: "Rücksprache mit der Rechtsabteilung")).taskRowInsets()
+            TaskRow(task: PreviewData.task("Kurz")).taskRowInsets()
+            TaskRow(task: PreviewData.task("Erledigt", done: true)).taskRowInsets()
+        }
+        .taskListStyle()
+        .quickAdd()
+        .environment(model).environment(meta)
+        .onAppear { model.projects = [PreviewData.project] }
+    }
+}
+
+#Preview("TaskRow light") { TaskRowGallery().preferredColorScheme(.light) }
+#Preview("TaskRow dark") { TaskRowGallery().preferredColorScheme(.dark) }
+#Preview("TaskRow accessibility5") { TaskRowGallery().dynamicTypeSize(.accessibility5) }
+#endif
