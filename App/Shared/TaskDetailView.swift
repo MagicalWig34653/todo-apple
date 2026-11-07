@@ -167,6 +167,8 @@ struct TaskDetailView: View {
     @State private var newSubtask = ""
     @State private var pickingDate = false
     @State private var showActivity = false
+    /// Width of the icon column of property rows; reminder chips and the new-label field align to it.
+    @ScaledMetric(relativeTo: .body) private var iconSide: CGFloat = 26
 
     init(task: TodoTask) {
         _model = State(initialValue: TaskDetailModel(task: task))
@@ -201,11 +203,13 @@ struct TaskDetailView: View {
                 subtasksCard
                 AttachmentsSection(taskID: model.task.id, attachments: $model.attachments)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .cardSurface().padding(.horizontal, Space.l)
+                    .cardSurface()
                 commentsCard
                 activityCard
             }
             .padding(.top, Space.s).padding(.bottom, Space.xxl)
+            .pageMargins()
+            .readableWidth()
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color.canvas)
@@ -239,7 +243,7 @@ struct TaskDetailView: View {
                 Button { moveTask(to: p.id) } label: { Label(p.name, systemImage: p.id == model.task.projectID ? "checkmark" : "number") }
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: Space.xs) {
                 ProjectDot(id: model.task.projectID, size: 8)
                 Text(verbatim: project?.name ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.textSecondary)
@@ -252,26 +256,26 @@ struct TaskDetailView: View {
     // MARK: header (checkbox, title, description)
 
     private var header: some View {
-        (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(alignment: .top, spacing: Space.xs))) {
+        // Always side by side (like TaskRow): the checkbox keeps its 44 pt target without negative padding and the
+        // title wraps next to it at accessibility sizes instead of leaving a lone circle above.
+        HStack(alignment: .top, spacing: Space.xs) {
             TaskCheckbox(checked: model.task.isDone, priority: model.planning.priority, size: 28) {
                 Task { await model.setStatus(model.task.isDone ? .open : .done, app) }
                 Haptics.success()
             }
-            .padding(.leading, -8).padding(.top, -2)
             VStack(alignment: .leading, spacing: Space.s) {
                 TextField(accessible: "task.title", text: $title, axis: .vertical)
                     .font(.detailTitle)
                     .strikethrough(model.task.isDone)
                     .foregroundStyle(model.task.isDone ? Color.textSecondary : Color.primary)
                     .onSubmit(saveText)
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "text.alignleft").font(.footnote).foregroundStyle(.tertiary).padding(.top, 3)
+                HStack(alignment: .top, spacing: Space.s) {
+                    Image(systemName: "text.alignleft").font(.footnote).foregroundStyle(Color.textSecondary).padding(.top, Space.xs)
                     TextField(accessible: "task.description", text: $text, axis: .vertical)
                         .font(.body).foregroundStyle(Color.textSecondary).lineLimit(1...12)
                 }
             }
         }
-        .padding(.horizontal, Space.l)
     }
 
     // MARK: properties
@@ -293,10 +297,9 @@ struct TaskDetailView: View {
         }
         .padding(.horizontal, Space.m)
         .cardSurface()
-        .padding(.horizontal, Space.l)
     }
 
-    private var divider: some View { Divider().padding(.leading, 40) }
+    private var divider: some View { Divider().padding(.leading, iconSide + Space.m) }
 
     private func propertyRow<Value: View>(_ icon: String, _ tint: Color, _ label: LocalizedStringKey, @ViewBuilder value: () -> Value) -> some View {
         // From the accessibility sizes on the value moves below the label instead of squeezing next to it.
@@ -308,12 +311,11 @@ struct TaskDetailView: View {
             }
             if !stacked { Spacer(minLength: Space.s) }
             value().multilineTextAlignment(stacked ? .leading : .trailing).foregroundStyle(Color.textSecondary)
-                .frame(minHeight: 44).contentShape(Rectangle())
-                .padding(.leading, stacked ? 26 + Space.m : 0)
+                .tapTarget()
+                .padding(.leading, stacked ? iconSide + Space.m : 0)
         }
         .font(.subheadline)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 46)
         .padding(.vertical, stacked ? Space.s : 0)
         .contentShape(Rectangle())
     }
@@ -378,22 +380,23 @@ struct TaskDetailView: View {
                 } label: { Text(model.planning.reminders.isEmpty ? LocalizedStringKey("reminder.add") : "reminder.addMore") }
             }
             if !model.planning.reminders.isEmpty {
-                AdaptiveStack(spacing: 6) {
+                AdaptiveStack(spacing: Space.s) {
                     ForEach(model.planning.reminders, id: \.self) { r in
                         Button { removeReminder(r) } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: Space.xs) {
                                 Image(systemName: "bell.fill").font(.caption2)
                                 Text(verbatim: DueFormat.text(r))
                                 Image(systemName: "xmark").font(.caption2.weight(.bold))
                             }
                             .font(.caption.weight(.medium)).foregroundStyle(Color.chipPurple)
-                            .padding(.horizontal, 9).padding(.vertical, 4).background(Color.chipPurple.opacity(0.10), in: Capsule())
+                            .padding(.horizontal, Space.s).padding(.vertical, Space.xs).background(Color.chipPurple.opacity(0.10), in: Capsule())
+                            .tapTarget()
                         }
                         .buttonStyle(.plain)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.leading, 38).padding(.bottom, Space.s)
+                .padding(.leading, iconSide + Space.m).padding(.bottom, Space.s)
             }
         }
     }
@@ -406,8 +409,8 @@ struct TaskDetailView: View {
                     Button { setPriority(v) } label: { Label { priorityLabel(v) } icon: { Image(systemName: v == p ? "checkmark" : "flag.fill") } }
                 }
             } label: {
-                HStack(spacing: 5) {
-                    Circle().fill(Color.priority(p)).frame(width: 9, height: 9)
+                HStack(spacing: Space.xs) {
+                    Circle().fill(Color.priority(p)).scaledSquare(9, relativeTo: .subheadline)
                     priorityLabel(p).fontWeight(.medium)
                 }
             }
@@ -426,7 +429,7 @@ struct TaskDetailView: View {
                     }
                 } label: {
                     if model.labels.isEmpty { Text("label.add") } else {
-                        AdaptiveStack(spacing: 4) { ForEach(model.labels) { LabelChip(name: $0.name) } }
+                        AdaptiveStack(spacing: Space.xs) { ForEach(model.labels) { LabelChip(name: $0.name) } }
                     }
                 }
             }
@@ -434,7 +437,7 @@ struct TaskDetailView: View {
                 let name = newLabel; newLabel = ""
                 Task { await model.createLabel(name, app); await meta.refresh(app) }
             }
-            .padding(.leading, 38).padding(.bottom, Space.s)
+            .padding(.leading, iconSide + Space.m).padding(.bottom, Space.s)
         }
     }
 
@@ -466,14 +469,13 @@ struct TaskDetailView: View {
             ForEach(model.subtasks) { sub in
                 HStack(spacing: Space.xs) {
                     TaskCheckbox(checked: sub.isDone, priority: 0, size: 20) { Haptics.success(); Task { await model.toggleSubtask(sub, app) } }
-                        .padding(.leading, -10)
                     Text(verbatim: sub.title).font(.subheadline).strikethrough(sub.isDone)
                         .foregroundStyle(sub.isDone ? Color.textSecondary : Color.primary)
                     Spacer()
                 }
             }
             HStack(spacing: Space.s) {
-                Image(systemName: "plus").font(.footnote.weight(.semibold)).foregroundStyle(Color.brand).frame(width: 24)
+                Image(systemName: "plus").font(.footnote.weight(.semibold)).foregroundStyle(Color.brand).scaledSquare(24, relativeTo: .footnote)
                 TextField(accessible: "subtask.add", text: $newSubtask).font(.subheadline).submitLabel(.done).onSubmit {
                     let t = newSubtask; newSubtask = ""
                     Task { await model.addSubtask(t, app); await meta.refresh(app) }
@@ -483,14 +485,13 @@ struct TaskDetailView: View {
         }
         .padding(Space.m)
         .cardSurface()
-        .padding(.horizontal, Space.l)
     }
 
     // MARK: comments / activity
 
     private var commentsCard: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            HStack(spacing: 6) {
+            HStack(spacing: Space.s) {
                 Text("task.comments").font(.sectionTitle)
                 if !model.comments.isEmpty { Text(verbatim: String(model.comments.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary) }
                 Spacer()
@@ -499,14 +500,12 @@ struct TaskDetailView: View {
                 Text("comment.empty").font(.footnote).foregroundStyle(Color.textSecondary)
             }
             ForEach(model.comments) { c in
-                HStack(alignment: .top, spacing: Space.s + 2) {
+                HStack(alignment: .top, spacing: Space.s) {
                     Text(verbatim: String((c.authorName ?? "?").prefix(1)).uppercased())
                         .font(.caption.weight(.bold)).foregroundStyle(.white)
-                        .frame(width: 28, height: 28).background(Color.project(c.authorID).gradient, in: Circle())
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
-                        }
+                        .scaledSquare(28, relativeTo: .caption).background(Color.project(c.authorID).gradient, in: Circle())
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
                         Text(verbatim: c.body).font(.subheadline)
                             .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                             .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
@@ -519,7 +518,6 @@ struct TaskDetailView: View {
                 }
             }
         }
-        .padding(.horizontal, Space.l)
     }
 
     private var commentComposer: some View {
@@ -532,11 +530,14 @@ struct TaskDetailView: View {
             Button {
                 let t = newComment; newComment = ""
                 Task { await model.addComment(t, app) }
-            } label: { Image(systemName: "arrow.up.circle.fill").font(.largeTitle).foregroundStyle(empty ? Color.secondary.opacity(0.5) : Color.brand) }
+            } label: { Image(systemName: "arrow.up.circle.fill").font(.title).foregroundStyle(empty ? Color.textSecondary : Color.brand).tapTarget() }
             .buttonStyle(.plain).disabled(empty)
             .accessibilityLabel(Text("comment.send"))
         }
-        .padding(.horizontal, Space.l).padding(.vertical, Space.s)
+        .padding(.vertical, Space.s)
+        .pageMargins()
+        .readableWidth()
+        .frame(maxWidth: .infinity)
         .background(.bar)
     }
 
@@ -544,22 +545,21 @@ struct TaskDetailView: View {
         if !model.activity.isEmpty {
             VStack(alignment: .leading, spacing: Space.s) {
                 Button { withAnimation { showActivity.toggle() } } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: Space.s) {
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).rotationEffect(.degrees(showActivity ? 90 : 0))
                         Text("task.activity").font(.sectionTitle)
                         Text(verbatim: String(model.activity.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
                         Spacer()
                     }
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
+                    .tapTarget()
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(.isHeader)
                 if showActivity {
                     ForEach(model.activity) { a in
                         HStack(alignment: .top, spacing: Space.s) {
-                            Circle().fill(Color.hairline).frame(width: 7, height: 7).padding(.top, 6)
-                            VStack(alignment: .leading, spacing: 1) {
+                            Circle().fill(Color.hairline).scaledSquare(7, relativeTo: .footnote).padding(.top, Space.xs)
+                            VStack(alignment: .leading, spacing: Space.xxs) {
                                 activityText(a.kind).font(.footnote)
                                 HStack {
                                     if let name = a.actorName { Text(verbatim: name) }
@@ -570,7 +570,6 @@ struct TaskDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal, Space.l)
         }
     }
 
@@ -641,3 +640,15 @@ struct TaskDetailView: View {
     default: Text(verbatim: kind)
     }
 }
+
+#if DEBUG
+@MainActor private func detailPreview() -> some View {
+    NavigationStack {
+        TaskDetailView(task: TodoTask(id: UUID(), projectID: UUID(), title: "Quartalsbericht fertigstellen", description: "Zahlen aus dem Controlling einarbeiten."))
+    }
+    .environment(AppModel()).environment(TaskMeta())
+}
+#Preview("Task detail light") { detailPreview().preferredColorScheme(.light) }
+#Preview("Task detail dark") { detailPreview().preferredColorScheme(.dark) }
+#Preview("Task detail accessibility5") { detailPreview().dynamicTypeSize(.accessibility5) }
+#endif
