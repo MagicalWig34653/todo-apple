@@ -26,7 +26,8 @@ struct BoardView: View {
     /// width when there are only a few, otherwise the scaled base width; never wider than the screen.
     /// `available` is the visible width of the horizontal scroll view (from `containerRelativeFrame`).
     private func columnWidth(_ available: CGFloat) -> CGFloat {
-        let inner = max(available - 2 * pageMargin, minColumnWidth)
+        // No lower bound above the real width: at accessibility sizes the scaled minimum is wider than the screen.
+        let inner = max(available - 2 * pageMargin, 0)
         if sizeClass == .compact { return min(max(inner * Self.compactColumnShare, minColumnWidth), inner) }
         let n = max(board.columns.count, 1)
         let shared = (inner - CGFloat(n) * Space.m) / CGFloat(n)

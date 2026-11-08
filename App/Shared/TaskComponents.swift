@@ -398,7 +398,7 @@ extension View {
     func taskListStyle() -> some View {
         self.listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .contentMargins(.bottom, Space.xxl * 2, for: .scrollContent)
+            .contentMargins(.bottom, Space.l, for: .scrollContent)
             .readableWidth()
             .background(Color.canvas)
     }
@@ -445,22 +445,25 @@ struct QuickAddButton: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
         content
-            // The floating button must never cover the last rows: scroll content gets room for it.
-            .contentMargins(.bottom, fabSize + Space.xl + Space.s, for: .scrollContent)
-            .overlay(alignment: .bottomTrailing) {
-                Button { Haptics.tap(); show = true } label: {
-                    Image(systemName: "plus")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color.onBrand)
-                        .frame(width: fabSize, height: fabSize)
-                        .background(LinearGradient(colors: [Color.brand.opacity(0.92), Color.brand], startPoint: .top, endPoint: .bottom), in: Circle())
-                        .overlay(Circle().strokeBorder(Color.onBrand.opacity(0.25), lineWidth: 1))
-                        .shadow(color: Color.brand.opacity(0.4), radius: Space.m, y: Space.xs + Space.xxs)
+            // The floating button sits in the bottom safe area, so scroll content ends above it (never covers the last row)
+            // and still scrolls beneath it; this adds to, instead of replacing, other content margins.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button { Haptics.tap(); show = true } label: {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color.onBrand)
+                            .frame(width: fabSize, height: fabSize)
+                            .background(LinearGradient(colors: [Color.brand.opacity(0.92), Color.brand], startPoint: .top, endPoint: .bottom), in: Circle())
+                            .overlay(Circle().strokeBorder(Color.onBrand.opacity(0.25), lineWidth: 1))
+                            .shadow(color: Color.brand.opacity(0.4), radius: Space.m, y: Space.xs + Space.xxs)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel(Text("task.add"))
+                    .accessibilityIdentifier("quickAddButton")
                 }
-                .buttonStyle(PressableStyle())
-                .padding(.trailing, Space.l).padding(.bottom, Space.l)
-                .accessibilityLabel(Text("task.add"))
-                .accessibilityIdentifier("quickAddButton")
+                .padding(.trailing, Space.l).padding(.bottom, Space.s)
             }
             .sheet(isPresented: $show) { QuickAddSheet(projectID: projectID, dueDate: dueDate) }
             #if DEBUG

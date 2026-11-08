@@ -24,6 +24,9 @@ Stand 26.10.2026, Branch `feature/etappe1-client`. Globale Doku und Arbeitsplan:
 Echte Domain/RP-ID festlegen, Entitlement aktivieren, Passkey auf Gerät prüfen; UI im Simulator ansehen; Watch-Sitzungsübernahme entwerfen.
 Nach Backend-Auth (Etappe 1): Login/Passkey und Projekt-/Aufgabenliste im Client gegen `contracts/openapi.yaml`.
 
+## Checkpoint 08.11.2026 UI Rest (Branch ui-rest, nicht gemergt)
+Details und Screenshots: docs/UI-AUDIT.md "Nachher: Rest", docs/screenshots/rest/. Behoben: Leerband unter Erinnerungs-Chip, Senden-Pfeil leer (Umriss statt gedimmt), FAB überdeckt letzte Zeile (safeAreaInset), leere Steuerzentrale-Spalte schmal, Board/Steuerzentrale-Spalten breiter als Bildschirm bei AX. Neu: `App/UITests/ScreenshotTour.swift` (lokaler Screenshot-Helfer). Geprüft: Builds Todo-iOS und Todo-macOS Exit 0, 0 Errors; UI-Tests Todo-iOS auf iPhone 18 Pro: 7 Tests, 5 bestanden, 1 übersprungen (iPad), 1 rot (`testAccessibilityAuditDetail`: "text should be represented using the accessibility API", ohne Element; tritt auch mit zurückgesetztem TaskDetailView auf, Ursache offen, ob schon vor dieser Runde); TodoCore `swift test`: 192 Tests, 22 übersprungen, 0 Fehler. Offen: macOS nicht gesehen, einige iPad-Aufnahmen nicht angesehen, Steuerzentrale iPhone dunkel/AX Startversatz.
+
 ## Checkpoint 07.11.2026 Sichtprüfung nach UI-Überarbeitung (Branch ui-verify, nicht gemergt)
 Details und Screenshots: docs/UI-AUDIT.md "Nachher", docs/screenshots/after/. Behoben: doppelte Zurück-Schaltfläche (Suche in den Browse-Tab, sonst iOS-"Mehr" über dem Stack), Inspector-Toolbar, Steuerzentrale-Titel, Review-Buttons in schmaler Spalte, iPad-Sidebar bei AX. Offen: Quick-Add-Accessibility-Audit (VerticalTextView zu klein), Thumbnail-Platzhalter, macOS-Fenster nicht gesehen (keine Bildschirmaufnahme im Agentenlauf), Tippen nicht verifiziert. Tests: UI-Tests 5 grün/1 übersprungen/1 rot, TodoCore 192 Tests 0 Fehler.
 
