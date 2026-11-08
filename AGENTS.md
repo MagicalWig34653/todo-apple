@@ -35,3 +35,7 @@ Vor Übergabe, Kontextwechsel oder Sessionende einen konsistenten Checkpoint sch
 Zuerst ausführbaren vertikalen Schnitt herstellen. Relevante Änderungen mit passenden Tests prüfen; unnötige Tests und unbelegte Erfolgsaussagen vermeiden. Bei Backendänderungen Linux/MariaDB und bei nativen Änderungen betroffene Apple-Targets berücksichtigen. Fehlende Geräte-/Infrastrukturprüfungen offen nennen.
 
 Vor Übergabe festhalten: Ziel, tatsächliche Änderungen, Branch/Commit, Vertrags-/Migrationsfolgen, ausgeführte Prüfungen, offene Fehler, laufende Jobs und nächster Schritt. Status und Arbeitsplan im selben Arbeitsschritt aktualisieren. Wesentliche Architekturänderungen als ADR begründen.
+
+## UI-Skill
+
+Vor jeder SwiftUI-Arbeit `.claude/skills/swiftui-expert/SKILL.md` lesen (projektlokal, Abschnitt "Projektregeln Todolino"). Quelle und Lizenz: siehe `.claude/skills/swiftui-expert/LICENSE-AvdLee.md`.
