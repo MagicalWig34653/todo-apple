@@ -194,11 +194,14 @@ struct KanbanLanes: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @ScaledMetric(relativeTo: .body) private var baseWidth: CGFloat = 304
     @ScaledMetric(relativeTo: .body) private var minLaneWidth: CGFloat = 240
+    /// Empty lanes stay narrow so they do not claim a full card width next to wide, filled lanes.
+    @ScaledMetric(relativeTo: .body) private var emptyLaneWidth: CGFloat = 168
     let cc: CommandCenterModel
     let showProject: Bool
 
-    private func laneWidth(_ available: CGFloat) -> CGFloat {
-        let inner = max(available - 2 * margin, minLaneWidth)
+    private func laneWidth(_ available: CGFloat, isEmpty: Bool) -> CGFloat {
+        let inner = max(available - 2 * margin, 0)
+        if isEmpty { return min(emptyLaneWidth, inner) }
         if sizeClass == .compact { return min(max(inner * 0.86, minLaneWidth), inner) }
         let n = max(cc.lanes.count, 1)
         return min(inner, max(baseWidth, min((inner - CGFloat(n) * Space.m) / CGFloat(n), 420)))
@@ -212,7 +215,7 @@ struct KanbanLanes: View {
                 HStack(alignment: .top, spacing: Space.m) {
                     ForEach(cc.lanes) { lane in
                         LaneColumn(cc: cc, lane: lane, showProject: showProject)
-                            .containerRelativeFrame(.horizontal, alignment: .top) { available, _ in laneWidth(available) }
+                            .containerRelativeFrame(.horizontal, alignment: .top) { available, _ in laneWidth(available, isEmpty: lane.cards.isEmpty) }
                     }
                 }
                 .padding(.horizontal, margin).padding(.top, Space.xs).padding(.bottom, Space.xl)
@@ -247,6 +250,7 @@ struct LaneColumn: View {
                     Text("cc.lane.empty").font(.footnote).multilineTextAlignment(.center)
                 }
                 .foregroundStyle(Color.textSecondary)
+                .padding(.horizontal, Space.s)
                 .frame(maxWidth: .infinity, minHeight: emptyHeight)
                 .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [Space.xs, Space.xs])))
                 .accessibilityElement(children: .combine)

@@ -389,14 +389,15 @@ struct TaskDetailView: View {
                                 Image(systemName: "xmark").font(.caption2.weight(.bold))
                             }
                             .font(.caption.weight(.medium)).foregroundStyle(Color.chipPurple)
-                            .padding(.horizontal, Space.s).padding(.vertical, Space.xs).background(Color.chipPurple.opacity(0.10), in: Capsule())
+                            .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(Color.chipPurple.opacity(0.10), in: Capsule())
+                            // Chip is padded to ~34 pt; tapTarget only tops up the last few points, so no tall empty band below it.
                             .tapTarget()
                         }
                         .buttonStyle(.plain)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.leading, iconSide + Space.m).padding(.bottom, Space.s)
+                .padding(.leading, iconSide + Space.m)
             }
         }
     }
@@ -528,10 +529,16 @@ struct TaskDetailView: View {
                 .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
             let empty = newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             Button {
+                guard !empty else { return }
                 let t = newComment; newComment = ""
                 Task { await model.addComment(t, app) }
-            } label: { Image(systemName: "arrow.up.circle.fill").font(.title).foregroundStyle(empty ? Color.textSecondary : Color.brand).tapTarget() }
-            .buttonStyle(.plain).disabled(empty)
+            } label: {
+                // Not `.disabled`: the system would dim the label to about 30 %. The empty state is shown by shape (outline
+                // instead of filled) and a secondary-text color (4.5:1), and the action is guarded instead.
+                Image(systemName: empty ? "arrow.up.circle" : "arrow.up.circle.fill").font(.title)
+                    .foregroundStyle(empty ? Color.textSecondary : Color.brand).tapTarget()
+            }
+            .buttonStyle(.plain)
             .accessibilityLabel(Text("comment.send"))
         }
         .padding(.vertical, Space.s)
