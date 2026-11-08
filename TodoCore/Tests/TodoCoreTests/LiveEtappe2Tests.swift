@@ -430,6 +430,14 @@ final class LiveEtappe2Tests: XCTestCase {
             _ = try await a.postProgressNote(taskID: t3.id, note: "Farbpalette und Typografie sind im Entwurf.", percent: 40)
             let att = try await a.uploadAttachment(taskID: t3.id, filename: "entwurf.png", role: .result, mediaType: "image/png", data: shot)
             _ = try await a.registerBuild(attachmentID: att.id, buildID: "seed-1", label: "Entwurf Startseite", platform: "ios")
+            if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_LONG"] == "1" {
+                // Layout stress: very long prompts, options and multi-line answers (UI audit "Für dich").
+                let longOption = "Ja, bitte zuerst die Startseite für Mobilgeräte optimieren und danach erst die Desktop-Ansicht samt Tablet-Zwischengrößen überarbeiten, weil die meisten Besucher mobil kommen"
+                _ = try await a.askQuestion(taskID: t1.id, prompt: "Welche Variante der Arbeitsplatte soll ich für die Küche vorbereiten, und soll ich die Angebote der drei Anbieter vorher noch einmal vergleichen lassen?", options: [longOption, "Nein, Desktop zuerst", "Donaudampfschifffahrtsgesellschaftskapitänsmützenvariante"], blocking: false, agentName: "Claude")
+                _ = try await a.askQuestion(taskID: t2.id, prompt: "Wie soll der Umzugswagen heißen, den wir buchen?", options: nil, blocking: false, agentName: "Claude")
+                let answered = try await a.askQuestion(taskID: t4.id, prompt: "Soll der Text der Startseite gekürzt werden?", options: nil, blocking: false, agentName: "Claude")
+                _ = try await a.answerQuestion(answered.id, answer: "Ja, bitte kürzen. Die Einleitung ist zu lang und wiederholt sich im zweiten Absatz.\n\nZusätzlich sollen die drei Kernaussagen als Liste erscheinen, nicht als Fließtext. Bitte außerdem den Abschnitt zur Firmengeschichte komplett nach unten verschieben, weil ihn kaum jemand liest, und die Überschriften auf maximal sechs Wörter beschränken. Danach noch einmal gegenlesen lassen und die Rechtschreibung prüfen, insbesondere bei den Eigennamen.\n\nUnd bitte nichts am Impressum ändern.")
+            }
         }
         let team = try await a.createTeam(name: "Haushalt")
         _ = try await a.inviteMember(teamID: team.id, userID: f.bobUser.id)

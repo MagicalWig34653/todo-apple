@@ -127,22 +127,47 @@ struct FlowLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = arrange(width: bounds.width, subviews: subviews)
         for (i, origin) in result.origins.enumerated() {
-            subviews[i].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+            subviews[i].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                              proposal: ProposedViewSize(result.sizes[i]))
         }
     }
 
-    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
-        var origins: [CGPoint] = []
+    /// Every child is measured with the available width as its proposal, so long labels wrap (or truncate) inside the
+    /// row instead of growing to their one-line width and running off the screen.
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint], sizes: [CGSize]) {
+        var origins: [CGPoint] = [], sizes: [CGSize] = []
         var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxWidth: CGFloat = 0
+        let limit = width.isFinite ? width : nil
         for view in subviews {
-            let size = view.sizeThatFits(.unspecified)
+            var size = view.sizeThatFits(ProposedViewSize(width: limit, height: nil))
+            if let limit { size.width = min(size.width, limit) }
             if x > 0, x + size.width > width { x = 0; y += rowHeight + spacing; rowHeight = 0 }
-            origins.append(CGPoint(x: x, y: y))
+            origins.append(CGPoint(x: x, y: y)); sizes.append(size)
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
             maxWidth = max(maxWidth, x - spacing)
         }
-        return (CGSize(width: min(maxWidth, width.isFinite ? width : maxWidth), height: y + rowHeight), origins)
+        return (CGSize(width: min(maxWidth, width.isFinite ? width : maxWidth), height: y + rowHeight), origins, sizes)
+    }
+}
+
+/// Quiet answer chip for question options: brand tint with a brand outline and primary text (readable on the tinted
+/// question card), wraps to at most three lines and never grows wider than its container.
+struct AnswerChipStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.primary)
+            .multilineTextAlignment(.leading)
+            .lineLimit(3)
+            .truncationMode(.tail)
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .frame(minHeight: TapTarget.minimum)
+            .background(Color.brand.opacity(configuration.isPressed ? 0.24 : 0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).stroke(Color.brand.opacity(0.6), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.5)
     }
 }
 
@@ -310,8 +335,8 @@ struct QuestionAnswerView: View {
             } else {
                 FlowLayout(spacing: Space.s) {
                     ForEach(options, id: \.self) { option in
-                        Button { onAnswer(option) } label: { Text(verbatim: option).lineLimit(2) }
-                            .buttonStyle(.bordered).controlSize(.large).disabled(busy)
+                        Button { onAnswer(option) } label: { Text(verbatim: option) }
+                            .buttonStyle(AnswerChipStyle()).disabled(busy)
                     }
                 }
             }

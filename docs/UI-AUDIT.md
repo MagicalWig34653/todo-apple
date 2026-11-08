@@ -183,3 +183,21 @@ Methode: Simulator-Klone (iPhone 17 Pro, iPad Pro 13"), Backend `.build/debug/Ap
 - `testAccessibilityAuditQuickAdd` war auch auf `f84f055` (vor den UI-Paketen) rot, gleiche Meldung ("VerticalTextView is too small", 370 x 54,7 pt): keine Regression der UI-Pakete, sondern ein älterer Befund. Behoben: Beschreibungsfeld im `QuickAddSheet` mit `lineLimit(2...5)` und `frame(minHeight: TapTarget.minimum)` (Identifier unverändert). Danach 3 von 3 Läufen grün; ganze Klasse: 7 Tests, 6 bestanden, 1 übersprungen (iPad), 0 Fehler. `lineLimit(1...3)` mit minHeight allein reichte nicht.
 - Thumbnail: `RemoteImage` zeigt Bilder mit einer Kantenlänge unter 16 px (z. B. das 1x1-px-Demobild) als neutralen Platzhalter mit Foto-Symbol statt als aufgezogenen Farbblock. Nur gebaut, nicht erneut angesehen.
 - Builds iOS und macOS nach den Änderungen grün.
+
+## Nachher: Für dich, lange Antworten (08.11.2026, Branch `ui-fuerdich-fix`, Basis `001c710`)
+
+Methode: iPhone 18 Pro (iOS 27.0, eigener Simulator), Backend `.build/debug/App` (SQLite, Port 28795), Demodaten per `testSeedDemoData` mit neuem Schalter `TODO_LIVE_SEED_LONG=1` (Rückfrage mit 170-Zeichen-Option und Kompositum-Option, Freitext-Rückfrage, beantwortete Rückfrage mit mehrzeiliger Antwort). Alles per DEBUG-Deep-Link (`TODO_DEBUG_SELECT=feed`, neu: `TODO_DEBUG_FEED_POSTS=1` blendet "Braucht dich" aus, weil `simctl` nicht scrollen kann). Screenshots (900 px) in `docs/screenshots/fuerdich/`.
+
+**Ursache (vorher, `iphone-before-feed-light.png`):** `FlowLayout` (CommandCenterParts) maß jede Antwort-Kapsel mit `.unspecified` und platzierte sie ebenso. Lange Optionen wurden dadurch einzeilig in Idealbreite (weit über den Bildschirm) und `lineLimit(2)` griff nie. Die Kapseln (`.bordered` auf getönter Karte) waren zudem grau auf grau.
+
+**Behoben:**
+- `FlowLayout` schlägt jedem Kind die verfügbare Breite vor und platziert mit der gemessenen Größe: lange Texte brechen um und enden mit Auslassung, nichts wird breiter als die Karte (betrifft Für dich und Steuerzentrale/`QuestionAnswerView`).
+- Neuer `AnswerChipStyle`: Markentönung 12 %, 1-pt-Markenrahmen, Primärtext, Radius.m, mindestens 44 pt, `lineLimit(3)` mit Tail-Truncation. Ersetzt die blassen Kapseln; die Hauptaktion einer Karte (Annehmen) bleibt gefüllt.
+- Für dich: Beschreibung/Antwort einer Karte `lineLimit(2)` bis `(3)`, Frage `lineLimit(5)`, Metazeile `lineLimit(2)`; volle Antwort im Detail (Tipp auf die Karte). Symbole der Karten auf `.subheadline`, damit das Sprechblasen-Symbol nicht aus der 24-pt-Spalte ragt.
+- Previews "Feed lange Antworten" (Light, Dark, accessibility5).
+
+**Gesehen (nachher):** `iphone-after-feed-light.png` (lange Optionen umbrechen, 3. Zeile mit "…", Kompositum trennt am Silbenende), `iphone-a-feed-dark.png`, `iphone-a-feed-light-ax.png` (accessibility-extra-large, nichts abgeschnitten außer Meta mit Auslassung), `iphone-after-feed-posts-light.png` (beantwortete Rückfrage: Antwort 2 Zeilen mit "…"). Weitere Seiten angesehen: Heute (`iphone-a-today-light.png`), Steuerzentrale (`...a-cc-light.png`), Projekt (`...a-project-light.png`), Aufgabendetail (`...a-task-light.png`), Konto (`...a-account-light.png`): keine zu breiten Elemente, kein abgeschnittener Text im Standardzustand.
+
+**Beobachtet, nicht geändert:** Aufgabendetail: unter einem Erinnerungs-Chip steht wegen der 44-pt-Trefferfläche eine hohe Leerzeile; Senden-Pfeil (deaktiviert) blass; Tab-Leiste überlagert beim Scrollen Text (iOS-26-Material); Steuerzentrale-Spalte "Läuft" (leer) neben breiten Karten wirkt unruhig.
+
+**Lücken:** nur iPhone; iPad und macOS nicht angesehen (macOS nur gebaut); Steuerzentrale-Tab "Fragen" und Listenmodus mit den neuen Kapseln nicht angesehen (gleiche Komponente); Dunkel/AX nur Für dich; Heute, Task, Konto nur hell/medium; kein echtes Tippen/Scrollen.
