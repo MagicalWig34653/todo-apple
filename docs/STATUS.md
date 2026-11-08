@@ -296,3 +296,5 @@ Stand ec3ff59 hochgeladen: iOS 2610311632 (UUID a0eb6018-3c86-4c43-ae1b-cc8e66d2
 
 ## Checkpoint TestFlight-Upload (2026-11-07)
 Stand adb01e8 hochgeladen: iOS 2611071735 (UUID d64fc499-5026-46cd-91fa-f8d882d17d91), macOS 2611071736 (UUID 578b812a-f448-40dc-9790-da3bc950aae9), Version 0.1.0. Vorab geprueft: Builds, UI-Tests 6/7 gruen (1 iPad-only uebersprungen), TodoCore 192 Tests/0 Fehler. Nicht gesehen: macOS-Fenster, echtes Tippen. Verarbeitung in App Store Connect nicht geprueft. Hinweis: Homebrew-rsync vor /usr/bin im PATH bricht den Export (siehe docs/TESTFLIGHT.md).
+
+- Projektlokaler Skill `.claude/skills/swiftui-expert/`: gekürzte Adaption von AvdLee/SwiftUI-Agent-Skill (MIT, https://github.com/AvdLee/SwiftUI-Agent-Skill). Gekürzt: Trace-/Profiling-Workflows, Liquid Glass, Duo/iOS 27.1 (ArrangementView, Reserved Regions, Zwei-Spalten-Reflow), Verweise auf nicht übernommene Referenzen, scripts/. Ergänzt: Projektregeln Todolino, hig-kernregeln.md.
