@@ -104,3 +104,11 @@ Aus sauberem Stand (main adb01e8), Version 0.1.0, Bundle-ID `de.linolaske.todo`.
 - Trockenlauf (Export ohne Upload, Build 2611071733): IPA entstand, Bundle-ID/Version/Build im Archiv geprueft.
 - Stolperstein: Mit Homebrew-`rsync` 3.x vor `/usr/bin` im PATH scheitert der Export ("exportArchive Copy failed", `--extended-attributes: unknown option`). Loesung: `PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin` setzen.
 - Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
+
+## Upload Stand 0cf0162 (2026-11-08, Universal Purchase)
+Aus sauberem Stand (main 0cf0162), Version 0.1.0, Bundle-ID `de.linolaske.todo`, Signatur ueber das Xcode-Konto (`-allowProvisioningUpdates`), `PATH=/usr/bin:/bin:$PATH` wegen Homebrew-rsync.
+- iOS: Build 2611081645, "Upload succeeded", Delivery UUID `4baeb77d-50a9-404d-ba88-618a420d7f93`, Exit 0.
+- macOS: Build 2611081650, "Upload succeeded", Delivery UUID `54f6f42d-7cbb-4cbf-961c-da00958d52a1`, Exit 0.
+- Trockenlaeufe (Export ohne Upload): iOS Build 2611081633, macOS Build 2611081640, jeweils ARCHIVE und EXPORT SUCCEEDED, Exit 0.
+- Die Delivery UUID steht nicht im Konsolenlog, sondern in `ContentDelivery.log` des `.xcdistributionlogs`-Bundles (in `/var/folders/.../T/`).
+- Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
