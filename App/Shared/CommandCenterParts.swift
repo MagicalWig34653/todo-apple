@@ -54,6 +54,17 @@ enum LanePresentation {
     }
 }
 
+/// Agent state in task rows and board cards: lane symbol in the lane color plus the lane name, never color alone.
+/// Question and review need the person, so their text stays primary; "Läuft" is informational and secondary.
+struct AgentStateItem: View {
+    let state: TaskAgentState
+    var body: some View {
+        MetaItem(symbol: LanePresentation.symbol(state.rawValue), text: LanePresentation.name(state.rawValue),
+                 tint: LanePresentation.color(state.rawValue), textTint: state == .running ? Color.textSecondary : Color.primary)
+            .fontWeight(state == .running ? nil : .semibold)
+    }
+}
+
 enum CommandFormat {
     static func relative(_ date: Date?) -> String {
         guard let date else { return "" }

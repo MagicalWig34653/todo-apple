@@ -326,6 +326,7 @@ struct BoardCard: View {
     private var summary: String {
         var parts: [String] = []
         if checked { parts.append(String(localized: "a11y.done")) }
+        if let agent = meta.agentState(for: task) { parts.append(LanePresentation.name(agent.rawValue)) }
         if let p = planning?.priority, p > 0 { parts.append(TaskRow.priorityText(p)) }
         if let due = planning?.dueAt { parts.append(String(localized: "a11y.due \(DueFormat.text(due))")) }
         if let sub = meta.subtaskProgress[task.id] { parts.append(String(localized: "a11y.subtasks \(sub.done) \(sub.total)")) }
@@ -339,9 +340,11 @@ struct BoardCard: View {
         let due = planning?.dueAt
         let sub = meta.subtaskProgress[task.id]
         let priority = planning?.priority ?? 0
-        if due != nil || !labels.isEmpty || sub != nil || (priority > 0 && !task.isDone) {
+        let agent = meta.agentState(for: task)
+        if agent != nil || due != nil || !labels.isEmpty || sub != nil || (priority > 0 && !task.isDone) {
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(spacing: Space.s))
             layout {
+                if let agent { AgentStateItem(state: agent) }
                 if priority > 0 && !task.isDone {
                     MetaItem(symbol: "flag.fill", text: "P\(4 - priority)", tint: Color.priority(priority), textTint: Color.textSecondary)
                 }
