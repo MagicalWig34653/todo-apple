@@ -407,7 +407,7 @@ struct ReviewDecisionView: View {
                 // Narrow board columns: side by side only when both labels fit on one line, otherwise stacked
                 // (a squeezed prominent button degrades into a circle).
                 let accept = Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
-                    .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Color.brand).foregroundStyle(Color.onBrand).controlSize(.large).disabled(busy)
                 let changes = Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
                     .buttonStyle(.bordered).controlSize(.large).disabled(busy)
                 ViewThatFits(in: .horizontal) {

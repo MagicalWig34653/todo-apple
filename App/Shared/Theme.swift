@@ -33,18 +33,12 @@ extension Color {
         }
     }
 
-    /// Stable project dot color derived from the project id (the server has no project colors yet).
+    /// Stable project dot color derived from the project id (the server has no project colors yet). Ten asset colors `Project0`...`Project9` with dark and high-contrast variants.
     static func project(_ id: UUID?) -> Color {
         guard let id else { return Color("PriorityP4") }
-        let palette: [Color] = [
-            Color(red: 0.86, green: 0.30, blue: 0.25), Color(red: 0.92, green: 0.54, blue: 0.04),
-            Color(red: 0.76, green: 0.65, blue: 0.10), Color(red: 0.27, green: 0.68, blue: 0.36),
-            Color(red: 0.16, green: 0.67, blue: 0.67), Color(red: 0.14, green: 0.44, blue: 0.88),
-            Color(red: 0.42, green: 0.35, blue: 0.85), Color(red: 0.72, green: 0.32, blue: 0.78),
-            Color(red: 0.88, green: 0.32, blue: 0.55), Color(red: 0.45, green: 0.45, blue: 0.48),
-        ]
+        let paletteCount = 10
         let sum = withUnsafeBytes(of: id.uuid) { $0.enumerated().reduce(0) { ($0 &* 131 &+ Int($1.element) &+ $1.offset) & 0xFFFFFF } }
-        return palette[sum % palette.count]
+        return Color("Project\(sum % paletteCount)")
     }
 }
 
@@ -202,14 +196,14 @@ extension Font {
     static let detailTitle = Font.system(.title2, design: .rounded).weight(.bold)
 }
 
-/// Tinted tile colors for sidebar and property icons (fixed hues, each at least 3.2:1 against the white glyph).
+/// Tinted tile colors for sidebar and property icons (asset colors `Tile*`: at least 3.2:1 against the white glyph, 4.5:1 with increased contrast).
 extension Color {
-    static let tileBlue = Color(red: 0.20, green: 0.48, blue: 0.95)
-    static let tileGreen = Color(red: 0.18, green: 0.64, blue: 0.36)
-    static let tileOrange = Color(red: 0.80, green: 0.48, blue: 0.10)
-    static let tilePurple = Color(red: 0.52, green: 0.38, blue: 0.90)
-    static let tileTeal = Color(red: 0.10, green: 0.61, blue: 0.65)
-    static let tileGray = Color(red: 0.50, green: 0.52, blue: 0.56)
+    static let tileBlue = Color("TileBlue")
+    static let tileGreen = Color("TileGreen")
+    static let tileOrange = Color("TileOrange")
+    static let tilePurple = Color("TilePurple")
+    static let tileTeal = Color("TileTeal")
+    static let tileGray = Color("TileGray")
 }
 
 /// Raised surface with a hairline border and a soft shadow (cards, grouped property blocks).
