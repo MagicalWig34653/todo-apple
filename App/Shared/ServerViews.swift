@@ -56,7 +56,7 @@ struct ProjectCommentsView: View {
                                 Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
                                 if let d = c.createdAt { Text(d, style: .relative).font(.caption).foregroundStyle(Color.textSecondary) }
                             }
-                            Text(verbatim: c.body).font(.subheadline).textSelection(.enabled)
+                            MarkdownText(c.body).font(.subheadline).textSelection(.enabled)
                         }
                     }
                     .swipeActions {
@@ -282,7 +282,7 @@ struct AgentsView: View {
                                 .foregroundStyle(Self.tint(item.job.state))
                         }
                         if let p = item.job.progress, !p.isEmpty { Text(verbatim: p).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(2) }
-                        if let r = item.job.result { Text(verbatim: r.summary).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3) }
+                        if let r = item.job.result { MarkdownText(r.summary).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3) }
                         AdaptiveStack(spacing: Space.xs) {
                             ProjectDot(id: item.job.projectID, size: 7)
                             Text(verbatim: item.projectName)

@@ -68,7 +68,7 @@ enum DebugLaunch {
     }
     #endif
 
-    /// `TODO_DEBUG_SELECT`: today | upcoming | search | teams | project:<name> | task:<title>
+    /// `TODO_DEBUG_SELECT`: feed | projects | today | upcoming | inbox | search | teams | project:<name> | task:<title>
     static func navigate(model: AppModel) async {
         guard let target = env["TODO_DEBUG_SELECT"] else { return }
         for _ in 0..<50 where model.phase != .signedIn { try? await Task.sleep(for: .milliseconds(100)) }
@@ -77,6 +77,7 @@ enum DebugLaunch {
         defer { Task { await runActions(model: model) } }
         switch target {
         case "feed": model.selection = .feed
+        case "projects", "browse": model.selection = .projects
         case "inbox": model.selection = .inbox
         case "today": model.selection = .today
         case "upcoming": model.selection = .upcoming

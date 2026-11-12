@@ -347,7 +347,7 @@ struct UpdatesSection: View {
                                 }
                                 .font(.subheadline)
                                 if let text = update.text, !text.isEmpty {
-                                    Text(verbatim: text).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3)
+                                    MarkdownText(text).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(3)
                                 }
                                 HStack(spacing: Space.s) {
                                     Text(verbatim: update.projectName)

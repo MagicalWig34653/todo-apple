@@ -2,6 +2,156 @@
   "sourceLanguage": "de",
   "version": "1.0",
   "strings": {
+    "lage.label": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lage der Agenten-Kapazität"
+          }
+        }
+      }
+    },
+    "lage.claude": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude"
+          }
+        }
+      }
+    },
+    "lage.accounts %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nutzbar"
+          }
+        }
+      }
+    },
+    "lage.noAccounts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "keine Konten nutzbar"
+          }
+        }
+      }
+    },
+    "lage.codex": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
+          }
+        }
+      }
+    },
+    "lage.codexUsed %@ %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ von %@ erlaubt"
+          }
+        }
+      }
+    },
+    "lage.codexUsedOnly %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ verbraucht"
+          }
+        }
+      }
+    },
+    "lage.disk": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Platte"
+          }
+        }
+      }
+    },
+    "lage.diskFree %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ GB frei"
+          }
+        }
+      }
+    },
+    "lage.ago %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vor %lld min"
+          }
+        }
+      }
+    },
+    "lage.agoNow": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gerade eben"
+          }
+        }
+      }
+    },
+    "lage.stale": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "veraltet"
+          }
+        }
+      }
+    },
+    "lage.ampel.gruen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grün"
+          }
+        }
+      }
+    },
+    "lage.ampel.gelb": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelb"
+          }
+        }
+      }
+    },
+    "lage.ampel.rot": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rot"
+          }
+        }
+      }
+    },
     "account": {
       "localizations": {
         "de": {
@@ -4858,6 +5008,146 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aktivität"
+          }
+        }
+      }
+    },
+    "agent.section.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "agent.criteria %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterien %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "agent.criterion.done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfüllt"
+          }
+        }
+      }
+    },
+    "agent.criterion.open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offen"
+          }
+        }
+      }
+    },
+    "account.menu": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto und Einstellungen"
+          }
+        }
+      }
+    },
+    "forYou.a11y.summary %lld %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld laufen, %2$lld Fragen, %3$lld Reviews"
+          }
+        }
+      }
+    },
+    "forYou.agents": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenten"
+          }
+        }
+      }
+    },
+    "forYou.openCommandCenter": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steuerzentrale"
+          }
+        }
+      }
+    },
+    "forYou.questions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fragen"
+          }
+        }
+      }
+    },
+    "forYou.reviews": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviews"
+          }
+        }
+      }
+    },
+    "forYou.today.all": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle in Planen"
+          }
+        }
+      }
+    },
+    "project.agents": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenten"
+          }
+        }
+      }
+    },
+    "view.plan": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planen"
+          }
+        }
+      }
+    },
+    "view.projects": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte"
           }
         }
       }

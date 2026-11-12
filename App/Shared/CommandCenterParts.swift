@@ -313,7 +313,7 @@ struct QuestionAnswerView: View {
                 Image(systemName: "questionmark.bubble.fill").foregroundStyle(Color.priority(2)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
-                    Text(verbatim: prompt).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                    MarkdownText(prompt).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: Space.s) {
                         if let asker { Text(verbatim: asker) }
                         if askedAt != nil { Text(verbatim: CommandFormat.relative(askedAt)) }
@@ -375,7 +375,7 @@ struct ReviewDecisionView: View {
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text("cc.review.title").font(.subheadline.weight(.semibold))
-                    Text(verbatim: summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                    MarkdownText(summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: Space.s) {
                         if let requestedBy { Text(verbatim: requestedBy) }
                         if requestedAt != nil { Text(verbatim: CommandFormat.relative(requestedAt)) }
@@ -516,7 +516,7 @@ struct CommandCardView: View {
 
     private func latest(_ update: CommandCardUpdate) -> some View {
         VStack(alignment: .leading, spacing: Space.xxs) {
-            Text(verbatim: update.text).font(.footnote).lineLimit(3).foregroundStyle(.primary.opacity(0.85))
+            MarkdownText(update.text).font(.footnote).lineLimit(3).foregroundStyle(.primary.opacity(0.85))
             HStack(spacing: Space.xs) {
                 if let who = update.actorLabel { Text(verbatim: who) }
                 if update.at != nil { Text(verbatim: CommandFormat.relative(update.at)) }
