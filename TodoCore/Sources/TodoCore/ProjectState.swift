@@ -12,6 +12,9 @@ public struct FavoriteEntry: Codable, Sendable, Equatable {
 
 struct FavoritesResponse: Codable, Sendable { let items: [FavoriteEntry] }
 
+/// Classic = plain to-do list/board; management = overview, agents, dependencies, milestones (per project and account).
+public enum ProjectMode: String, Codable, Sendable, CaseIterable { case classic, management }
+
 /// The account's display settings for one project. `revision` 0 = never written (defaults).
 public struct ProjectDisplayPrefs: Codable, Sendable, Equatable {
     public enum View: String, Codable, Sendable, CaseIterable { case list, board }
@@ -23,6 +26,10 @@ public struct ProjectDisplayPrefs: Codable, Sendable, Equatable {
     public var sort: String
     public var grouping: String
     public var showCompleted: Bool
+    /// `classic` or `management`; nil on servers before the switch.
+    public var mode: String?
+    /// `user` (chosen) or `default` (derived by the server from agent brief, bindings or open agent questions).
+    public var modeSource: String?
     public var isFavorite: Bool
     public var favoritePosition: Int?
     public var revision: Int
@@ -31,17 +38,20 @@ public struct ProjectDisplayPrefs: Codable, Sendable, Equatable {
     /// Server defaults: `list`, `manual`, `column`, completed shown.
     public init(
         projectID: UUID, view: String = View.list.rawValue, sort: String = Sort.manual.rawValue,
-        grouping: String = Grouping.column.rawValue, showCompleted: Bool = true, isFavorite: Bool = false,
+        grouping: String = Grouping.column.rawValue, showCompleted: Bool = true, mode: String? = nil, modeSource: String? = nil, isFavorite: Bool = false,
         favoritePosition: Int? = nil, revision: Int = 0, updatedAt: Date? = nil
     ) {
         self.projectID = projectID; self.view = view; self.sort = sort; self.grouping = grouping
-        self.showCompleted = showCompleted; self.isFavorite = isFavorite; self.favoritePosition = favoritePosition
+        self.showCompleted = showCompleted; self.mode = mode; self.modeSource = modeSource; self.isFavorite = isFavorite; self.favoritePosition = favoritePosition
         self.revision = revision; self.updatedAt = updatedAt
     }
 
     public var viewMode: View { View(rawValue: view) ?? .list }
     public var sortMode: Sort { Sort(rawValue: sort) ?? .manual }
     public var groupMode: Grouping { Grouping(rawValue: grouping) ?? .column }
+    /// Effective mode. Without a value (older server, unknown project, unknown value) everything stays visible, as
+    /// before the switch: management.
+    public var projectMode: ProjectMode { mode.flatMap(ProjectMode.init(rawValue:)) ?? .management }
 }
 
 struct ProjectPrefsList: Codable, Sendable { let items: [ProjectDisplayPrefs] }
@@ -52,16 +62,17 @@ public struct ProjectPrefsPatch: Codable, Sendable, Equatable {
     public var sort: String?
     public var grouping: String?
     public var showCompleted: Bool?
-    public init(view: String? = nil, sort: String? = nil, grouping: String? = nil, showCompleted: Bool? = nil) {
-        self.view = view; self.sort = sort; self.grouping = grouping; self.showCompleted = showCompleted
+    public var mode: String?
+    public init(view: String? = nil, sort: String? = nil, grouping: String? = nil, showCompleted: Bool? = nil, mode: String? = nil) {
+        self.view = view; self.sort = sort; self.grouping = grouping; self.showCompleted = showCompleted; self.mode = mode
     }
-    public var isEmpty: Bool { view == nil && sort == nil && grouping == nil && showCompleted == nil }
+    public var isEmpty: Bool { view == nil && sort == nil && grouping == nil && showCompleted == nil && mode == nil }
 
     /// Later changes win field by field.
     public func merged(with later: ProjectPrefsPatch) -> ProjectPrefsPatch {
         ProjectPrefsPatch(
             view: later.view ?? view, sort: later.sort ?? sort, grouping: later.grouping ?? grouping,
-            showCompleted: later.showCompleted ?? showCompleted)
+            showCompleted: later.showCompleted ?? showCompleted, mode: later.mode ?? mode)
     }
 
     public func applied(to prefs: ProjectDisplayPrefs) -> ProjectDisplayPrefs {
@@ -70,6 +81,7 @@ public struct ProjectPrefsPatch: Codable, Sendable, Equatable {
         if let sort { p.sort = sort }
         if let grouping { p.grouping = grouping }
         if let showCompleted { p.showCompleted = showCompleted }
+        if let mode { p.mode = mode; p.modeSource = "user" }
         return p
     }
 }
@@ -77,7 +89,7 @@ public struct ProjectPrefsPatch: Codable, Sendable, Equatable {
 struct PrefsPatchBody: Encodable {
     let revision: Int
     let patch: ProjectPrefsPatch
-    enum CodingKeys: String, CodingKey { case revision, view, sort, grouping, showCompleted }
+    enum CodingKeys: String, CodingKey { case revision, view, sort, grouping, showCompleted, mode }
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(revision, forKey: .revision)
@@ -85,6 +97,7 @@ struct PrefsPatchBody: Encodable {
         try c.encodeIfPresent(patch.sort, forKey: .sort)
         try c.encodeIfPresent(patch.grouping, forKey: .grouping)
         try c.encodeIfPresent(patch.showCompleted, forKey: .showCompleted)
+        try c.encodeIfPresent(patch.mode, forKey: .mode)
     }
 }
 
@@ -223,8 +236,10 @@ extension APIClient {
     // MARK: Display preferences
 
     /// Only projects that were written at least once; everything else uses the defaults.
-    public func projectPrefs() async throws -> [ProjectDisplayPrefs] {
-        (try await send("GET", "v1/me/project-prefs") as ProjectPrefsList).items
+    /// With `includeDefaults` every visible project, unwritten ones with the server's defaults (incl. the derived mode).
+    public func projectPrefs(includeDefaults: Bool = false) async throws -> [ProjectDisplayPrefs] {
+        let query: [URLQueryItem] = includeDefaults ? [.init(name: "includeDefaults", value: "true")] : []
+        return (try await send("GET", "v1/me/project-prefs", query: query) as ProjectPrefsList).items
     }
 
     public func projectPrefs(for id: UUID) async throws -> ProjectDisplayPrefs {
