@@ -167,6 +167,35 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(overview.waitForExistence(timeout: 5))
     }
 
+    /// Lage-Ampel: the row on "Für dich" shows Claude, Codex, disk and the age; test data come from the debug stub.
+    private func relaunchForYou(statusAge: Int) {
+        app.terminate()
+        app.launchEnvironment["TODO_DEBUG_SELECT"] = "feed"
+        app.launchEnvironment["TODO_DEBUG_SYSTEM_STATUS"] = #"{"status":{"claude_ampel":"gelb","claude_nutzbare_konten":[4,7],"codex":{"verbraucht_pct":5,"erlaubt_bis_jetzt_pct":19.2,"freigabe":true},"platte_ampel":"gruen","platte_frei_gb":104.9}}"#
+        app.launchEnvironment["TODO_DEBUG_SYSTEM_STATUS_AGE"] = String(statusAge)
+        app.launch()
+    }
+
+    func testForYouShowsSystemStatusRow() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar; the iPad shows the row in the sidebar")
+        relaunchForYou(statusAge: 3)
+        XCTAssertTrue(app.descendants(matching: .any)["systemStatus.row"].waitForExistence(timeout: 20), "status row")
+        let row = app.descendants(matching: .any)["systemStatus.row"]
+        XCTAssertTrue(row.label.contains("4, 7 nutzbar"), row.label)
+        XCTAssertTrue(row.label.contains("104,9 GB frei"), row.label)
+        XCTAssertTrue(row.label.contains("vor 3 min"), row.label)
+        XCTAssertFalse(app.descendants(matching: .any)["systemStatus.stale"].exists)
+        try audit("feed") // same known element-less finding under the tab bar as the feed audit
+    }
+
+    func testSystemStatusRowTurnsGreyWhenStale() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar; the iPad shows the row in the sidebar")
+        relaunchForYou(statusAge: 45)
+        let row = app.descendants(matching: .any)["systemStatus.stale"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "stale row")
+        XCTAssertTrue(row.label.contains("veraltet"), row.label)
+    }
+
     /// "Planen" keeps Heute, Anstehend and Eingang as segments, and labels/filters via the toolbar.
     func testPlanKeepsTodayUpcomingInboxAndLabels() throws {
         try XCTSkipIf(isPad(), "iPhone tab bar")

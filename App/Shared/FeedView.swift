@@ -9,6 +9,8 @@ struct FeedView: View {
     @Environment(TaskMeta.self) private var meta
     @Environment(\.scenePhase) private var scenePhase
     var showsAgentOverview = true
+    /// iPhone tab only; on iPad and Mac the sidebar carries the Lage-Ampel.
+    var showsSystemStatus = false
     @State private var model = FeedModel()
     @State private var shown: FeedImage?
 
@@ -40,6 +42,7 @@ struct FeedView: View {
         let today = showsAgentOverview ? todayTasks : []
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.m) {
+                if showsSystemStatus { SystemStatusBar() }
                 if showsAgentOverview { AgentOverviewCard() }
                 if model.unsupported {
                     EmptyState(symbol: "icloud.slash", title: "feed.unsupported", message: "feed.unsupportedHint").padding(.top, Space.xxl)
@@ -54,7 +57,9 @@ struct FeedView: View {
                     if !model.state.posts.isEmpty { posts }
                 }
             }
-            .pageMargins().padding(.vertical, Space.m)
+            .pageMargins().padding(.top, Space.m)
+            // Extra room below the last card: the floating "+" must never sit on the card's buttons at the end of the scroll.
+            .padding(.bottom, Space.xl + Space.m)
             .readableWidth()
         }
         .background(Color.canvas)
@@ -63,6 +68,7 @@ struct FeedView: View {
         .navigationTitle("view.feed")
         .refreshable { await reload() }
         .task { await reload() }
+        .task { if showsSystemStatus { await app.systemStatus.poll(app) } }
         .onChange(of: scenePhase) { _, phase in if phase == .active, showsAgentOverview { Task { await app.refreshCommandSummary() } } }
         .sheet(item: $shown) { image in
             NavigationStack {

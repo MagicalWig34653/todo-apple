@@ -220,7 +220,7 @@ struct PhoneTabs: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            stack(.forYou) { FeedView(showsAgentOverview: true) }
+            stack(.forYou) { FeedView(showsAgentOverview: true, showsSystemStatus: true) }
                 .tabItem { Label("view.feed", systemImage: "sparkles") }.tag(PhoneTab.forYou)
                 .badge(model.attentionCount)
             stack(.projects) { ProjectsHome() }

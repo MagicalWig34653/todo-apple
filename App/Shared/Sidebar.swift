@@ -38,6 +38,8 @@ struct SidebarList: View {
         let counts = openCounts
         List(selection: $model.selection) {
             if !projectsOnly {
+                // Lage-Ampel; hidden without a report. Clear row background: the bar draws its own card surface.
+                Section { SystemStatusBar().listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: Space.xs, leading: Space.s, bottom: Space.xs, trailing: Space.s)) }
                 Section {
                     Button { actions.addTask() } label: {
                         HStack(spacing: Space.s) {
@@ -113,6 +115,7 @@ struct SidebarList: View {
         .scrollContentBackground(.hidden)
         .background(Color.canvasRaised)
         .safeAreaInset(edge: .top, spacing: 0) { if !projectsOnly { AccountHeader() } }
+        .task { if !projectsOnly { await model.systemStatus.poll(model) } }
         .task { await model.reloadTeams(); await model.refreshCommandSummary() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await model.refreshCommandSummary() } } }
     }

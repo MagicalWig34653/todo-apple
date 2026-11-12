@@ -527,6 +527,9 @@ final class AppModel {
     var commandSummary: CommandSummary?
     var attentionCount: Int { (commandSummary?.openQuestions ?? 0) + (commandSummary?.pendingReviews ?? 0) }
 
+    /// Lage-Ampel of the watcher (bar on "Für dich" and in the sidebar).
+    let systemStatus = SystemStatusModel()
+
     /// Up to three cards of the "Läuft" lane for the agent overview on "Für dich".
     var runningCards: [CommandCard] = []
 
