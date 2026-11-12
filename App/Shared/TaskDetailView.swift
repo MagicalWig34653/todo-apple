@@ -16,6 +16,12 @@ final class TaskDetailModel {
     var context: TaskContext?
     var agentBusy = false
     var loaded = false
+    /// Acceptance criteria (editable here, like the PWA); kept apart from `context` so edits show at once.
+    var criteria: [TaskCriterion] = []
+    var criteriaBusy = false
+    /// Prerequisites and the milestone of the card (read only); empty while offline or on servers without them.
+    var dependencies: [TodoTask] = []
+    var milestone: MilestoneWithTasks?
 
     init(task: TodoTask) {
         self.task = task
@@ -26,6 +32,52 @@ final class TaskDetailModel {
         guard let client = app.client, let context = try? await client.taskContext(task.id) else { return }
         subtasks = context.subtasks
         if self.context != context { self.context = context }
+        if criteria != context.criteria, !criteriaBusy { criteria = context.criteria }
+    }
+
+    // MARK: Acceptance criteria
+
+    func addCriterion(_ text: String, _ app: AppModel) async {
+        guard let client = app.client, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        criteriaBusy = true; defer { criteriaBusy = false }
+        do { criteria = criteria.replacing(try await client.createCriterion(taskID: task.id, text: text)) }
+        catch { await app.handle(error) }
+    }
+
+    /// Ticks or edits; a version conflict reloads the list and leaves the decision to the user.
+    func updateCriterion(_ c: TaskCriterion, text: String? = nil, completed: Bool? = nil, _ app: AppModel) async {
+        guard let client = app.client else { return }
+        criteriaBusy = true; defer { criteriaBusy = false }
+        do {
+            criteria = criteria.replacing(try await client.updateCriterion(taskID: task.id, id: c.id, version: c.version, text: text, completed: completed))
+            if completed == true { Haptics.success() }
+        } catch {
+            await app.handle(error)
+            if let fresh = try? await client.criteria(taskID: task.id) { criteria = fresh }
+        }
+    }
+
+    func deleteCriterion(_ c: TaskCriterion, _ app: AppModel) async {
+        guard let client = app.client else { return }
+        criteriaBusy = true; defer { criteriaBusy = false }
+        do {
+            try await client.deleteCriterion(taskID: task.id, id: c.id, version: c.version)
+            criteria.removeAll { $0.id == c.id }
+        } catch {
+            await app.handle(error)
+            if let fresh = try? await client.criteria(taskID: task.id) { criteria = fresh }
+        }
+    }
+
+    /// Prerequisites and milestone; failures (older server, offline) just leave the section out.
+    func loadLinks(_ app: AppModel) async {
+        guard let client = app.client else { return }
+        async let d = try? client.dependencies(taskID: task.id)
+        async let m = try? client.milestones(projectID: task.projectID)
+        let (deps, stones) = await (d, m)
+        if let deps, deps != dependencies { dependencies = deps }
+        let mine = stones?.milestone(of: task.id)
+        if mine != milestone { milestone = mine }
     }
 
     func answer(_ question: Question, with text: String, _ app: AppModel) async {
@@ -101,6 +153,7 @@ final class TaskDetailModel {
             labels = Self.applyOutbox(try await l.items, task: task.id, known: allLabels, app.outboxSnapshot)
             loaded = true
             await loadSubtasks(app)
+            await loadLinks(app)
         } catch APIError.transport {
             offlineFallback(app, meta)
         } catch { await app.handle(error) }
@@ -119,7 +172,9 @@ final class TaskDetailModel {
         if let context = try? await client.taskContext(task.id) {
             if subtasks != context.subtasks { subtasks = context.subtasks }
             if self.context != context { self.context = context }
+            if criteria != context.criteria, !criteriaBusy { criteria = context.criteria }
         }
+        await loadLinks(app)
     }
 
     /// Offline: show the cached planning/labels with the unsent edits on top.
@@ -216,15 +271,27 @@ struct TaskDetailView: View {
     private func priorityLabel(_ p: Int) -> Text { Text(TaskRow.priorityName(p)) }
 
     private var project: Project? { app.projects.first { $0.id == model.task.projectID } }
+    private var management: Bool { app.mode(for: model.task.projectID) == .management }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.l) {
                 header
-                if let context = model.context, AgentContextCard.hasContent(context) {
+                if management, let context = model.context, AgentContextCard.hasContent(context) {
                     AgentContextCard(context: context, busy: model.agentBusy,
                                      onAnswer: { q, text in Task { await model.answer(q, with: text, app) } },
                                      onDecide: { d, note in Task { await model.decide(d, note: note, app) } })
+                }
+                // Classic projects keep the short to-do detail; criteria still show once a card has some.
+                if model.loaded, management || !model.criteria.isEmpty {
+                    CriteriaCard(criteria: model.criteria, busy: model.criteriaBusy,
+                                 onAdd: { text in Task { await model.addCriterion(text, app) } },
+                                 onToggle: { c in Task { await model.updateCriterion(c, completed: !c.completed, app) } },
+                                 onEdit: { c, text in Task { await model.updateCriterion(c, text: text, app) } },
+                                 onDelete: { c in Task { await model.deleteCriterion(c, app) } })
+                }
+                if management, !model.dependencies.isEmpty || model.milestone != nil {
+                    PlanningLinksCard(dependencies: model.dependencies, milestone: model.milestone) { t in app.path = [app.tasks.first { $0.id == t.id } ?? t] }
                 }
                 propertiesCard
                 subtasksCard

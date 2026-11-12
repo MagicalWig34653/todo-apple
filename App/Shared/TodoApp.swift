@@ -12,6 +12,7 @@ struct TodoApp: App {
     var body: some Scene {
         WindowGroup("app.title") {
             RootView().environment(model).hapticHost().task { await model.start() }
+                .preferredColorScheme(model.colorScheme.swiftUI)
                 #if os(macOS)
                 .frame(minWidth: 820, minHeight: 560)
                 #endif
@@ -83,6 +84,7 @@ struct AppCommands: Commands {
 /// Settings window (Cmd+,): account, server, version.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @State private var hub = SettingsHubModel()
 
     var body: some View {
         Form {
@@ -92,12 +94,13 @@ struct SettingsView: View {
                 LabeledContent("login.server") { Text(verbatim: model.serverURL).textSelection(.enabled) }
                 LabeledContent("help.version") { Text(verbatim: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }
             }
-            if model.phase == .signedIn { NotificationSettingsSections() }
+            if model.phase == .signedIn { SettingsHubSections(model: hub) }
             if model.phase == .signedIn {
                 Section { Button("logout", role: .destructive) { Task { await model.logout() } } }
             }
         }
         .formStyle(.grouped)
+        .task { if model.phase == .signedIn { await hub.load(model) } }
         .frame(minWidth: 460, idealWidth: 460, minHeight: 480, idealHeight: 560)
     }
 }

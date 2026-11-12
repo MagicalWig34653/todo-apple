@@ -43,7 +43,7 @@ struct AgentContextCard: View {
 
     static func hasContent(_ c: TaskContext) -> Bool {
         c.workflow.claimedLabel != nil || c.workflow.blockedReason?.isEmpty == false || !c.progressNotes.isEmpty
-            || c.questions.contains(where: \.isOpen) || c.review != nil || !c.criteria.isEmpty || !c.builds.isEmpty
+            || c.questions.contains(where: \.isOpen) || c.review != nil || !c.builds.isEmpty
     }
 
     private var openQuestions: [Question] { context.questions.filter(\.isOpen) }
@@ -71,7 +71,6 @@ struct AgentContextCard: View {
                 }
                 ThreadConversation(taskID: context.task.id, thread: .review(review.id), title: "chat.title.review").id(review.id)
             }
-            if !context.criteria.isEmpty { criteria }
             if !context.builds.isEmpty { BuildStrip(builds: context.builds, total: context.builds.count) }
         }
         .padding(Space.m)
@@ -138,23 +137,6 @@ struct AgentContextCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("agent.review.result")
-    }
-
-    private var criteria: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            Text("agent.criteria \(context.criteria.filter(\.completed).count) \(context.criteria.count)")
-                .font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
-            ForEach(context.criteria) { c in
-                Label {
-                    MarkdownText(c.text).font(.subheadline).strikethrough(c.completed)
-                        .foregroundStyle(c.completed ? Color.textSecondary : Color.primary)
-                } icon: {
-                    Image(systemName: c.completed ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(c.completed ? Color.tileGreen : Color.textSecondary)
-                }
-                .accessibilityValue(Text(c.completed ? "agent.criterion.done" : "agent.criterion.open"))
-            }
-        }
     }
 }
 

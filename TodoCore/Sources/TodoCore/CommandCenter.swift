@@ -358,6 +358,10 @@ public struct TaskCriterion: Codable, Sendable, Equatable, Identifiable {
     public let text: String
     public let completed: Bool
     public let version: Int
+
+    public init(id: UUID, taskID: UUID, text: String, completed: Bool, version: Int) {
+        self.id = id; self.taskID = taskID; self.text = text; self.completed = completed; self.version = version
+    }
 }
 
 public struct TaskWorkflow: Codable, Sendable, Equatable {

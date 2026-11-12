@@ -384,8 +384,10 @@ struct LabelTasksView: View {
 
 // MARK: Konto, Agenten/Runner
 
+/// Settings hub (avatar menu "Einstellungen"): account, appearance, notifications, passkeys, sessions, connections, runner.
 struct AccountView: View {
     @Environment(AppModel.self) private var model
+    @State private var hub = SettingsHubModel()
 
     var body: some View {
         List {
@@ -393,13 +395,15 @@ struct AccountView: View {
                 LabeledContent("account.name") { Text(verbatim: model.user?.displayName ?? "") }
                 if let u = model.user?.username { LabeledContent("account.username") { Text(verbatim: u) } }
                 LabeledContent("login.server") { Text(verbatim: model.serverURL).textSelection(.enabled) }
-            }
-            NotificationSettingsSections()
+            } header: { Text("settings.account") }
+            SettingsHubSections(model: hub)
             Section {
                 Button("logout", role: .destructive) { Task { await model.logout() } }
             }
         }
         .navigationTitle("view.account")
+        .task { await hub.load(model) }
+        .refreshable { await hub.load(model) }
     }
 }
 

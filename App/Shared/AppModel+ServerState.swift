@@ -86,11 +86,19 @@ extension AppModel {
     func refreshServerState() async {
         guard let client else { return }
         await flushPrefs()
-        if let list = try? await client.projectPrefs() {
+        // With the defaults the derived project mode (classic/management) of never-written projects is known too.
+        if let list = try? await client.projectPrefs(includeDefaults: true) {
             displayPrefs = Dictionary(list.map { ($0.projectID, $0) }, uniquingKeysWith: { a, _ in a })
             savePrefsCache()
         }
         await importLegacyIfNeeded(client)
+        if let prefs = try? await client.preferences(), prefs.revision > 0 { colorScheme = prefs.appearance.scheme }
+    }
+
+    /// Project view of this account: classic (plain list/board) or management (agents, criteria, dependencies).
+    func mode(for id: UUID?) -> ProjectMode {
+        guard let id else { return .management }
+        return prefs(for: id).projectMode
     }
 
     /// One-time import of the former UserDefaults values (favourites, display options, descriptions) into the
@@ -256,5 +264,16 @@ extension AppModel {
         if await queueChange({ try await $0.moveTask(task.id, toColumn: columnID, index: index) }) { return tasks.first { $0.id == task.id } }
         do { let updated = try await client.moveTask(task.id, version: task.version, toColumn: columnID, index: index); apply(updated); return updated }
         catch { await handle(error); return nil }
+    }
+}
+
+extension ColorSchemeChoice {
+    /// nil = follow the system.
+    var swiftUI: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
     }
 }

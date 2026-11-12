@@ -49,6 +49,10 @@ final class AppModel {
     var teamInvitations: [TeamMembership] = []
     /// Localization key of a transient notice (for example after a version conflict).
     var noticeKey: String?
+    /// Account appearance (`/v1/me/preferences`, shared with the PWA); cached on the device so the app starts in it.
+    var colorScheme: ColorSchemeChoice = ColorSchemeChoice(rawValue: UserDefaults.standard.string(forKey: "appearance.colorScheme") ?? "") ?? .system {
+        didSet { UserDefaults.standard.set(colorScheme.rawValue, forKey: "appearance.colorScheme") }
+    }
 
     // Sync (local store + background sync; REST fallback if the server has no usable sync feed)
     enum SyncStatus { case idle, syncing, offline }

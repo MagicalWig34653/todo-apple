@@ -12,6 +12,31 @@ final class FeedModel {
     private(set) var failed = false
     private(set) var busy: Set<String> = []
     var errorKey: String?
+    /// Confirmations decided in this view, shown with their outcome until the view goes away.
+    private(set) var decided: [(item: FeedConfirmation, result: ActionRequest)] = []
+    private(set) var deciding: Set<UUID> = []
+
+    /// Pending confirmations from the server plus the ones decided here (outcome line), in feed order.
+    var confirmationCards: [(item: FeedConfirmation, result: ActionRequest?)] {
+        let done = Set(decided.map(\.item.id))
+        return decided.map { ($0.item, Optional($0.result)) } + state.confirmations.filter { !done.contains($0.id) }.map { ($0, nil) }
+    }
+
+    /// Confirms (executes) or rejects a request of an agent (ADR 0026).
+    func decide(_ item: FeedConfirmation, confirm: Bool, _ app: AppModel) async {
+        guard let client = app.client, !deciding.contains(item.id) else { return }
+        deciding.insert(item.id)
+        defer { deciding.remove(item.id) }
+        do {
+            let result = confirm ? try await client.confirmActionRequest(item.id) : try await client.rejectActionRequest(item.id)
+            decided.append((item, result))
+            state.remove(confirmationID: item.id)
+            if result.state == .executed { Haptics.success() }
+        } catch APIError.conflict { errorKey = "feed.error.alreadyHandled"
+        } catch APIError.server(410, _) { errorKey = "confirm.done.expired"
+        } catch { errorKey = AppModel.key(for: error) }
+        if confirm { await app.reload() }
+    }
 
     func load(_ app: AppModel) async {
         guard let client = app.client, !loading else { return }

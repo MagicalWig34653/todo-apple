@@ -443,6 +443,25 @@ final class LiveEtappe2Tests: XCTestCase {
                 _ = try await a.answerQuestion(answered.id, answer: "Ja, bitte kürzen. Die Einleitung ist zu lang und wiederholt sich im zweiten Absatz.\n\nZusätzlich sollen die drei Kernaussagen als Liste erscheinen, nicht als Fließtext. Bitte außerdem den Abschnitt zur Firmengeschichte komplett nach unten verschieben, weil ihn kaum jemand liest, und die Überschriften auf maximal sechs Wörter beschränken. Danach noch einmal gegenlesen lassen und die Rechtschreibung prüfen, insbesondere bei den Eigennamen.\n\nUnd bitte nichts am Impressum ändern.")
             }
         }
+        if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_W3"] == "1" {
+            // Wave 3 demo: criteria, a prerequisite, a milestone, project modes and two agent confirmations.
+            let c1 = try await a.createCriterion(taskID: t3.id, text: "Mobil zuerst")
+            _ = try await a.updateCriterion(taskID: t3.id, id: c1.id, version: c1.version, completed: true)
+            _ = try await a.createCriterion(taskID: t3.id, text: "Kontrast mindestens AA")
+            try await a.addDependency(t3.id, prerequisite: e4.id)
+            let beta = try await a.createMilestone(projectID: arbeit.id, title: "Beta-Start", dueAt: nextWeek)
+            try await a.attachMilestone(beta.id, taskID: t3.id)
+            try await a.attachMilestone(beta.id, taskID: t4.id)
+            let prefs = try await a.projectPrefs(includeDefaults: true)
+            for (p, mode) in [(arbeit.id, "management"), (sport.id, "classic")] {
+                _ = try await a.patchProjectPrefs(p, revision: prefs.first { $0.projectID == p }?.revision ?? 0, ProjectPrefsPatch(mode: mode))
+            }
+            let alt = try await a.createProject(name: "Altprojekt")
+            _ = try await a.createTask(projectID: alt.id, title: "Alte Notizen")
+            let mcp = try await LiveMCPConnection.connect(a, name: "Claude Code", projects: [alt.id, sport.id])
+            _ = try await mcp.requestConfirmation("delete_task", ["taskID": e6.id.uuidString])
+            _ = try await mcp.requestConfirmation("delete_project", ["projectID": alt.id.uuidString])
+        }
         let team = try await a.createTeam(name: "Haushalt")
         _ = try await a.inviteMember(teamID: team.id, userID: f.bobUser.id)
         try await f.bob.acceptTeamInvitation(teamID: team.id)
