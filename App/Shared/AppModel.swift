@@ -138,6 +138,7 @@ final class AppModel {
         Task { await DebugLaunch.scheduleLocalPushIfRequested() }
         #if os(macOS)
         DebugLaunch.snapshotIfRequested()
+        if DebugLaunch.renderRequested { Task { await DebugLaunch.renderIfRequested(model: self) } }
         #endif
         defer { Task { await DebugLaunch.navigate(model: self) } }
         #endif

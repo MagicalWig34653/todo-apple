@@ -130,6 +130,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 }
 #elseif canImport(AppKit)
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        // Offscreen rendering run (TODO_DEBUG_RENDER): no window, no activation, no Dock icon.
+        if ProcessInfo.processInfo.environment["TODO_DEBUG_RENDER"] != nil { NSApp.setActivationPolicy(.prohibited) }
+        #endif
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationDelegate.shared.install()
     }

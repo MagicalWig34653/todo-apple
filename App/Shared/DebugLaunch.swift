@@ -4,6 +4,7 @@ import TodoCore
 import UserNotifications
 #if os(macOS)
 import AppKit
+import SwiftUI
 #endif
 
 /// Debug builds only: lets a simulator run start signed in and on a given screen without passkey hardware
@@ -87,6 +88,58 @@ enum DebugLaunch {
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: parts[0]))
             exit(0)
         }
+    }
+    #endif
+
+    #if os(macOS)
+    /// `TODO_DEBUG_RENDER=<dir>[:<seconds>]` (macOS): renders the main view per screen and colour scheme to PNGs with
+    /// `ImageRenderer` and quits. The app runs with activation policy `.prohibited` (see `AppDelegate`), so no window
+    /// appears and nothing is activated. `TODO_DEBUG_RENDER_MODE=hosting` renders an `NSHostingView` in an off-screen
+    /// window (never ordered front) instead, for views whose content loads in `.task`.
+    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil }
+
+    static func renderIfRequested(model: AppModel) async {
+        guard let spec = env["TODO_DEBUG_RENDER"] else { return }
+        let parts = spec.components(separatedBy: ":")
+        let dir = URL(fileURLWithPath: parts[0])
+        let settle = parts.count > 1 ? Double(parts[1]) ?? 6 : 6
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for _ in 0..<100 where model.phase != .signedIn { try? await Task.sleep(for: .milliseconds(100)) }
+        guard model.phase == .signedIn else { exit(3) }
+        await model.reload()
+        let hosting = env["TODO_DEBUG_RENDER_MODE"] == "hosting"
+        let size = CGSize(width: 1280, height: 820)
+        for (name, item) in [("feed", SidebarItem.feed), ("commandcenter", .commandCenter)] {
+            for dark in [false, true] {
+                model.selection = item
+                let view = RootView().environment(model)
+                    .frame(width: size.width, height: size.height)
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                let file = dir.appendingPathComponent("mac-\(name)-\(dark ? "dark" : "light").png")
+                if hosting {
+                    let host = NSHostingView(rootView: view.preferredColorScheme(dark ? .dark : .light))
+                    host.frame = CGRect(origin: .zero, size: size)
+                    let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+                    window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                    window.contentView = host
+                    host.layoutSubtreeIfNeeded()
+                    try? await Task.sleep(for: .seconds(settle))
+                    host.layoutSubtreeIfNeeded()
+                    guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { exit(2) }
+                    host.cacheDisplay(in: host.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: file)
+                    window.contentView = nil
+                } else {
+                    try? await Task.sleep(for: .seconds(settle))
+                    let renderer = ImageRenderer(content: view)
+                    renderer.scale = 2
+                    guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
+                          let rep = NSBitmapImageRep(data: tiff) else { exit(2) }
+                    try? rep.representation(using: .png, properties: [:])?.write(to: file)
+                }
+            }
+        }
+        exit(0)
     }
     #endif
 

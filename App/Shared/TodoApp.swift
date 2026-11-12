@@ -9,6 +9,15 @@ struct TodoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     #endif
 
+    #if DEBUG && os(macOS)
+    init() {
+        // TODO_DEBUG_RENDER runs without any window (activation policy .prohibited), so `.task { start() }` never fires.
+        let m = AppModel()
+        _model = State(initialValue: m)
+        if DebugLaunch.renderRequested { Task { @MainActor in await m.start() } }
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup("app.title") {
             RootView().environment(model).hapticHost().task { await model.start() }
