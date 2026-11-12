@@ -85,8 +85,24 @@ enum DueStyle {
     }
 }
 
+/// The app's "now" for due-date defaults. Debug builds can pin the time of day on the current calendar day with
+/// `TODO_DEBUG_NOW=HH:mm` (UI tests must not depend on the real time of day); release builds always use the system clock.
+enum AppClock {
+    static var now: Date {
+        #if DEBUG
+        if let text = ProcessInfo.processInfo.environment["TODO_DEBUG_NOW"] {
+            let parts = text.split(separator: ":").compactMap { Int($0) }
+            if parts.count == 2, let pinned = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: Date()) {
+                return pinned
+            }
+        }
+        #endif
+        return Date()
+    }
+}
+
 enum DueFormat {
-    static func style(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> DueStyle {
+    static func style(_ date: Date, now: Date = AppClock.now, calendar: Calendar = .current) -> DueStyle {
         let today = calendar.startOfDay(for: now)
         let day = calendar.startOfDay(for: date)
         if day < today { return .overdue }
@@ -101,7 +117,7 @@ enum DueFormat {
     }
 
     /// "Heute", "Morgen", weekday within a week, otherwise "28. Okt."; the time is appended when set.
-    static func text(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+    static func text(_ date: Date, now: Date = AppClock.now, calendar: Calendar = .current) -> String {
         let today = calendar.startOfDay(for: now)
         let day = calendar.startOfDay(for: date)
         let diff = calendar.dateComponents([.day], from: today, to: day).day ?? 0
@@ -120,30 +136,34 @@ enum DueFormat {
         return base
     }
 
-    static func startOfToday(_ calendar: Calendar = .current) -> Date { calendar.startOfDay(for: Date()) }
+    static func startOfToday(_ calendar: Calendar = .current) -> Date { calendar.startOfDay(for: AppClock.now) }
 
     /// Next Saturday at 09:00 (today if it is Saturday already and before 09:00 is not special-cased).
-    static func weekend(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    static func weekend(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         var c = DateComponents(); c.weekday = 7
         let sat = calendar.nextDate(after: calendar.startOfDay(for: now).addingTimeInterval(-1), matching: c, matchingPolicy: .nextTime) ?? now
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: sat) ?? sat
     }
 
-    static func nextWeek(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    static func nextWeek(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         var c = DateComponents(); c.weekday = 2
         let mon = calendar.nextDate(after: now, matching: c, matchingPolicy: .nextTime) ?? now
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: mon) ?? mon
     }
 
-    static func tomorrow(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    static func tomorrow(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         let d = calendar.date(byAdding: .day, value: 1, to: now) ?? now
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: d) ?? d
     }
 
-    /// Today at 17:00, or the next full hour if that has passed.
-    static func today(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    /// Today at 17:00, or one hour from now if that has passed; never later than 23:59 today, so "Heute" stays today
+    /// when it is late in the evening (now + 1 h would be tomorrow).
+    static func today(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         let t = calendar.date(bySettingHour: 17, minute: 0, second: 0, of: now) ?? now
-        return t > now ? t : calendar.date(byAdding: .hour, value: 1, to: now) ?? now
+        if t > now { return t }
+        let later = calendar.date(byAdding: .hour, value: 1, to: now) ?? now
+        guard !calendar.isDate(later, inSameDayAs: now) else { return later }
+        return calendar.date(bySettingHour: 23, minute: 59, second: 0, of: now) ?? now
     }
 }
 

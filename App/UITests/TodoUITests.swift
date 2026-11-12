@@ -16,6 +16,9 @@ final class TodoUITests: XCTestCase {
         app.launchEnvironment["TODO_DEBUG_SERVER"] = server
         app.launchEnvironment["TODO_DEBUG_TOKEN"] = token
         app.launchEnvironment["TODO_DEBUG_SELECT"] = "today"
+        // Fixed time of day for the app's clock (the quick-add default for "today" is "now + 1 h", which crosses midnight
+        // late in the evening). `TEST_RUNNER_TODO_UITEST_NOW=23:30` simulates the edge case.
+        app.launchEnvironment["TODO_DEBUG_NOW"] = env["TODO_UITEST_NOW"] ?? "12:00"
         app.launch()
         XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 20))
     }
