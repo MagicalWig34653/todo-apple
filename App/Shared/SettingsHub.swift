@@ -1,6 +1,18 @@
 import SwiftUI
 import TodoCore
 
+#Preview("Einstellungen, Light") {
+    NavigationStack { List { SettingsHubSections(model: SettingsHubModel()) } }.environment(AppModel())
+}
+
+#Preview("Einstellungen, Dark") {
+    NavigationStack { List { SettingsHubSections(model: SettingsHubModel()) } }.environment(AppModel()).preferredColorScheme(.dark)
+}
+
+#Preview("Einstellungen, accessibility5") {
+    NavigationStack { List { SettingsHubSections(model: SettingsHubModel()) } }.environment(AppModel()).dynamicTypeSize(.accessibility5)
+}
+
 /// Settings hub like the PWA's settings: appearance, passkeys, sessions, connections (MCP clients), runner pairing.
 /// One page of sections (no nested navigation), shared by the account screen on iPhone/iPad and the Mac settings window.
 @MainActor @Observable

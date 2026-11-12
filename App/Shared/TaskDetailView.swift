@@ -398,17 +398,26 @@ struct TaskDetailView: View {
     private var divider: some View { Divider().padding(.leading, iconSide + Space.m) }
 
     private func propertyRow<Value: View>(_ icon: String, _ tint: Color, _ label: LocalizedStringKey, @ViewBuilder value: () -> Value) -> some View {
-        // From the accessibility sizes on the value moves below the label instead of squeezing next to it.
+        // From the accessibility sizes the value moves below the label, but only when label and value do not fit on one
+        // line (wide iPad inspector / Mac keep them side by side instead of a tall stack).
         let stacked = typeSize.isAccessibilitySize
-        return (stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(spacing: Space.m))) {
-            HStack(spacing: Space.m) {
-                IconTile(symbol: icon, tint: tint, size: 26)
-                Text(label).foregroundStyle(Color.primary)
+        let head = HStack(spacing: Space.m) {
+            IconTile(symbol: icon, tint: tint, size: 26)
+            Text(label).foregroundStyle(Color.primary)
+        }
+        let valueView = value().foregroundStyle(Color.textSecondary).tapTarget()
+        return Group {
+            if stacked {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Space.m) { head; Spacer(minLength: Space.s); valueView.multilineTextAlignment(.trailing) }
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        head
+                        valueView.multilineTextAlignment(.leading).padding(.leading, iconSide + Space.m)
+                    }
+                }
+            } else {
+                HStack(spacing: Space.m) { head; Spacer(minLength: Space.s); valueView.multilineTextAlignment(.trailing) }
             }
-            if !stacked { Spacer(minLength: Space.s) }
-            value().multilineTextAlignment(stacked ? .leading : .trailing).foregroundStyle(Color.textSecondary)
-                .tapTarget()
-                .padding(.leading, stacked ? iconSide + Space.m : 0)
         }
         .font(.subheadline)
         .frame(maxWidth: .infinity, alignment: .leading)
