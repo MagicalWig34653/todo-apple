@@ -5,7 +5,8 @@ import TodoCore
 final class TaskDetailModel {
     var task: TodoTask
     var planning = PlanningData()
-    var comments: [Comment] = []
+    /// The task's own chat (question and review chats live in the agent card).
+    let chat: ConversationModel
     var activity: [Activity] = []
     var attachments: [TaskAttachment] = []
     var labels: [TaskLabel] = []
@@ -16,7 +17,10 @@ final class TaskDetailModel {
     var agentBusy = false
     var loaded = false
 
-    init(task: TodoTask) { self.task = task }
+    init(task: TodoTask) {
+        self.task = task
+        chat = ConversationModel(taskID: task.id, thread: .task)
+    }
 
     func loadSubtasks(_ app: AppModel) async {
         guard let client = app.client, let context = try? await client.taskContext(task.id) else { return }
@@ -64,16 +68,26 @@ final class TaskDetailModel {
         } catch { await app.handle(error) }
     }
 
+    /// Detail and the task chat load side by side.
     func load(_ app: AppModel, meta: TaskMeta? = nil) async {
+        async let chatLoad: Void = chat.load(app)
+        await loadDetail(app, meta: meta)
+        await chatLoad
+    }
+
+    private func loadDetail(_ app: AppModel, meta: TaskMeta?) async {
         guard let client = app.client else { return }
         LiveHub.shared.subscribe(self) { [weak self] in await self?.refreshLive(app) }
         // The text fields come from the local store (optimistic, works offline). Planning and labels fall back to the
-        // cached values plus the unsent outbox edits; comments, activity and attachments stay empty while offline.
+        // cached values plus the unsent outbox edits; chat, activity and attachments stay empty while offline.
         let local = app.tasks.first { $0.id == task.id }
         if let local { task = local }
+        chat.onChange = { [weak self] in
+            guard let self, let items = try? await client.activity(taskID: self.task.id, limit: 30).items else { return }
+            if self.activity != items { self.activity = items }
+        }
         do {
             async let p = client.planning(taskID: task.id)
-            async let c = client.comments(taskID: task.id)
             async let a = client.activity(taskID: task.id, limit: 30)
             async let f = client.attachments(taskID: task.id)
             async let l = client.labels(taskID: task.id)
@@ -82,7 +96,7 @@ final class TaskDetailModel {
             // Keep queued (not yet confirmed) edits visible instead of the older server state.
             task = (app.pendingChanges > 0 ? app.tasks.first { $0.id == task.id } : nil) ?? planned.task
             planning = app.outboxSnapshot.planning[task.id] ?? planned.planning
-            comments = try await c; activity = try await a.items; attachments = try await f
+            activity = try await a.items; attachments = try await f
             allLabels = try await al.items
             labels = Self.applyOutbox(try await l.items, task: task.id, known: allLabels, app.outboxSnapshot)
             loaded = true
@@ -92,15 +106,14 @@ final class TaskDetailModel {
         } catch { await app.handle(error) }
     }
 
-    /// Live refresh: only what others change behind the user's back (comments, activity, attachments, subtasks), and
-    /// only if it differs. Title, description and planning are never touched, so editing is not disturbed.
+    /// Live refresh: only what others change behind the user's back (activity, attachments, subtasks), and only if it
+    /// differs. Title, description and planning are never touched, so editing is not disturbed. The chats refresh
+    /// themselves (`ConversationModel` subscribes on its own).
     func refreshLive(_ app: AppModel) async {
         guard loaded, let client = app.client else { return }
-        async let c = client.comments(taskID: task.id)
         async let a = client.activity(taskID: task.id, limit: 30)
         async let f = client.attachments(taskID: task.id)
-        guard let comments = try? await c, let activity = try? await a.items, let attachments = try? await f else { return }
-        if self.comments != comments { self.comments = comments }
+        guard let activity = try? await a.items, let attachments = try? await f else { return }
         if self.activity != activity { self.activity = activity }
         if self.attachments != attachments { self.attachments = attachments }
         if let context = try? await client.taskContext(task.id) {
@@ -148,22 +161,6 @@ final class TaskDetailModel {
         else { await load(app) }
     }
 
-    func addComment(_ text: String, _ app: AppModel) async {
-        guard let client = app.client else { return }
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        do {
-            comments.append(try await client.addComment(taskID: task.id, body: text))
-            activity = (try? await client.activity(taskID: task.id, limit: 30).items) ?? activity
-        } catch { await app.handle(error) }
-    }
-
-    func deleteComment(_ c: Comment, _ app: AppModel) async {
-        guard let client = app.client else { return }
-        do { try await client.deleteComment(taskID: task.id, id: c.id, version: c.version); comments.removeAll { $0.id == c.id } }
-        catch { await app.handle(error) }
-    }
-
     func toggleLabel(_ label: TaskLabel, _ app: AppModel) async {
         let enabled = !labels.contains(where: { $0.id == label.id })
         if enabled { labels.append(label) } else { labels.removeAll { $0.id == label.id } }
@@ -188,7 +185,6 @@ struct TaskDetailView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var title: String
     @State private var text: String
-    @State private var newComment = ""
     @State private var newLabel = ""
     @State private var newSubtask = ""
     @State private var pickingDate = false
@@ -235,7 +231,9 @@ struct TaskDetailView: View {
                 AttachmentsSection(taskID: model.task.id, attachments: $model.attachments)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .cardSurface()
-                commentsCard
+                ConversationView(model: model.chat, title: "chat.title.task")
+                    .padding(Space.m)
+                    .cardSurface()
                 activityCard
             }
             .padding(.top, Space.s).padding(.bottom, Space.xxl)
@@ -521,62 +519,13 @@ struct TaskDetailView: View {
 
     // MARK: comments / activity
 
-    private var commentsCard: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(spacing: Space.s) {
-                Text("task.comments").font(.sectionTitle)
-                if !model.comments.isEmpty { Text(verbatim: String(model.comments.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary) }
-                Spacer()
-            }
-            if model.comments.isEmpty {
-                Text("comment.empty").font(.footnote).foregroundStyle(Color.textSecondary)
-            }
-            ForEach(model.comments) { c in
-                HStack(alignment: .top, spacing: Space.s) {
-                    Text(verbatim: String((c.authorName ?? "?").prefix(1)).uppercased())
-                        .font(.caption.weight(.bold)).foregroundStyle(.white)
-                        .scaledSquare(28, relativeTo: .caption).background(Color.project(c.authorID).gradient, in: Circle())
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
-                        MarkdownText(c.body).font(.subheadline)
-                            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                            .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-                    }
-                }
-                .contextMenu {
-                    if c.authorID == app.user?.id {
-                        Button("comment.delete", role: .destructive) { Task { await model.deleteComment(c, app) } }
-                    }
-                }
-            }
-        }
-    }
-
     private var commentComposer: some View {
-        HStack(spacing: Space.s) {
-            TextField(accessible: "comment.new", text: $newComment, axis: .vertical).lineLimit(1...4)
-                .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
-            let empty = newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            Button {
-                guard !empty else { return }
-                let t = newComment; newComment = ""
-                Task { await model.addComment(t, app) }
-            } label: {
-                // Not `.disabled`: the system would dim the label to about 30 %. The empty state is shown by shape (outline
-                // instead of filled) and a secondary-text color (4.5:1), and the action is guarded instead.
-                Image(systemName: empty ? "arrow.up.circle" : "arrow.up.circle.fill").font(.title)
-                    .foregroundStyle(empty ? Color.textSecondary : Color.brand).tapTarget()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("comment.send"))
-        }
-        .padding(.vertical, Space.s)
-        .pageMargins()
-        .readableWidth()
-        .frame(maxWidth: .infinity)
-        .background(.bar)
+        ChatComposer(model: model.chat)
+            .padding(.vertical, Space.s)
+            .pageMargins()
+            .readableWidth()
+            .frame(maxWidth: .infinity)
+            .background(.bar)
     }
 
     @ViewBuilder private var activityCard: some View {

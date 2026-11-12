@@ -5151,6 +5151,156 @@
           }
         }
       }
+    },
+    "chat.title.task": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung"
+          }
+        }
+      }
+    },
+    "chat.title.question": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung zur Frage"
+          }
+        }
+      }
+    },
+    "chat.title.review": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung zum Review"
+          }
+        }
+      }
+    },
+    "chat.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Nachrichten. Schreib die erste."
+          }
+        }
+      }
+    },
+    "chat.empty.thread": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Nachrichten."
+          }
+        }
+      }
+    },
+    "chat.loadFailed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachrichten konnten nicht geladen werden. Erneut versuchen"
+          }
+        }
+      }
+    },
+    "chat.author.me": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du"
+          }
+        }
+      }
+    },
+    "chat.author.agent": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "chat.author.other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Person"
+          }
+        }
+      }
+    },
+    "chat.new": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachricht schreiben"
+          }
+        }
+      }
+    },
+    "chat.reply": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antworten"
+          }
+        }
+      }
+    },
+    "chat.send": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachricht senden"
+          }
+        }
+      }
+    },
+    "agent.review.accepted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review angenommen"
+          }
+        }
+      }
+    },
+    "agent.review.changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen angefordert"
+          }
+        }
+      }
+    },
+    "agent.review.withdrawn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review zurückgezogen"
+          }
+        }
+      }
     }
   }
 }
