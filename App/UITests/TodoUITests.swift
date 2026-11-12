@@ -41,8 +41,11 @@ final class TodoUITests: XCTestCase {
         // The floating tab bar and the FAB cover the last rows; scroll until the row itself takes the tap.
         for _ in 0..<4 where !row.isHittable { app.swipeUp() }
 
-        // Open the detail sheet.
+        // Open the detail sheet. A tap while the list still decelerates from the swipes only stops the scrolling and
+        // opens nothing (cause of the flaky "detail sheet" failure), so wait until the row stands still first.
+        settle(row)
         row.tap()
+        if !app.buttons["Fertig"].waitForExistence(timeout: 3) { settle(row); row.tap() }
         XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 5), "detail sheet")
         app.buttons["Fertig"].tap()
 
@@ -55,6 +58,17 @@ final class TodoUITests: XCTestCase {
         let gone = NSPredicate(format: "exists == false")
         expectation(for: gone, evaluatedWith: row)
         waitForExpectations(timeout: 15)
+    }
+
+    /// Waits until the element's frame stops moving (scroll momentum after `swipeUp`), at most about 3 s.
+    private func settle(_ element: XCUIElement) {
+        var last = element.frame
+        for _ in 0..<15 {
+            _ = XCTWaiter.wait(for: [XCTestExpectation(description: "settle")], timeout: 0.2)
+            let now = element.frame
+            if now == last { return }
+            last = now
+        }
     }
 
     /// The title field wraps (vertical axis); the keyboard's Return key must still save, not insert a line break.
