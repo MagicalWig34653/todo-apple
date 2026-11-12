@@ -117,7 +117,8 @@ final class TodoUITests: XCTestCase {
             if issue.element == nil, issue.auditType.rawValue == 2 /* element detection */, self.app.keyboards.firstMatch.exists { return true }
             // "Für dich" scrolls beneath the translucent floating tab bar; a section header that happens to sit under the
             // glass is reported as unattributed text (no element, no frame). Depends on the scroll position, not on our views.
-            if name == "feed", issue.element == nil, issue.auditType.rawValue == 2 { return true }
+            // Same in the card detail: the row below the visible area sits under the translucent message bar at the bottom.
+            if name == "feed" || name == "detail", issue.element == nil, issue.auditType.rawValue == 2 { return true }
             report.append("[\(name)] \(issue.auditType.rawValue) | \(issue.element?.label ?? "-") | \(issue.element?.elementType.rawValue ?? 0) | \(issue.element?.frame.debugDescription ?? "-") | \(issue.detailedDescription)")
             return true
         }
@@ -238,14 +239,14 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Steuerzentrale"].waitForExistence(timeout: 10), "project command center")
     }
 
-    /// Account, teams, agents and activity sit behind the avatar.
+    /// Settings (the former account screen), teams, agents and activity sit behind the avatar.
     func testAccountMenuHoldsAccountTeamsAgents() throws {
         try XCTSkipIf(isPad(), "iPhone tab bar")
         tab("Projekte").tap()
         let avatar = app.buttons["accountMenu"]
         XCTAssertTrue(avatar.waitForExistence(timeout: 5))
         avatar.tap()
-        for name in ["Konto", "Teams", "Agenten & Runner", "Aktivität"] {
+        for name in ["Einstellungen", "Teams", "Agenten & Runner", "Aktivität"] {
             XCTAssertTrue(app.buttons[name].waitForExistence(timeout: 5), "menu entry \(name)")
         }
         app.buttons["Agenten & Runner"].tap()
@@ -326,6 +327,8 @@ final class TodoUITests: XCTestCase {
         taskField.typeText(note)
         app.buttons["chat.send.task"].tap()
         let sent = element(containing: note)
+        // The detail is a lazy stack; the task chat sits below criteria and links and appears only when scrolled to.
+        for _ in 0..<8 where !sent.waitForExistence(timeout: 2) { app.swipeUp() }
         XCTAssertTrue(sent.waitForExistence(timeout: 10), "message in task chat")
         // The task chat is its own thread: the question reply does not show up twice.
         XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'chat.bubble.mine' AND label CONTAINS %@", reply)).count, 1)
@@ -334,5 +337,128 @@ final class TodoUITests: XCTestCase {
         openWebsiteCard("Texte fuer Startseite freigeben")
         XCTAssertTrue(app.descendants(matching: .any)["chat.review"].waitForExistence(timeout: 10), "review chat")
         XCTAssertTrue(element(containing: "Bitte die Datenschutzerklärung noch prüfen.").waitForExistence(timeout: 10), "seeded review message")
+    }
+
+    // MARK: Wave 3 (needs `TODO_LIVE_SEED_W3=1`)
+
+    private func any(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id] }
+
+    private func scrollTo(_ e: XCUIElement, max: Int = 8) {
+        for _ in 0..<max where !(e.exists && e.isHittable) { app.swipeUp() }
+    }
+
+    /// Agent confirmations in "Für dich": one is rejected, the irreversible one runs only after typing the project name.
+    func testConfirmationsRejectAndConfirmByName() throws {
+        app.terminate()
+        app.launchEnvironment["TODO_DEBUG_SELECT"] = "feed"
+        app.launch()
+        let section = app.staticTexts["Bestätigung nötig"]
+        guard section.waitForExistence(timeout: 20) else { throw XCTSkip("no confirmations seeded (TODO_LIVE_SEED_W3=1)") }
+        let cards = app.descendants(matching: .any).matching(identifier: "confirm.card")
+        XCTAssertEqual(cards.count, 2)
+        attach("w3-confirmations")
+        let project = cards.containing(NSPredicate(format: "label CONTAINS 'Altprojekt'")).firstMatch
+        let task = cards.containing(NSPredicate(format: "label CONTAINS 'Yoga'")).firstMatch
+        XCTAssertTrue(project.exists && task.exists, app.debugDescription)
+
+        task.buttons["confirm.reject"].tap()
+        XCTAssertTrue(task.descendants(matching: .any)["confirm.outcome"].waitForExistence(timeout: 10), "rejected outcome")
+        XCTAssertTrue(element(containing: "Abgelehnt").exists)
+
+        project.buttons["confirm.confirm"].tap()
+        let run = project.buttons["confirm.run"]
+        XCTAssertTrue(run.waitForExistence(timeout: 5))
+        XCTAssertFalse(run.isEnabled, "locked until the name is typed")
+        let name = project.textFields["confirm.name"]
+        name.tap()
+        name.typeText("Altprojek")
+        XCTAssertFalse(run.isEnabled)
+        name.typeText("t")
+        attach("w3-confirm-name")
+        XCTAssertTrue(run.isEnabled)
+        run.tap()
+        XCTAssertTrue(element(containing: "Projekt gelöscht").waitForExistence(timeout: 15), "project deleted outcome")
+    }
+
+    /// Criteria are edited in the card detail (add, tick); prerequisites and the milestone are shown below.
+    func testDetailEditsCriteriaAndShowsLinks() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar")
+        openWebsiteCard("Design-Review vorbereiten")
+        let field = app.textFields["criteria.field"]
+        guard field.waitForExistence(timeout: 10) else { throw XCTSkip("no criteria card (TODO_LIVE_SEED_W3=1)") }
+        XCTAssertTrue(element(containing: "Mobil zuerst").exists, "seeded criterion")
+        let text = "UITest Kriterium \(Int(Date().timeIntervalSince1970) % 100000)"
+        scrollTo(field)
+        field.tap()
+        field.typeText(text)
+        app.buttons["criteria.addButton"].tap()
+        let row = app.buttons.matching(NSPredicate(format: "identifier == 'criteria.row' AND label CONTAINS %@", text)).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "new criterion")
+        XCTAssertEqual(row.value as? String, "Offen")
+        if app.keyboards.firstMatch.exists { app.swipeDown() }
+        scrollTo(row)
+        row.tap()
+        let ticked = NSPredicate(format: "value == 'Erfüllt'")
+        expectation(for: ticked, evaluatedWith: row)
+        waitForExpectations(timeout: 10)
+
+        let links = any("links.card")
+        scrollTo(links)
+        XCTAssertTrue(links.waitForExistence(timeout: 10), "links card")
+        XCTAssertTrue(element(containing: "Rechnung Hosting pruefen").exists, "prerequisite")
+        XCTAssertTrue(element(containing: "Beta-Start").exists, "milestone")
+        attach("w3-detail-criteria-links")
+        // Clean up: delete the criterion through its accessibility action.
+        row.press(forDuration: 1.0)
+        let delete = app.buttons["Kriterium löschen"]
+        if delete.waitForExistence(timeout: 3) { delete.tap(); XCTAssertTrue(row.waitForNonExistence(timeout: 10)) }
+    }
+
+    /// Classic projects hide the agent tools; the display options switch the mode.
+    func testProjectModeHidesAgentToolsInClassic() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar")
+        tab("Projekte").tap()
+        let project = app.buttons.matching(NSPredicate(format: "label == 'Sport'")).firstMatch
+        XCTAssertTrue(project.waitForExistence(timeout: 10))
+        project.tap()
+        XCTAssertTrue(app.segmentedControls["project.layout"].waitForExistence(timeout: 10))
+        let agents = app.buttons["project.agents"]
+        let mode = app.segmentedControls["project.mode"]
+        app.buttons["Anzeige"].tap()
+        XCTAssertTrue(mode.waitForExistence(timeout: 5), "mode picker")
+        guard mode.buttons["Klassisch"].isSelected else { throw XCTSkip("Sport not seeded as classic (TODO_LIVE_SEED_W3=1)") }
+        attach("w3-project-mode")
+        XCTAssertFalse(agents.exists, "classic hides the agent view")
+        mode.buttons["Projektmanagement"].tap()
+        XCTAssertTrue(agents.waitForExistence(timeout: 10), "management shows the agent view")
+        mode.buttons["Klassisch"].tap()
+        XCTAssertTrue(agents.waitForNonExistence(timeout: 10), "classic again")
+    }
+
+    /// The settings hub: appearance, passkeys, devices, connections and a runner pairing code.
+    func testSettingsHubShowsSectionsAndPairsRunner() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar")
+        tab("Projekte").tap()
+        app.buttons["accountMenu"].tap()
+        app.buttons["Einstellungen"].tap()
+        XCTAssertTrue(app.segmentedControls["settings.scheme"].waitForExistence(timeout: 10), "appearance")
+        attach("w3-settings")
+        // The list is lazy: sections below the fold exist only once scrolled to.
+        for title in ["Passkeys", "Angemeldete Geräte", "Verbindungen", "Runner koppeln"] {
+            let header = app.staticTexts[title]
+            scrollTo(header)
+            XCTAssertTrue(header.exists, "section \(title)")
+        }
+        XCTAssertTrue(element(containing: "Claude Code").exists, "MCP connection listed")
+        let label = app.textFields["Name des Macs"]
+        scrollTo(label)
+        label.tap()
+        label.typeText("Mac mini")
+        app.buttons["settings.runner.pair"].tap()
+        let code = app.staticTexts["settings.runner.pairCode"]
+        XCTAssertTrue(code.waitForExistence(timeout: 10), "pairing code")
+        XCTAssertFalse(code.label.isEmpty)
+        attach("w3-settings-runner")
+        try audit("settings")
     }
 }
