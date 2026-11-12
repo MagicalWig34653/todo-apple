@@ -249,4 +249,26 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Ja, mobil zuerst"].waitForExistence(timeout: 5))
         try audit("feed")
     }
+
+    /// Rows carry the agent state as text, not color alone: needs `TODO_LIVE_SEED_FEED=1` (question on "Design-Review
+    /// vorbereiten", review on "Texte fuer Startseite freigeben").
+    func testProjectRowsShowAgentState() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar")
+        tab("Projekte").tap()
+        let project = app.buttons.matching(NSPredicate(format: "label == 'Website-Relaunch'")).firstMatch
+        XCTAssertTrue(project.waitForExistence(timeout: 10))
+        project.tap()
+        let question = app.buttons.matching(NSPredicate(format: "label == 'Design-Review vorbereiten'")).firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 10))
+        let hasState = { (row: XCUIElement, text: String) in
+            (0..<10).contains { _ in
+                if (row.value as? String)?.contains(text) == true { return true }
+                Thread.sleep(forTimeInterval: 1); return false
+            }
+        }
+        XCTAssertTrue(hasState(question, "Frage offen"), "question state in VoiceOver value: \(question.value ?? "")")
+        let review = app.buttons.matching(NSPredicate(format: "label == 'Texte fuer Startseite freigeben'")).firstMatch
+        XCTAssertTrue(review.exists)
+        XCTAssertTrue(hasState(review, "Review"), "review state in VoiceOver value: \(review.value ?? "")")
+    }
 }

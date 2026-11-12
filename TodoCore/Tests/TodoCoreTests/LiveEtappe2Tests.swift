@@ -465,6 +465,10 @@ final class LiveEtappe2Tests: XCTestCase {
                 let moved = try await a.moveTask(t.id, version: t.version, toColumn: c.0)
                 if i == 0 { _ = try await a.setPlanning(taskID: moved.id, PlanningData(dueAt: now.addingTimeInterval(3600), priority: 2)); try await a.addLabel(blocker.id, toTask: moved.id) }
                 if i == 6 { try await a.addLabel(privat.id, toTask: moved.id) }
+                // Agent states on board cards: one running (claimed), one with an open question, one waiting for review.
+                if i == 7 { _ = try await a.claimTask(moved.id, agentName: "Claude") }
+                if i == 5 { _ = try await a.askQuestion(taskID: moved.id, prompt: "Tritt das nur im Hintergrund auf?", options: ["Ja", "Nein"], blocking: true, agentName: "Claude") }
+                if i == 8 { _ = try await a.requestReview(taskID: moved.id, summary: "Spalten sind sortiert.", agentName: "Claude") }
             }
         }
         let token = try XCTUnwrap(try f.adminStore.load())
