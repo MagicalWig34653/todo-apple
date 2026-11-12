@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import TodoCore
+import UserNotifications
 #if os(macOS)
 import AppKit
 #endif
@@ -49,6 +50,27 @@ enum DebugLaunch {
             }
             try? await Task.sleep(for: .milliseconds(300))
         }
+    }
+
+    /// `TODO_DEBUG_LOCAL_PUSH=<userInfo JSON>` (server payload format, see PushDelivery in the backend): asks for
+    /// notification permission and schedules a local notification with that payload after `TODO_DEBUG_LOCAL_PUSH_DELAY`
+    /// seconds (default 6). Lets a UI test tap a notification like a server push (simctl cannot grant the permission).
+    static func scheduleLocalPushIfRequested() async {
+        guard let json = env["TODO_DEBUG_LOCAL_PUSH"], let data = json.data(using: .utf8),
+              let userInfo = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        let center = UNUserNotificationCenter.current()
+        guard (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) == true else { return }
+        let aps = userInfo["aps"] as? [String: Any]
+        let alert = aps?["alert"] as? [String: Any]
+        let content = UNMutableNotificationContent()
+        content.title = alert?["title"] as? String ?? "Todolino"
+        content.body = alert?["body"] as? String ?? ""
+        content.categoryIdentifier = aps?["category"] as? String ?? ""
+        content.userInfo = userInfo
+        let delay = Double(env["TODO_DEBUG_LOCAL_PUSH_DELAY"] ?? "") ?? 6
+        let request = UNNotificationRequest(identifier: "debug-local-push", content: content,
+                                            trigger: UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false))
+        try? await center.add(request)
     }
 
     #if os(macOS)

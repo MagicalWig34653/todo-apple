@@ -131,6 +131,7 @@ final class AppModel {
         PushCoordinator.shared.model = self
         #if DEBUG
         DebugLaunch.seedSession(model: self)
+        Task { await DebugLaunch.scheduleLocalPushIfRequested() }
         #if os(macOS)
         DebugLaunch.snapshotIfRequested()
         #endif
