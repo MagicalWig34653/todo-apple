@@ -306,6 +306,9 @@ Stand adb01e8 hochgeladen: iOS 2611071735 (UUID d64fc499-5026-46cd-91fa-f8d882d1
 ## Checkpoint TestFlight-Upload (2026-11-08)
 Stand 0cf0162 hochgeladen: iOS 2611081645 (UUID 4baeb77d-50a9-404d-ba88-618a420d7f93), macOS 2611081650 (UUID 54f6f42d-7cbb-4cbf-961c-da00958d52a1), Version 0.1.0, jeweils "Upload succeeded", Exit 0; Trockenlaeufe vorab gruen. Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen, Geraetetest. Details in docs/TESTFLIGHT.md.
 
+## Checkpoint TestFlight-Upload (2026-11-12, glowup)
+Branch glowup def0e78 hochgeladen: iOS 2611121259 (UUID cbe671cf-646f-4e25-baa7-fd1c040985c3), macOS 2611121304 (UUID 61b723c0-6ec7-4496-abd5-2f5a297b8615), Version 0.1.0, jeweils "Upload succeeded", Exit 0. Inhalt: Glow-up W1, iPhone-Navigation Variante A, Lage-Ampel. Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen, Geraetetest. Details in docs/TESTFLIGHT.md.
+
 - Projektlokaler Skill `.claude/skills/swiftui-expert/`: gekürzte Adaption von AvdLee/SwiftUI-Agent-Skill (MIT, https://github.com/AvdLee/SwiftUI-Agent-Skill). Gekürzt: Trace-/Profiling-Workflows, Liquid Glass, Duo/iOS 27.1 (ArrangementView, Reserved Regions, Zwei-Spalten-Reflow), Verweise auf nicht übernommene Referenzen, scripts/. Ergänzt: Projektregeln Todolino, hig-kernregeln.md.
 
 ## Checkpoint 12.11.2026 Glow-up Welle 1 (Branch `glowup`, Todolino 1786DB8B)

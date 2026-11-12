@@ -112,3 +112,10 @@ Aus sauberem Stand (main 0cf0162), Version 0.1.0, Bundle-ID `de.linolaske.todo`,
 - Trockenlaeufe (Export ohne Upload): iOS Build 2611081633, macOS Build 2611081640, jeweils ARCHIVE und EXPORT SUCCEEDED, Exit 0.
 - Die Delivery UUID steht nicht im Konsolenlog, sondern in `ContentDelivery.log` des `.xcdistributionlogs`-Bundles (in `/var/folders/.../T/`).
 - Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
+
+## Upload Stand def0e78 (2026-11-12, Branch glowup, Universal Purchase)
+Aus Branch `glowup` (def0e78: Glow-up W1, iPhone-Navigation Variante A 432c190, Lage-Ampel und Plus-Fix), nicht main. Version 0.1.0, Bundle-ID `de.linolaske.todo`, Signatur ueber das Xcode-Konto, `PATH=/usr/bin:/bin:...` wegen Homebrew-rsync, `TODO_OUT_DIR` im Scratchpad.
+- iOS: Build 2611121259, "Upload succeeded", Delivery UUID `cbe671cf-646f-4e25-baa7-fd1c040985c3`, Exit 0.
+- macOS: Build 2611121304, "Upload succeeded", Delivery UUID `61b723c0-6ec7-4496-abd5-2f5a297b8615`, Exit 0.
+- Stolperstein Worktree: In einem zusaetzlichen Worktree fehlt die gitignorierte `App/Config/Signing.local.xcconfig`. iOS laeuft trotzdem, macOS scheitert dann beim Archiv mit `"Todo-macOS" requires a provisioning profile with the Associated Domains and Push Notifications features` (Builds 2611121301/2611121302, nicht hochgeladen). Loesung: Datei aus dem Haupt-Worktree kopieren.
+- Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
