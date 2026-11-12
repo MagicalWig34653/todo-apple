@@ -21,6 +21,9 @@ struct TodoApp: App {
     var body: some Scene {
         WindowGroup("app.title") {
             RootView().environment(model).hapticHost().task { await model.start() }
+                #if DEBUG
+                .overlay(alignment: .topLeading) { DebugProbeView() }
+                #endif
                 .preferredColorScheme(model.colorScheme.swiftUI)
                 #if os(macOS)
                 .frame(minWidth: 820, minHeight: 560)
@@ -119,4 +122,17 @@ struct SettingsView: View {
 #Preview("Settings light") { SettingsView().environment(AppModel()).preferredColorScheme(.light) }
 #Preview("Settings dark") { SettingsView().environment(AppModel()).preferredColorScheme(.dark) }
 #Preview("Settings accessibility5") { SettingsView().environment(AppModel()).dynamicTypeSize(.accessibility5) }
+#endif
+
+#if DEBUG
+/// One invisible accessibility element with the outcome of `TODO_DEBUG_DELIVER_RESPONSE` (only present when requested).
+private struct DebugProbeView: View {
+    var body: some View {
+        if DebugProbe.shared.enabled {
+            Color.clear.frame(width: 1, height: 1)
+                .accessibilityElement().accessibilityLabel(Text(verbatim: DebugProbe.shared.status))
+                .accessibilityIdentifier("debug.pushProbe")
+        }
+    }
+}
 #endif

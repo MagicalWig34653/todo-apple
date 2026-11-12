@@ -74,6 +74,40 @@ enum DebugLaunch {
         try? await center.add(request)
     }
 
+    /// `TODO_DEBUG_DELIVER_RESPONSE=<userInfo JSON>` (server payload format): calls the REAL `NotificationDelegate`
+    /// (`didReceive` and `willPresent`, through the Objective-C protocol entry the system uses) with a notification response
+    /// built from that payload, from a background queue as UserNotifications does, after `TODO_DEBUG_DELIVER_DELAY` seconds
+    /// (default 0 = during launch, "cold"; larger = with the UI up, "warm"); `TODO_DEBUG_DELIVER_ONLY` limits it to one callback. The completion handlers assert the main queue
+    /// like UIKit's does (`dispatchPrecondition` traps otherwise), then `DebugProbe` shows the outcome. Needs no banner.
+    static func deliverResponseIfRequested() {
+        guard let json = env["TODO_DEBUG_DELIVER_RESPONSE"], let data = json.data(using: .utf8),
+              let userInfo = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        DebugProbe.shared.enabled = true
+        let delay = Double(env["TODO_DEBUG_DELIVER_DELAY"] ?? "") ?? 0
+        let only = env["TODO_DEBUG_DELIVER_ONLY"] // `didReceive` or `willPresent`; both when unset
+        let content = UNMutableNotificationContent()
+        content.userInfo = userInfo
+        content.categoryIdentifier = (userInfo["aps"] as? [String: Any])?["category"] as? String ?? ""
+        let request = UNNotificationRequest(identifier: "debug-deliver", content: content, trigger: nil)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
+            let delegate: UNUserNotificationCenterDelegate = NotificationDelegate.shared
+            let notification = DebugNotification(request: request)
+            let response = DebugNotificationResponse(notification: notification)
+            if only != "willPresent" {
+                delegate.userNotificationCenter?(.current(), didReceive: response) {
+                    dispatchPrecondition(condition: .onQueue(.main))
+                    Task { @MainActor in DebugProbe.shared.mark("didReceive") }
+                }
+            }
+            if only != "didReceive" {
+                delegate.userNotificationCenter?(.current(), willPresent: notification) { _ in
+                    dispatchPrecondition(condition: .onQueue(.main))
+                    Task { @MainActor in DebugProbe.shared.mark("willPresent") }
+                }
+            }
+        }
+    }
+
     #if os(macOS)
     /// `TODO_DEBUG_SNAPSHOT=<png path>[:<seconds>]` (macOS): writes the main window to a PNG and quits. Exists because
     /// `screencapture` needs a screen-recording permission that headless agent runs do not have.
@@ -175,5 +209,44 @@ enum DebugLaunch {
             }
         }
     }
+}
+
+/// Outcome of `DebugLaunch.deliverResponseIfRequested`, exposed to UI tests as one accessibility element.
+@MainActor @Observable
+final class DebugProbe {
+    static let shared = DebugProbe()
+    var enabled = false
+    private(set) var completed: [String] = []
+    func mark(_ name: String) { completed.append(name) }
+    /// "completed:" followed by the handlers that ran on the main queue, e.g. `completed:willPresent,didReceive`.
+    var status: String { "completed:" + completed.joined(separator: ",") }
+}
+
+/// `UNNotification` has no public initializer; decode an empty archive and override what the delegate reads.
+private final class DebugNotification: UNNotification {
+    private var fakeRequest: UNNotificationRequest?
+    convenience init(request: UNNotificationRequest) {
+        let archive = try! NSKeyedArchiver.archivedData(withRootObject: NSNull(), requiringSecureCoding: false)
+        let coder = try! NSKeyedUnarchiver(forReadingFrom: archive)
+        coder.requiresSecureCoding = false
+        self.init(coder: coder)!
+        fakeRequest = request
+    }
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+    override var request: UNNotificationRequest { fakeRequest ?? super.request }
+}
+
+private final class DebugNotificationResponse: UNNotificationResponse {
+    private var fakeNotification: UNNotification?
+    convenience init(notification: UNNotification) {
+        let archive = try! NSKeyedArchiver.archivedData(withRootObject: NSNull(), requiringSecureCoding: false)
+        let coder = try! NSKeyedUnarchiver(forReadingFrom: archive)
+        coder.requiresSecureCoding = false
+        self.init(coder: coder)!
+        fakeNotification = notification
+    }
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+    override var notification: UNNotification { fakeNotification ?? super.notification }
+    override var actionIdentifier: String { UNNotificationDefaultActionIdentifier }
 }
 #endif

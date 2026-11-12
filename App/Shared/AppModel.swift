@@ -136,6 +136,7 @@ final class AppModel {
         #if DEBUG
         DebugLaunch.seedSession(model: self)
         Task { await DebugLaunch.scheduleLocalPushIfRequested() }
+        DebugLaunch.deliverResponseIfRequested()
         #if os(macOS)
         DebugLaunch.snapshotIfRequested()
         if DebugLaunch.renderRequested { Task { await DebugLaunch.renderIfRequested(model: self) } }
