@@ -4861,6 +4861,46 @@
           }
         }
       }
+    },
+    "agent.section.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "agent.criteria %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterien %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "agent.criterion.done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfüllt"
+          }
+        }
+      }
+    },
+    "agent.criterion.open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offen"
+          }
+        }
+      }
     }
   }
 }

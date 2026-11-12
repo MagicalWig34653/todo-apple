@@ -11,6 +11,9 @@ final class TaskDetailModel {
     var labels: [TaskLabel] = []
     var allLabels: [TaskLabel] = []
     var subtasks: [TodoTask] = []
+    /// Agent work on this card (claim, progress, questions, review, criteria, builds); nil until loaded or offline.
+    var context: TaskContext?
+    var agentBusy = false
     var loaded = false
 
     init(task: TodoTask) { self.task = task }
@@ -18,6 +21,26 @@ final class TaskDetailModel {
     func loadSubtasks(_ app: AppModel) async {
         guard let client = app.client, let context = try? await client.taskContext(task.id) else { return }
         subtasks = context.subtasks
+        if self.context != context { self.context = context }
+    }
+
+    func answer(_ question: Question, with text: String, _ app: AppModel) async {
+        guard let client = app.client, !agentBusy else { return }
+        agentBusy = true; defer { agentBusy = false }
+        do { _ = try await client.answerQuestion(question.id, answer: text); Haptics.success() }
+        catch { await app.handle(error) }
+        await loadSubtasks(app)
+        await app.refreshCommandSummary()
+    }
+
+    func decide(_ decision: ReviewDecision, note: String?, _ app: AppModel) async {
+        guard let client = app.client, !agentBusy else { return }
+        agentBusy = true; defer { agentBusy = false }
+        do { _ = try await client.decideReview(taskID: task.id, decision: decision, note: note); Haptics.success() }
+        catch { await app.handle(error) }
+        await loadSubtasks(app)
+        await app.reload()
+        await app.refreshCommandSummary()
     }
 
     func addSubtask(_ title: String, _ app: AppModel) async {
@@ -80,7 +103,10 @@ final class TaskDetailModel {
         if self.comments != comments { self.comments = comments }
         if self.activity != activity { self.activity = activity }
         if self.attachments != attachments { self.attachments = attachments }
-        if let context = try? await client.taskContext(task.id), subtasks != context.subtasks { subtasks = context.subtasks }
+        if let context = try? await client.taskContext(task.id) {
+            if subtasks != context.subtasks { subtasks = context.subtasks }
+            if self.context != context { self.context = context }
+        }
     }
 
     /// Offline: show the cached planning/labels with the unsent edits on top.
@@ -199,6 +225,11 @@ struct TaskDetailView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.l) {
                 header
+                if let context = model.context, AgentContextCard.hasContent(context) {
+                    AgentContextCard(context: context, busy: model.agentBusy,
+                                     onAnswer: { q, text in Task { await model.answer(q, with: text, app) } },
+                                     onDecide: { d, note in Task { await model.decide(d, note: note, app) } })
+                }
                 propertiesCard
                 subtasksCard
                 AttachmentsSection(taskID: model.task.id, attachments: $model.attachments)
@@ -507,7 +538,7 @@ struct TaskDetailView: View {
                         .scaledSquare(28, relativeTo: .caption).background(Color.project(c.authorID).gradient, in: Circle())
                     VStack(alignment: .leading, spacing: Space.xs) {
                         Text(verbatim: c.authorName ?? "?").font(.caption.weight(.semibold))
-                        Text(verbatim: c.body).font(.subheadline)
+                        MarkdownText(c.body).font(.subheadline)
                             .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                             .background(Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                     }

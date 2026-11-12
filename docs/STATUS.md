@@ -307,3 +307,10 @@ Stand adb01e8 hochgeladen: iOS 2611071735 (UUID d64fc499-5026-46cd-91fa-f8d882d1
 Stand 0cf0162 hochgeladen: iOS 2611081645 (UUID 4baeb77d-50a9-404d-ba88-618a420d7f93), macOS 2611081650 (UUID 54f6f42d-7cbb-4cbf-961c-da00958d52a1), Version 0.1.0, jeweils "Upload succeeded", Exit 0; Trockenlaeufe vorab gruen. Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen, Geraetetest. Details in docs/TESTFLIGHT.md.
 
 - Projektlokaler Skill `.claude/skills/swiftui-expert/`: gekürzte Adaption von AvdLee/SwiftUI-Agent-Skill (MIT, https://github.com/AvdLee/SwiftUI-Agent-Skill). Gekürzt: Trace-/Profiling-Workflows, Liquid Glass, Duo/iOS 27.1 (ArrangementView, Reserved Regions, Zwei-Spalten-Reflow), Verweise auf nicht übernommene Referenzen, scripts/. Ergänzt: Projektregeln Todolino, hig-kernregeln.md.
+
+## Checkpoint 12.11.2026 Glow-up Welle 1 (Branch `glowup`, Todolino 1786DB8B)
+- Analyse PWA gegen iPhone-App: `docs/glowup-analyse.md` (Hauptbefund: Todoist-Struktur, Kartendetail ohne Agenten, Markdown roh, kein Chat, Funktionslücken), Screenshots `docs/screenshots/glowup/`.
+- Gebaut: `AgentContextCard.swift` (Agent-Abschnitt oben im Aufgabendetail aus `taskContext`: Bearbeiter, Fortschritt + letzte Notiz, offene Fragen beantworten, Review entscheiden, Kriterien, Builds), `MarkdownText` für Fragen/Reviews/Fortschritt/Updates/Feed/Kommentare, FAB auf „Für dich“, Marken-Tint im Detail-Sheet, DEBUG `TODO_DEBUG_SELECT=browse`.
+- Geprüft: Builds Todo-iOS/Todo-macOS grün; UI-Tests TodoUITests 6/7 grün, 1 iPad-only übersprungen (iPhone 18 Pro, lokales SQLite-Backend). Sichtprüfung nur iPhone hell/Standard.
+- Nicht geprüft: Tippen auf Antwort/Review im Detail (gleiche API wie Steuerzentrale), Dunkel/AX, iPad, Mac.
+- Nächster Schritt: Navigationsentscheidung von Lino (Frage an 1786DB8B), danach Welle 2.

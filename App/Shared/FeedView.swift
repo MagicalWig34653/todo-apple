@@ -35,6 +35,8 @@ struct FeedView: View {
             .readableWidth()
         }
         .background(Color.canvas)
+        // Start tab on iPhone: capture from here too, like the PWA's global "+" (it was the only main tab without it).
+        .quickAdd()
         .navigationTitle("view.feed")
         .refreshable { await model.load(app) }
         .task { await model.load(app) }
@@ -109,6 +111,11 @@ private struct NeedsYouCard: View {
     @State private var text = ""
     @State private var input: FeedAction?
 
+    /// Questions and reviews are written by agents in Markdown; task titles stay verbatim.
+    private var titleText: Text {
+        item.kind == "question" || item.kind == "review" ? Text(MarkdownFormat.attributed(item.title)) : Text(verbatim: item.title)
+    }
+
     private var symbol: String {
         switch item.kind {
         case "question": "questionmark.bubble.fill"
@@ -135,8 +142,8 @@ private struct NeedsYouCard: View {
                     Image(systemName: symbol).font(.subheadline).foregroundStyle(tint).scaledSquare(24, relativeTo: .subheadline).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Space.xxs) {
                         Text(kindLabel).font(.caption.weight(.semibold)).foregroundStyle(tint)
-                        Text(verbatim: item.title).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading).lineLimit(5).fixedSize(horizontal: false, vertical: true)
-                        if let detail = item.detail { Text(verbatim: detail).font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading).lineLimit(3) }
+                        titleText.font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading).lineLimit(5).fixedSize(horizontal: false, vertical: true)
+                        if let detail = item.detail { MarkdownText(detail).font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading).lineLimit(3) }
                         Text(verbatim: [item.projectName, item.kind == "question" || item.kind == "review" ? item.taskTitle : nil, due].compactMap { $0 }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading).lineLimit(2)
                     }
@@ -229,7 +236,7 @@ private struct PostCard: View {
                     Image(systemName: symbol).font(.subheadline).foregroundStyle(Color.brand).scaledSquare(24, relativeTo: .subheadline).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Space.xxs) {
                         (Text(verbatim: actor.isEmpty ? "" : actor + " ") + Text(title)).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading)
-                        if let text = post.text, !text.isEmpty { Text(verbatim: text).font(.subheadline).multilineTextAlignment(.leading).lineLimit(3).truncationMode(.tail) }
+                        if let text = post.text, !text.isEmpty { MarkdownText(text).font(.subheadline).multilineTextAlignment(.leading).lineLimit(3).truncationMode(.tail) }
                         if let detail = post.detail { Text(verbatim: "→ " + detail).font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading).lineLimit(2) }
                         if let p = post.percent { ProgressView(value: Double(p), total: 100).tint(.brand).accessibilityLabel(Text("\(p) %")) }
                         Text(verbatim: [post.projectName, post.taskTitle, CommandFormat.relative(post.createdAt)].filter { !$0.isEmpty }.joined(separator: " · "))

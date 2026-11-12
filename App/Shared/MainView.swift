@@ -64,6 +64,8 @@ struct MainView: View {
         .sheet(item: Binding(get: { compact ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
                 .environment(model).environment(meta)
+                // Sheets do not inherit the root tint; without this, bordered buttons in the detail turned system blue.
+                .tint(.brand)
                 #if os(macOS)
                 .frame(minWidth: 520, idealWidth: 560, minHeight: 600, idealHeight: 680)
                 #endif
@@ -182,6 +184,15 @@ struct PhoneTabs: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { SyncStatusBar() }
         .onAppear { syncFromSelection(model.selection) }
+        #if DEBUG
+        // Screenshots: `TODO_DEBUG_SELECT=browse` shows the root of the browse tab (no tap automation in simctl);
+        // after the debug sign-in, which resets the selection.
+        .task {
+            guard ProcessInfo.processInfo.environment["TODO_DEBUG_SELECT"] == "browse" else { return }
+            try? await Task.sleep(for: .seconds(3))
+            tab = 4
+        }
+        #endif
         .onChange(of: model.selection) { _, new in syncFromSelection(new) }
         .onChange(of: tab) { _, new in
             switch new {
