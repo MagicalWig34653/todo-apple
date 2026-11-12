@@ -425,8 +425,12 @@ final class LiveEtappe2Tests: XCTestCase {
         if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_FEED"] == "1" {
             // "Für dich" demo: agent question with options, review, progress and a build screenshot.
             let shot = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
-            _ = try await a.askQuestion(taskID: t3.id, prompt: "Soll die Startseite zuerst auf Mobil optimiert werden?", options: ["Ja, mobil zuerst", "Desktop zuerst"], blocking: true, agentName: "Claude")
-            _ = try await a.requestReview(taskID: t4.id, summary: "Texte sind eingebaut und getestet.", agentName: "Claude")
+            let mobile = try await a.askQuestion(taskID: t3.id, prompt: "Soll die Startseite zuerst auf Mobil optimiert werden?", options: ["Ja, mobil zuerst", "Desktop zuerst"], blocking: true, agentName: "Claude")
+            let review = try await a.requestReview(taskID: t4.id, summary: "Texte sind eingebaut und getestet.", agentName: "Claude")
+            // Chats of the question, the review and the task (detail conversation).
+            _ = try await a.addComment(taskID: t3.id, body: "Zählt das iPad auch als mobil?", thread: .question(mobile.id))
+            _ = try await a.addComment(taskID: t4.id, body: "Bitte die Datenschutzerklärung noch prüfen.", thread: .review(review.id))
+            _ = try await a.addComment(taskID: t3.id, body: "Entwurf bitte bis Freitag.", thread: .task)
             _ = try await a.postProgressNote(taskID: t3.id, note: "Farbpalette und Typografie sind im Entwurf.", percent: 40)
             let att = try await a.uploadAttachment(taskID: t3.id, filename: "entwurf.png", role: .result, mediaType: "image/png", data: shot)
             _ = try await a.registerBuild(attachmentID: att.id, buildID: "seed-1", label: "Entwurf Startseite", platform: "ios")

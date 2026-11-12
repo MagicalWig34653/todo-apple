@@ -271,4 +271,54 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(review.exists)
         XCTAssertTrue(hasState(review, "Review"), "review state in VoiceOver value: \(review.value ?? "")")
     }
+
+    private func element(containing text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    private func openWebsiteCard(_ title: String) {
+        tab("Projekte").tap()
+        let project = app.buttons.matching(NSPredicate(format: "label == 'Website-Relaunch'")).firstMatch
+        XCTAssertTrue(project.waitForExistence(timeout: 10))
+        project.tap()
+        let card = app.buttons.matching(NSPredicate(format: "label == %@", title)).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "card \(title)")
+        card.tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 5), "detail sheet")
+    }
+
+    /// Chat in the card detail like the PWA (needs `TODO_LIVE_SEED_FEED=1`): the open question has its own chat with the
+    /// seeded message and takes a reply; the bar at the bottom writes into the task's own chat; the review has its chat.
+    func testDetailChatsForTaskQuestionAndReview() throws {
+        try XCTSkipIf(isPad(), "iPhone tab bar")
+        let stamp = Int(Date().timeIntervalSince1970) % 100000
+        openWebsiteCard("Design-Review vorbereiten")
+        XCTAssertTrue(app.descendants(matching: .any)["chat.question"].waitForExistence(timeout: 10), "question chat")
+        XCTAssertTrue(element(containing: "Zählt das iPad auch als mobil?").waitForExistence(timeout: 10), "seeded question message")
+
+        let reply = "Ja, iPad zählt mit \(stamp)"
+        let field = app.textFields["chat.field.question"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        for _ in 0..<6 where !field.isHittable { app.swipeUp() }
+        field.tap()
+        field.typeText(reply)
+        app.buttons["chat.send.question"].tap()
+        XCTAssertTrue(element(containing: reply).waitForExistence(timeout: 10), "reply in question chat")
+
+        let note = "UITest Nachricht \(stamp)"
+        let taskField = app.textFields["chat.field.task"]
+        XCTAssertTrue(taskField.waitForExistence(timeout: 5))
+        taskField.tap()
+        taskField.typeText(note)
+        app.buttons["chat.send.task"].tap()
+        let sent = element(containing: note)
+        XCTAssertTrue(sent.waitForExistence(timeout: 10), "message in task chat")
+        // The task chat is its own thread: the question reply does not show up twice.
+        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'chat.bubble.mine' AND label CONTAINS %@", reply)).count, 1)
+        app.buttons["Fertig"].tap()
+
+        openWebsiteCard("Texte fuer Startseite freigeben")
+        XCTAssertTrue(app.descendants(matching: .any)["chat.review"].waitForExistence(timeout: 10), "review chat")
+        XCTAssertTrue(element(containing: "Bitte die Datenschutzerklärung noch prüfen.").waitForExistence(timeout: 10), "seeded review message")
+    }
 }
