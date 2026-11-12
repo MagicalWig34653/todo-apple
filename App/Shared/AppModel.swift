@@ -4,6 +4,8 @@ import TodoCore
 
 enum SidebarItem: Hashable {
     case feed, inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
+    /// Project overview (root of the iPhone "Projekte" tab).
+    case projects
     case project(UUID)
     case projectCommandCenter(UUID)
     case label(UUID)
@@ -256,7 +258,7 @@ final class AppModel {
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
         Self.cachedUser = nil
-        user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; selection = nil
+        user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
         phase = .signedOut
         await refreshCapabilities()
     }
@@ -525,13 +527,18 @@ final class AppModel {
     var commandSummary: CommandSummary?
     var attentionCount: Int { (commandSummary?.openQuestions ?? 0) + (commandSummary?.pendingReviews ?? 0) }
 
-    /// Light fetch (summary only); failures keep the last value because this is a background refresh.
+    /// Up to three cards of the "Läuft" lane for the agent overview on "Für dich".
+    var runningCards: [CommandCard] = []
+
+    /// Light fetch (summary plus the first running cards); failures keep the last value because this is a background refresh.
     func refreshCommandSummary() async {
         guard let client else { return }
-        var options = CommandCenterOptions(view: .list)
-        options.limit = 1; options.updatesLimit = 0
+        var options = CommandCenterOptions(view: .kanban)
+        options.laneLimit = 3; options.updatesLimit = 0
         if let center = try? await client.commandCenter(options) {
             commandSummary = center.summary
+            let running = center.lanes?.first { $0.lane == .running }?.cards ?? []
+            if running != runningCards { runningCards = running }
             PushCoordinator.shared.updateBadge(attentionCount)
         }
     }

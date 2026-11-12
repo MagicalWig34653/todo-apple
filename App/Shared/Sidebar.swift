@@ -10,23 +10,23 @@ enum SidebarMetrics {
     static let columnMin: CGFloat = 240, columnIdeal: CGFloat = 280, columnMax: CGFloat = 360
 }
 
-/// Sidebar (iPad/Mac) and Browse list (iPhone): account header, quick add, main entries, "Mehr", favorites,
-/// project tree, teams, help.
+/// Sidebar (iPad/Mac) and the project list of the iPhone "Projekte" tab. The sidebar follows the iPhone tabs
+/// (navigation variant A): Für dich and Steuerzentrale, Suche, Planen (Heute, Anstehend, Eingang, Etiketten), then
+/// favorites, the project tree and teams. Account, teams, agents and activity sit in the avatar menu.
 struct SidebarList: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
     @Environment(\.projectActions) private var actions
     @Environment(\.scenePhase) private var scenePhase
     let linking: Bool
+    /// iPhone "Projekte" tab: favorites, project tree and teams only (the other entries are tabs there).
+    var projectsOnly = false
     @State private var projectsExpanded = true
     @State private var favoritesExpanded = true
     @State private var teamsExpanded = true
-    @State private var moreExpanded = false
-    @State private var showHelp = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var planExpanded = true
     @ScaledMetric(relativeTo: .body) private var rowMinHeight = SidebarMetrics.rowMinHeight
 
-    private var dayNumber: Int { Calendar.current.component(.day, from: Date()) }
     private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
     private var openCounts: [UUID: Int] {
         Dictionary(grouping: model.tasks.filter { !$0.isDone }, by: \.projectID).mapValues(\.count)
@@ -37,46 +37,31 @@ struct SidebarList: View {
         @Bindable var model = model
         let counts = openCounts
         List(selection: $model.selection) {
-            Section {
-                Button { actions.addTask() } label: {
-                    HStack(spacing: Space.s) {
-                        Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(Color.brand)
-                        Text("task.add").font(.body.weight(.semibold)).foregroundStyle(Color.brand)
-                        Spacer()
+            if !projectsOnly {
+                Section {
+                    Button { actions.addTask() } label: {
+                        HStack(spacing: Space.s) {
+                            Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(Color.brand)
+                            Text("task.add").font(.body.weight(.semibold)).foregroundStyle(Color.brand)
+                            Spacer()
+                        }
+                        .frame(minHeight: rowMinHeight)
+                        .contentShape(Rectangle())
                     }
-                    .frame(minHeight: rowMinHeight)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
                 }
-                .buttonStyle(.plain)
-                .listRowBackground(Color.clear)
-            }
-            Section {
-                row(.feed, "view.feed", "sparkles", .tileBlue)
-                row(.search, "view.search", "magnifyingglass", .tileGray)
-                row(.inbox, "view.inbox", "tray.fill", .tileBlue, count: inboxCount)
-                row(.today, "view.today", "sun.max.fill", .tileGreen, count: model.today.count + meta.overdue.count)
-                row(.upcoming, "view.upcoming", "calendar", .tileOrange)
-                row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple, count: model.attentionCount, badgeTint: .brand)
-                row(.labels, "view.labels", "tag.fill", .tileTeal)
-                Button { withAnimation(reduceMotion ? nil : .default) { moreExpanded.toggle() } } label: {
-                    HStack(spacing: Space.m) {
-                        IconTile(symbol: "ellipsis", tint: .tileGray, size: SidebarMetrics.iconColumn)
-                        Text("view.more").font(.body.weight(.medium))
-                        Spacer()
-                        // Decorative chevron; the expanded state is announced through accessibilityValue.
-                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.textSecondary).rotationEffect(.degrees(moreExpanded ? 90 : 0))
-                    }
-                    .frame(minHeight: rowMinHeight)
-                    .contentShape(Rectangle())
+                Section {
+                    row(.feed, "view.feed", "sparkles", .tileBlue, count: model.attentionCount, badgeTint: .brand)
+                    row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple)
+                    row(.search, "view.search", "magnifyingglass", .tileGray)
                 }
-                .buttonStyle(.plain)
-                .accessibilityValue(Text(moreExpanded ? "a11y.expanded" : "a11y.collapsed"))
-                if moreExpanded {
-                    row(.teams, "view.teams", "person.2.fill", .tileBlue, count: model.teamInvitations.count, badgeTint: .brand).padding(.leading, Space.m)
-                    row(.account, "view.account", "gearshape.fill", .tileGray).padding(.leading, Space.m)
-                    row(.activity, "view.activity", "clock.arrow.circlepath", .tileOrange).padding(.leading, Space.m)
-                    row(.runner, "view.runner", "terminal.fill", .tilePurple).padding(.leading, Space.m)
-                }
+                Section(isExpanded: $planExpanded) {
+                    row(.today, "view.today", "sun.max.fill", .tileGreen, count: model.today.count + meta.overdue.count)
+                    row(.upcoming, "view.upcoming", "calendar", .tileOrange)
+                    row(.inbox, "view.inbox", "tray.fill", .tileBlue, count: inboxCount)
+                    row(.labels, "view.labels", "tag.fill", .tileTeal)
+                } header: { Text("view.plan") }
             }
             if !favoriteProjects.isEmpty {
                 Section(isExpanded: $favoritesExpanded) {
@@ -127,23 +112,7 @@ struct SidebarList: View {
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .background(Color.canvasRaised)
-        .safeAreaInset(edge: .top, spacing: 0) { AccountHeader() }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button { showHelp = true } label: {
-                HStack(spacing: Space.s) {
-                    Image(systemName: "questionmark.circle")
-                    Text("help.title")
-                    Spacer()
-                }
-                .font(.subheadline).foregroundStyle(Color.textSecondary)
-                .padding(.horizontal, Space.page)
-                .tapTarget()
-            }
-            .buttonStyle(.plain)
-            // Opaque footer: scrolled rows must not show through the help label (overlap at large text sizes).
-            .background(Color.canvasRaised)
-        }
-        .sheet(isPresented: $showHelp) { HelpView() }
+        .safeAreaInset(edge: .top, spacing: 0) { if !projectsOnly { AccountHeader() } }
         .task { await model.reloadTeams(); await model.refreshCommandSummary() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await model.refreshCommandSummary() } } }
     }
@@ -186,6 +155,7 @@ struct SidebarList: View {
 struct AccountHeader: View {
     @Environment(AppModel.self) private var model
     @State private var showNotifications = false
+    @State private var showHelp = false
     @ScaledMetric(relativeTo: .body) private var avatarSide = SidebarMetrics.avatar
 
     private var initials: String {
@@ -196,11 +166,7 @@ struct AccountHeader: View {
     var body: some View {
         HStack(spacing: Space.s) {
             Menu {
-                Text(verbatim: model.user?.displayName ?? "")
-                Button { model.selection = .account } label: { Label("view.account", systemImage: "gearshape") }
-                Button { model.selection = .teams } label: { Label("view.teams", systemImage: "person.2") }
-                Divider()
-                Button("logout", role: .destructive) { Task { await model.logout() } }
+                AccountMenuItems(showHelp: $showHelp)
             } label: {
                 HStack(spacing: Space.s) {
                     Text(verbatim: initials).font(.caption.weight(.bold)).foregroundStyle(Color.onBrand)
@@ -236,6 +202,77 @@ struct AccountHeader: View {
         }
         .padding(.horizontal, Space.page).padding(.vertical, Space.xs)
         .background(Color.canvasRaised)
+        .sheet(isPresented: $showHelp) { HelpView() }
+    }
+}
+
+/// Entries of the avatar menu (sidebar header and the iPhone tab roots): everything about the account and the
+/// workspace that is not a daily destination.
+struct AccountMenuItems: View {
+    @Environment(AppModel.self) private var model
+    @Binding var showHelp: Bool
+
+    var body: some View {
+        Text(verbatim: model.user?.displayName ?? "")
+        Button { model.selection = .account } label: { Label("view.account", systemImage: "gearshape") }
+        Button { model.selection = .teams } label: {
+            Label(model.teamInvitations.isEmpty ? String(localized: "view.teams") : String(localized: "notifications.invitations \(model.teamInvitations.count)"),
+                  systemImage: model.teamInvitations.isEmpty ? "person.2" : "person.2.badge.plus")
+        }
+        Button { model.selection = .runner } label: { Label("view.runner", systemImage: "terminal") }
+        Button { model.selection = .activity } label: { Label("view.activity", systemImage: "clock.arrow.circlepath") }
+        Button { showHelp = true } label: { Label("help.title", systemImage: "questionmark.circle") }
+        Divider()
+        Button("logout", role: .destructive) { Task { await model.logout() } }
+    }
+}
+
+/// iPhone: round avatar in the toolbar of each tab root; opens the account menu. A dot marks team invitations.
+struct AccountMenuButton: View {
+    @Environment(AppModel.self) private var model
+    @State private var showHelp = false
+    @ScaledMetric(relativeTo: .body) private var avatarSide = SidebarMetrics.avatar
+
+    private var initials: String {
+        let parts = (model.user?.displayName ?? "?").split(separator: " ").prefix(2)
+        return parts.compactMap { $0.first.map(String.init) }.joined().uppercased()
+    }
+
+    var body: some View {
+        Menu {
+            AccountMenuItems(showHelp: $showHelp)
+        } label: {
+            Text(verbatim: initials).font(.caption.weight(.bold)).foregroundStyle(Color.onBrand)
+                .frame(width: avatarSide, height: avatarSide).background(Color.brand, in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if !model.teamInvitations.isEmpty {
+                        Circle().fill(Color.dueOverdue).frame(width: Space.s, height: Space.s).accessibilityHidden(true)
+                    }
+                }
+        }
+        .accessibilityLabel(Text("account.menu"))
+        .accessibilityValue(Text(verbatim: model.teamInvitations.isEmpty ? "" : String(localized: "notifications.invitations \(model.teamInvitations.count)")))
+        .accessibilityIdentifier("accountMenu")
+        .sheet(isPresented: $showHelp) { HelpView() }
+    }
+}
+
+extension View {
+    /// Adds the avatar menu to the navigation bar (iPhone tab roots).
+    func accountMenu() -> some View {
+        #if os(iOS)
+        toolbar { ToolbarItem(placement: .topBarLeading) { AccountMenuButton() } }
+        #else
+        self
+        #endif
+    }
+}
+
+/// iPhone "Projekte" tab: favorites, project tree and teams, without the entries that are tabs of their own.
+struct ProjectsHome: View {
+    var body: some View {
+        SidebarList(linking: true, projectsOnly: true)
+            .navigationTitle("view.projects")
     }
 }
 
@@ -275,6 +312,7 @@ struct SidebarScreen: View {
     var body: some View {
         switch item {
         case .feed, nil: FeedView()
+        case .projects: ProjectsHome()
         case .inbox: InboxView()
         case .today: TodayView()
         case .upcoming: UpcomingView()

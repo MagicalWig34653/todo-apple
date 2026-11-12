@@ -73,11 +73,11 @@ Geprüft: Build Todo-iOS und Todo-macOS (`CODE_SIGNING_ALLOWED=NO`) grün; UI-Te
 ## Plan (Wellen, Karten unter 1786DB8B)
 
 - **Welle 1 – Agenten im Detail, Markdown, Schnellerfassung** (erledigt bis auf Review).
-- **Welle 2 – Navigation neu (nach Linos Entscheidung)**: Variante A/B/C (Skizze `navigation-varianten.png`), danach Durchsuchen ohne Doppel-Einträge, Projektseite mit beschrifteten Aktionen, Agentenstatus in Zeilen und Board-Karten.
+- **Welle 2 – Navigation neu**: Lino hat am 12.11. Variante A gewählt; umgesetzt (4 Tabs Für dich/Projekte/Planen/Suche, Avatar-Menü, Sidebar gleich gegliedert, Projektseite mit beschrifteten Aktionen; Details `docs/STATUS.md`, Bilder `docs/screenshots/glowup/nav-a-*.png`). Offen: Agentenstatus in Zeilen und Board-Karten (6C88CC5D).
 - **Welle 2 – Unterhaltung an Karten** (Apple-Teil von 84F150E5): Chat je Karte, je Frage und je Review.
 - **Welle 3 – Funktionslücken**: Bestätigungen (Action Requests), Kriterien bearbeiten, Projektmodus (2EC67248), Abhängigkeiten/Meilensteine lesen, Einstellungs-Hub (Darstellung, Passkeys, Sitzungen, Verbindungen, Runner).
 - **Welle 4 – Politur und Plattformen**: Steuerzentrale entschlacken, Farben vereinheitlichen, Folgepunkte F129D2F7 (macOS-Fenster, `#Preview` je Screen, Zählerchips, Tab-Leisten-Ränder, iPad-Detail bei AX, Projektpalette/`tile*` als Assets).
 
 ## Offene Entscheidungen (an Lino)
 
-Navigation (Variante A „Agenten zuerst“ mit 4 Tabs Für dich/Projekte/Planen/Suche, B „wie die PWA“, C „minimal“). Bezug: Karte 2711B608 („UI Rework durch Codex, erst Konzept mit Figcraft“) – falls Lino dort zuerst ein Figma-Konzept will, wäre Welle 2 Navigation dessen Gegenstand.
+Navigation: entschieden (A „Agenten zuerst“, Lino 12.11.). Bezug: Karte 2711B608 („UI Rework durch Codex, erst Konzept mit Figcraft“) – falls Lino dort zuerst ein Figma-Konzept will, wäre Welle 2 Navigation dessen Gegenstand.

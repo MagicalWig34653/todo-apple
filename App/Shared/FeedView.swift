@@ -1,11 +1,19 @@
 import SwiftUI
 import TodoCore
 
-/// First tab: "Für dich". Cards in the app's design system, no list chrome.
+/// First tab: "Für dich". Cards in the app's design system, no list chrome. With `showsAgentOverview` (iPhone tab,
+/// navigation variant A) it starts with the agent overview (Läuft, Fragen, Reviews; one tap to the Steuerzentrale),
+/// then what needs you, then today's tasks, then the news.
 struct FeedView: View {
     @Environment(AppModel.self) private var app
+    @Environment(TaskMeta.self) private var meta
+    @Environment(\.scenePhase) private var scenePhase
+    var showsAgentOverview = true
     @State private var model = FeedModel()
     @State private var shown: FeedImage?
+
+    /// Today's rows shown inline; the rest is one tap away in "Planen".
+    private static let todayLimit = 5
 
     /// DEBUG only: `TODO_DEBUG_FEED_POSTS=1` hides the needs-you section so screenshots can reach the posts (no touch input in the simulator).
     private static var debugPostsOnly: Bool {
@@ -16,18 +24,33 @@ struct FeedView: View {
         #endif
     }
 
+    /// With the today section below, due and overdue items would show twice; agent items (question, review, blocked) stay.
+    private var needsYouItems: [FeedNeedsYou] {
+        guard showsAgentOverview else { return model.state.needsYou }
+        return model.state.needsYou.filter { $0.kind != "due" && $0.kind != "overdue" }
+    }
+
+    private var todayTasks: [TodoTask] {
+        let overdue = meta.overdue.map(\.task)
+        let today = app.today.sorted { ($0.planning.dueAt ?? .distantFuture) < ($1.planning.dueAt ?? .distantFuture) }.map(\.task)
+        return (overdue + today).filter { !$0.isDone }
+    }
+
     var body: some View {
+        let today = showsAgentOverview ? todayTasks : []
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.m) {
+                if showsAgentOverview { AgentOverviewCard() }
                 if model.unsupported {
                     EmptyState(symbol: "icloud.slash", title: "feed.unsupported", message: "feed.unsupportedHint").padding(.top, Space.xxl)
                 } else if !model.state.loaded {
                     if model.failed { EmptyState(symbol: "wifi.exclamationmark", title: "feed.failed", message: "feed.failedHint").padding(.top, Space.xxl) }
                     else { SkeletonRows(count: 5) }
-                } else if model.state.isEmpty {
+                } else if model.state.isEmpty && today.isEmpty {
                     EmptyState(symbol: "sparkles", title: "feed.empty", message: "feed.emptyHint").padding(.top, Space.xxl)
                 } else {
-                    if !model.state.needsYou.isEmpty, !Self.debugPostsOnly { needsYou }
+                    if !needsYouItems.isEmpty, !Self.debugPostsOnly { needsYou }
+                    if !today.isEmpty { todaySection(today) }
                     if !model.state.posts.isEmpty { posts }
                 }
             }
@@ -38,8 +61,9 @@ struct FeedView: View {
         // Start tab on iPhone: capture from here too, like the PWA's global "+" (it was the only main tab without it).
         .quickAdd()
         .navigationTitle("view.feed")
-        .refreshable { await model.load(app) }
-        .task { await model.load(app) }
+        .refreshable { await reload() }
+        .task { await reload() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active, showsAgentOverview { Task { await app.refreshCommandSummary() } } }
         .sheet(item: $shown) { image in
             NavigationStack {
                 RemoteImage(attachmentID: image.attachmentID, contentMode: .fit).padding(Space.l)
@@ -58,15 +82,53 @@ struct FeedView: View {
         }
     }
 
+    private func reload() async {
+        guard showsAgentOverview else { await model.load(app); return }
+        async let feed: Void = model.load(app)
+        async let summary: Void = app.refreshCommandSummary()
+        async let agenda: Void = app.reloadAgenda()
+        _ = await (feed, summary, agenda)
+    }
+
+    private func todaySection(_ tasks: [TodoTask]) -> some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("view.today").font(Font.sectionTitle).foregroundStyle(Color.textSecondary).accessibilityAddTraits(.isHeader)
+                CountBadge(count: tasks.count)
+                Spacer(minLength: Space.s)
+                Button { app.selection = .today } label: {
+                    HStack(spacing: Space.xxs) {
+                        Text("forYou.today.all")
+                        Image(systemName: "chevron.right").font(.caption2.weight(.bold)).accessibilityHidden(true)
+                    }
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.brand)
+                    .tapTarget()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("forYou.today.all")
+            }
+            .padding(.top, Space.s)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(tasks.prefix(Self.todayLimit).enumerated()), id: \.element.id) { index, task in
+                    if index > 0 { Divider().padding(.leading, TapTarget.minimum) }
+                    TaskRow(task: task).padding(.vertical, Space.xxs).padding(.trailing, Space.s)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardSurface()
+        }
+    }
+
     private var needsYou: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
                 Text("feed.needsYou").font(Font.sectionTitle).foregroundStyle(Color.textSecondary).accessibilityAddTraits(.isHeader)
-                if model.state.needsYouTotal > model.state.needsYou.count {
+                // With the agent overview the counters above carry the totals; the server's remainder may be only due items.
+                if !showsAgentOverview, model.state.needsYouTotal > model.state.needsYou.count {
                     Text("feed.needsYou.more \(model.state.needsYouTotal - model.state.needsYou.count)").font(.caption).foregroundStyle(Color.textSecondary)
                 }
             }
-            ForEach(model.state.needsYou) { item in
+            ForEach(needsYouItems) { item in
                 NeedsYouCard(item: item, busy: model.busy.contains(item.id)) { action, input in
                     Task { await model.perform(item, action, input: input, app) }
                 } open: { openTask(item.taskID, item.projectID, item.taskTitle) }
@@ -87,6 +149,108 @@ struct FeedView: View {
 
     private func openTask(_ id: UUID, _ projectID: UUID, _ title: String) {
         app.path = [app.tasks.first { $0.id == id } ?? TodoTask(id: id, projectID: projectID, title: title)]
+    }
+}
+
+/// Top of "Für dich": what the agents are doing. The header with the three counters opens the Steuerzentrale
+/// (one tap from the start tab); below it up to three running cards with progress, each opening its task.
+struct AgentOverviewCard: View {
+    @Environment(AppModel.self) private var app
+
+    private var summary: CommandSummary { app.commandSummary ?? CommandSummary() }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Button { app.selection = .commandCenter } label: {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                        Text("forYou.agents").font(Font.sectionTitle).foregroundStyle(Color.textSecondary)
+                        Spacer(minLength: Space.s)
+                        HStack(spacing: Space.xxs) {
+                            Text("forYou.openCommandCenter")
+                            Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                        }
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Color.brand)
+                    }
+                    AdaptiveStack(spacing: Space.s) {
+                        stat("running", count: summary.running, title: "cc.lane.running")
+                        stat("question", count: summary.openQuestions, title: "forYou.questions")
+                        stat("review", count: summary.pendingReviews, title: "forYou.reviews")
+                    }
+                }
+                .contentShape(Rectangle())
+                .tapTarget()
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("forYou.openCommandCenter"))
+            .accessibilityValue(Text("forYou.a11y.summary \(summary.running) \(summary.openQuestions) \(summary.pendingReviews)"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("forYou.commandCenter")
+            if !app.runningCards.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(app.runningCards.enumerated()), id: \.element.id) { index, card in
+                        if index > 0 { Divider() }
+                        RunningCardRow(card: card)
+                    }
+                }
+            }
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
+    }
+
+    private func stat(_ lane: String, count: Int, title: LocalizedStringKey) -> some View {
+        let color = count > 0 ? LanePresentation.color(lane) : Color.textSecondary
+        // Count above the label: three tiles fit the iPhone width without truncating "Reviews".
+        return VStack(alignment: .leading, spacing: Space.xxs) {
+            Text(verbatim: String(count)).font(.title2.weight(.bold)).monospacedDigit()
+            HStack(spacing: Space.xs) {
+                Image(systemName: LanePresentation.symbol(lane)).font(.caption2).accessibilityHidden(true)
+                Text(title).font(.footnote.weight(.semibold)).lineLimit(1)
+            }
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+    }
+}
+
+/// One card of the "Läuft" lane: title, project and agent, progress, latest note.
+private struct RunningCardRow: View {
+    @Environment(AppModel.self) private var app
+    let card: CommandCard
+
+    private var subtitle: String {
+        [card.project.name, card.agent?.claimedLabel].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    var body: some View {
+        Button {
+            app.path = [app.tasks.first { $0.id == card.task.id } ?? TodoTask(id: card.task.id, projectID: card.project.id, title: card.task.title)]
+        } label: {
+            VStack(alignment: .leading, spacing: Space.xxs) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Text(verbatim: card.task.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                    Spacer(minLength: Space.s)
+                    Text(verbatim: "\(card.progress.percent) %").font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(Color.textSecondary)
+                }
+                ProgressView(value: Double(card.progress.percent), total: 100).tint(LanePresentation.color("running")).accessibilityHidden(true)
+                if let note = card.latestUpdate?.text, !note.isEmpty {
+                    MarkdownText(note).font(.footnote).foregroundStyle(Color.textSecondary).lineLimit(2).multilineTextAlignment(.leading)
+                }
+                if !subtitle.isEmpty {
+                    Text(verbatim: subtitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1)
+                }
+            }
+            .padding(.vertical, Space.s)
+            .contentShape(Rectangle())
+            .tapTarget()
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text("feed.openTask"))
     }
 }
 
@@ -339,7 +503,9 @@ private struct FeedPreviewCards: View {
 #Preview("Feed Karten, Light") { ScrollView { FeedPreviewCards() } }
 #Preview("Feed Karten, Dark") { ScrollView { FeedPreviewCards() }.preferredColorScheme(.dark) }
 #Preview("Feed Karten, accessibility5") { ScrollView { FeedPreviewCards() }.dynamicTypeSize(.accessibility5) }
-#Preview("Feed, Light") { NavigationStack { FeedView() }.environment(AppModel()) }
+#Preview("Feed, Light") { NavigationStack { FeedView() }.environment(AppModel()).environment(TaskMeta()) }
+#Preview("Feed, Dark") { NavigationStack { FeedView() }.environment(AppModel()).environment(TaskMeta()).preferredColorScheme(.dark) }
+#Preview("Feed, accessibility5") { NavigationStack { FeedView() }.environment(AppModel()).environment(TaskMeta()).dynamicTypeSize(.accessibility5) }
 
 #Preview("Feed lange Antworten, Light") { ScrollView { FeedLongPreviewCards() } }
 #Preview("Feed lange Antworten, Dark") { ScrollView { FeedLongPreviewCards() }.preferredColorScheme(.dark) }

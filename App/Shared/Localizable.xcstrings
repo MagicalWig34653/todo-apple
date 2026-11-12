@@ -4901,6 +4901,106 @@
           }
         }
       }
+    },
+    "account.menu": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto und Einstellungen"
+          }
+        }
+      }
+    },
+    "forYou.a11y.summary %lld %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld laufen, %2$lld Fragen, %3$lld Reviews"
+          }
+        }
+      }
+    },
+    "forYou.agents": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenten"
+          }
+        }
+      }
+    },
+    "forYou.openCommandCenter": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steuerzentrale"
+          }
+        }
+      }
+    },
+    "forYou.questions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fragen"
+          }
+        }
+      }
+    },
+    "forYou.reviews": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviews"
+          }
+        }
+      }
+    },
+    "forYou.today.all": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle in Planen"
+          }
+        }
+      }
+    },
+    "project.agents": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenten"
+          }
+        }
+      }
+    },
+    "view.plan": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planen"
+          }
+        }
+      }
+    },
+    "view.projects": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte"
+          }
+        }
+      }
     }
   }
 }

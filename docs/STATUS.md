@@ -314,3 +314,15 @@ Stand 0cf0162 hochgeladen: iOS 2611081645 (UUID 4baeb77d-50a9-404d-ba88-618a420d
 - Geprüft: Builds Todo-iOS/Todo-macOS grün; UI-Tests TodoUITests 6/7 grün, 1 iPad-only übersprungen (iPhone 18 Pro, lokales SQLite-Backend). Sichtprüfung nur iPhone hell/Standard.
 - Nicht geprüft: Tippen auf Antwort/Review im Detail (gleiche API wie Steuerzentrale), Dunkel/AX, iPad, Mac.
 - Nächster Schritt: Navigationsentscheidung von Lino (Frage an 1786DB8B), danach Welle 2.
+
+## Checkpoint 12.11.2026 Glow-up Welle 2: Navigation Variante A (Branch `glowup`, Todolino 3B83E5D6)
+- Entscheidung Lino 12.11.: Variante A „Agenten zuerst“ (Frage an 1786DB8B). Umgesetzt:
+  - iPhone 4 Tabs (`MainView.swift` `PhoneTabs`, `PhoneTab`, `PhoneRouting`): **Für dich** (Agenten-Karte mit Läuft/Fragen/Reviews, ein Tap zur Steuerzentrale, bis zu 3 laufende Karten mit Fortschritt; Braucht dich ohne Fällig/Überfällig; Heute mit bis zu 5 Aufgaben und „Alle in Planen“; Neuigkeiten), **Projekte** (Favoriten, Baum, Teams, ohne Scrollen), **Planen** (Segmente Heute/Anstehend/Eingang, Etiketten über die Leiste), **Suche**. Jeder Tab hat einen eigenen Navigationspfad; `model.selection` folgt dem sichtbaren Bildschirm (sonst navigierte ein zweites Antippen desselben Ziels nicht).
+  - Avatar-Menü links oben auf jedem Tab (`AccountMenuButton`): Konto, Teams (mit Einladungen), Agenten & Runner, Aktivität, Hilfe, Abmelden. Diese Ziele werden auf den offenen Tab geschoben.
+  - Sidebar iPad/Mac (`SidebarList`): gleiche Gliederung (Für dich, Steuerzentrale, Suche | Planen: Heute, Anstehend, Eingang, Etiketten | Favoriten | Meine Projekte | Teams); „Mehr“ und Hilfe-Fußzeile ins Avatar-Menü verschoben. iPhone-Projekte-Tab nutzt dieselbe Liste (`projectsOnly`).
+  - Projektseite: beschrifteter Umschalter Liste/Board und Knopf „Agenten“ (Steuerzentrale des Projekts) unter dem Titel; Leiste nur noch Anzeige-Optionen und „…“ (Kommentare, Teilen, Favorit, Farbe, Unterprojekt, Löschen) statt fünf unbeschrifteter Symbole.
+  - `AppModel.refreshCommandSummary` holt jetzt Kanban mit `laneLimit=3` (Zähler plus laufende Karten, `runningCards`).
+  - Neuer Fall `SidebarItem.projects`; DEBUG `TODO_DEBUG_SELECT=projects` (alias `browse`).
+- Siehe Abschnitt Prüfungen in der Todolino-Karte 3B83E5D6; UI-Tests neu: `testTabBarHasFourTabs`, `testForYouOpensCommandCenterInOneTap`, `testPlanKeepsTodayUpcomingInboxAndLabels`, `testProjectsTabListsProjectsAndAgentView`, `testAccountMenuHoldsAccountTeamsAgents`.
+- Prüfung: iOS- und macOS-Build grün; iPhone-18-Pro-UI-Lauf 12 grün, 1 übersprungen (iPad). `testCreateCompleteAndOpenDetail` scrollt jetzt, bis die Zeile antippbar ist (schwebende Tab-Leiste deckt die letzten Zeilen ab); Audit „feed“ ignoriert Text ohne Element unter dem Leistenglas. Screenshots `docs/screenshots/glowup/nav-a-{feed,projects,plan,search}.png`.
+- Offen: auf „Für dich“ überdeckt der FAB den Knopf „Änderungen anfordern“ der Review-Karte teilweise; iPad/Mac nur gebaut, nicht angesehen.

@@ -86,6 +86,7 @@ struct ProjectView: View {
             TextField(accessible: "project.descriptionPlaceholder", text: $descriptionText, axis: .vertical)
                 .font(.body).foregroundStyle(Color.textSecondary).textFieldStyle(.plain).lineLimit(1...4).fixedSize(horizontal: false, vertical: true).focused($descriptionFocus)
                 .onChange(of: descriptionFocus) { _, f in if !f { commitDescription(project) } }
+            viewSwitcher
         }
         // Same page margin as the list rows below, so the title lines up with the row content.
         .pageMargins().padding(.top, Space.s).padding(.bottom, Space.m)
@@ -93,6 +94,26 @@ struct ProjectView: View {
         return Group {
             if mode == .list { content.readableWidth() } else { content.frame(maxWidth: .infinity, alignment: .leading) }
         }
+    }
+
+    /// Labeled switch between list and board plus the project's agent view (navigation variant A: a project opens
+    /// as list, board or agent overview; before, these were unlabeled toolbar symbols).
+    private var viewSwitcher: some View {
+        AdaptiveStack(spacing: Space.s) {
+            Picker("display.layout", selection: Binding(get: { model.prefs(for: projectID).view }, set: { model.setPrefs(ProjectPrefsPatch(view: $0), for: projectID) })) {
+                Label("display.list", systemImage: "list.bullet").tag(ProjectDisplayPrefs.View.list.rawValue)
+                Label("display.board", systemImage: "rectangle.split.3x1").tag(ProjectDisplayPrefs.View.board.rawValue)
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .accessibilityIdentifier("project.layout")
+            Button { model.selection = .projectCommandCenter(projectID) } label: {
+                Label("project.agents", systemImage: "rectangle.3.group")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.bordered).buttonBorderShape(.capsule).tint(Color.brand)
+            .accessibilityIdentifier("project.agents")
+        }
+        .padding(.top, Space.xs)
     }
 
     private func commitDescription(_ project: Project) {
@@ -114,15 +135,16 @@ struct ProjectView: View {
         // While a task is open in the iPad inspector its own bar is shown; the project actions would pile up next to it.
         if let project, model.path.isEmpty {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button { showComments = true } label: { Label("project.comments", systemImage: "bubble.left") }
-                Button { model.selection = .projectCommandCenter(projectID) } label: { Label("cc.title", systemImage: "rectangle.3.group") }
-                Button { actions.share(project) } label: { Label("project.share", systemImage: "person.badge.plus") }
-                Button { showOptions = true } label: { Label("project.display", systemImage: mode == .board ? "rectangle.split.3x1" : "list.bullet") }
+                Button { showOptions = true } label: { Label("project.display", systemImage: "line.3.horizontal.decrease.circle") }
                     .popover(isPresented: $showOptions, arrowEdge: .bottom) {
                         DisplayOptions(projectID: projectID, hasColumns: board.hasOwnColumns || mode == .board)
                             .presentationCompactAdaptation(.popover)
                     }
+                // Rarely used actions with text labels in one menu instead of a row of unlabeled symbols.
                 Menu {
+                    Button { showComments = true } label: { Label("project.comments", systemImage: "bubble.left") }
+                    Button { actions.share(project) } label: { Label("project.share", systemImage: "person.badge.plus") }
+                    Divider()
                     Button { Task { await model.toggleFavorite(project) } } label: {
                         Label(project.isFavorite ? "project.unfavorite" : "project.favorite", systemImage: project.isFavorite ? "star.slash" : "star")
                     }

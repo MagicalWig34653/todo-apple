@@ -154,68 +154,151 @@ struct SplitLayout: View {
 
 // MARK: iPhone: bottom tab bar
 
-struct PhoneTabs: View {
-    @Environment(AppModel.self) private var model
-    @Environment(TaskMeta.self) private var meta
-    @State private var tab = 5
-    @State private var browsePath: [SidebarItem] = []
+/// The four iPhone tabs (navigation variant A "Agenten zuerst", Lino 12.11.2026): agent work first, then projects,
+/// date planning and search. Account, teams, agents/runner and activity sit behind the avatar menu.
+enum PhoneTab: Hashable { case forYou, projects, plan, search }
 
-    private var inboxCount: Int { model.tasks.filter { !$0.isDone && !meta.isSubtask($0.id) && meta.planning(for: $0.id)?.dueAt == nil }.count }
+/// Segments of the "Planen" tab (the former Todoist-style tabs).
+enum PlanSection: String, CaseIterable, Identifiable {
+    case today, upcoming, inbox
+    var id: String { rawValue }
+    var item: SidebarItem {
+        switch self { case .today: .today; case .upcoming: .upcoming; case .inbox: .inbox }
+    }
+    var title: LocalizedStringKey {
+        switch self { case .today: "view.today"; case .upcoming: "view.upcoming"; case .inbox: "view.inbox" }
+    }
+}
 
-    var body: some View {
-        TabView(selection: $tab) {
-            NavigationStack { FeedView() }
-                .tabItem { Label("view.feed", systemImage: "sparkles") }.tag(5)
-                .badge(model.attentionCount)
-            NavigationStack { InboxView() }
-                .tabItem { Label("view.inbox", systemImage: "tray") }.tag(0)
-                .badge(inboxCount)
-            NavigationStack { TodayView() }
-                .tabItem { Label("view.today", systemImage: "sun.max") }.tag(1)
-                .badge(model.today.count + meta.overdue.count)
-            NavigationStack { UpcomingView() }
-                .tabItem { Label("view.upcoming", systemImage: "calendar") }.tag(2)
-            NavigationStack(path: $browsePath) {
-                SidebarList(linking: true)
-                    .navigationTitle("browse.title")
-                    .navigationDestination(for: SidebarItem.self) { SidebarScreen(item: $0) }
-            }
-            .tabItem { Label("browse.title", systemImage: "square.grid.2x2") }.tag(4)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) { SyncStatusBar() }
-        .onAppear { syncFromSelection(model.selection) }
-        #if DEBUG
-        // Screenshots: `TODO_DEBUG_SELECT=browse` shows the root of the browse tab (no tap automation in simctl);
-        // after the debug sign-in, which resets the selection.
-        .task {
-            guard ProcessInfo.processInfo.environment["TODO_DEBUG_SELECT"] == "browse" else { return }
-            try? await Task.sleep(for: .seconds(3))
-            tab = 4
-        }
-        #endif
-        .onChange(of: model.selection) { _, new in syncFromSelection(new) }
-        .onChange(of: tab) { _, new in
-            switch new {
-            case 5: model.selection = .feed
-            case 0: model.selection = .inbox
-            case 1: model.selection = .today
-            case 2: model.selection = .upcoming
-            default: break
-            }
+/// Where a navigation target lives on iPhone. `nil` = no fixed home: it is pushed onto the tab that is open.
+enum PhoneRouting {
+    static func tab(for item: SidebarItem) -> PhoneTab? {
+        switch item {
+        case .feed, .commandCenter: .forYou
+        case .projects, .project, .projectCommandCenter: .projects
+        case .today, .upcoming, .inbox, .labels, .label: .plan
+        case .search: .search
+        case .teams, .account, .runner, .activity: nil
         }
     }
 
-    private func syncFromSelection(_ item: SidebarItem?) {
+    /// Items that are the root screen of their tab (no push).
+    static func isRoot(_ item: SidebarItem) -> Bool {
         switch item {
-        case .feed, nil: tab = 5
-        case .inbox: tab = 0
-        case .today: tab = 1
-        case .upcoming: tab = 2
-        // Search lives in the browse tab: with six tabs iOS wraps the extra ones in its own "More" navigation controller,
-        // which put a second back button above the stack's own one.
-        case .search, .teams, .project, .labels, .label, .account, .runner, .activity, .commandCenter, .projectCommandCenter:
-            tab = 4
-            if let item, browsePath.last != item { browsePath = [item] }
+        case .feed, .projects, .today, .upcoming, .inbox, .search: true
+        default: false
+        }
+    }
+
+    /// The navigation path of `current` after selecting `item`: an item already on the stack pops back to it, an item for the open tab is pushed, otherwise the stack is replaced.
+    static func path(after item: SidebarItem, current: [SidebarItem], sameTab: Bool) -> [SidebarItem] {
+        if isRoot(item) { return [] }
+        if let i = current.firstIndex(of: item) { return Array(current[...i]) }
+        return sameTab ? current + [item] : [item]
+    }
+}
+
+struct PhoneTabs: View {
+    @Environment(AppModel.self) private var model
+    @Environment(TaskMeta.self) private var meta
+    @State private var tab: PhoneTab = .forYou
+    @State private var planSection: PlanSection = .today
+    @State private var paths: [PhoneTab: [SidebarItem]] = [:]
+
+    private func pathBinding(_ t: PhoneTab) -> Binding<[SidebarItem]> {
+        Binding(get: { paths[t] ?? [] }, set: { paths[t] = $0 })
+    }
+
+    private func rootItem(_ t: PhoneTab) -> SidebarItem {
+        switch t {
+        case .forYou: .feed
+        case .projects: .projects
+        case .plan: planSection.item
+        case .search: .search
+        }
+    }
+
+    var body: some View {
+        TabView(selection: $tab) {
+            stack(.forYou) { FeedView(showsAgentOverview: true) }
+                .tabItem { Label("view.feed", systemImage: "sparkles") }.tag(PhoneTab.forYou)
+                .badge(model.attentionCount)
+            stack(.projects) { ProjectsHome() }
+                .tabItem { Label("view.projects", systemImage: "folder") }.tag(PhoneTab.projects)
+            stack(.plan) { PlanView(section: $planSection) }
+                .tabItem { Label("view.plan", systemImage: "calendar") }.tag(PhoneTab.plan)
+                .badge(model.today.count + meta.overdue.count)
+            stack(.search) { SearchView() }
+                .tabItem { Label("view.search", systemImage: "magnifyingglass") }.tag(PhoneTab.search)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) { SyncStatusBar() }
+        .onAppear { syncFromSelection(model.selection) }
+        .onChange(of: model.selection) { _, new in syncFromSelection(new) }
+        .onChange(of: tab) { _, new in reportSelection(of: new) }
+        .onChange(of: paths) { _, _ in reportSelection(of: tab) }
+        .onChange(of: planSection) { _, _ in if tab == .plan { reportSelection(of: .plan) } }
+    }
+
+    private func stack<Root: View>(_ t: PhoneTab, @ViewBuilder root: () -> Root) -> some View {
+        NavigationStack(path: pathBinding(t)) {
+            root()
+                // Tab roots only: pushed screens keep their own toolbar (project actions, command-center mode).
+                .accountMenu()
+                .navigationDestination(for: SidebarItem.self) { SidebarScreen(item: $0) }
+        }
+    }
+
+    /// Tab switch, back navigation or a pushed link: the model selection follows what is on screen, so a later
+    /// selection of the same item (favorite, breadcrumb, menu) still changes the value and navigates.
+    private func reportSelection(of t: PhoneTab) {
+        let shown = paths[t]?.last ?? rootItem(t)
+        if model.selection != shown { model.selection = shown }
+    }
+
+    private func syncFromSelection(_ item: SidebarItem?) {
+        guard let item else {
+            // Signed out or reset: back to the start tab.
+            tab = .forYou; paths = [:]
+            return
+        }
+        let target = PhoneRouting.tab(for: item) ?? tab
+        if target == .plan, let section = PlanSection.allCases.first(where: { $0.item == item }), planSection != section {
+            planSection = section
+        }
+        let current = paths[target] ?? []
+        let next = PhoneRouting.path(after: item, current: current, sameTab: target == tab)
+        if next != current { paths[target] = next }
+        if tab != target { tab = target }
+    }
+}
+
+/// "Planen": the date views as segments (Heute, Anstehend, Eingang); labels and filters from the toolbar.
+struct PlanView: View {
+    @Binding var section: PlanSection
+
+    var body: some View {
+        Group {
+            switch section {
+            case .today: TodayView()
+            case .upcoming: UpcomingView()
+            case .inbox: InboxView()
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Picker("view.plan", selection: $section) {
+                ForEach(PlanSection.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden()
+            .accessibilityIdentifier("planSection")
+            .pageMargins().padding(.vertical, Space.s)
+            .readableWidth()
+            .background(Color.canvas)
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink(value: SidebarItem.labels) { Label("view.labels", systemImage: "tag") }
+                    .accessibilityIdentifier("plan.labels")
+            }
         }
     }
 }
