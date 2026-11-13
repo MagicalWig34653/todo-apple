@@ -95,17 +95,22 @@ public struct BrainThread: Sendable, Equatable {
     private mutating func insert(_ items: [BrainMessage]) {
         var byID = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
         for item in items { byID[item.id] = item }
-        messages = byID.values.sorted { ($0.createdAt, $0.id.uuidString) > ($1.createdAt, $1.id.uuidString) }
+        // Newest first. The server sends `createdAt` with second precision (contract: milliseconds), and the status line
+        // of an unreachable brain is written in the same second as the recording it answers: within one second the
+        // brain's message counts as the newer one (a person needs longer than a second for the next message).
+        messages = byID.values.sorted {
+            if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
+            if $0.author != $1.author { return $0.author == .agent }
+            return $0.id.uuidString > $1.id.uuidString
+        }
     }
 
     /// A recording the brain has not answered yet: a `voice_in` of the person with no later message of the brain.
     /// The runner fills the transcript and posts the answer (or a status line on failure/expiry) as agent messages,
     /// so "no later agent message" is the processing state the app shows.
     public var processingIDs: Set<UUID> {
-        guard let lastAgent = messages.first(where: { $0.author == .agent })?.createdAt else {
-            return Set(messages.filter { $0.kind == .voiceIn }.map(\.id))
-        }
-        return Set(messages.filter { $0.kind == .voiceIn && $0.createdAt > lastAgent }.map(\.id))
+        let firstAgent = messages.firstIndex { $0.author == .agent } ?? messages.endIndex
+        return Set(messages[..<firstAgent].filter { $0.kind == .voiceIn }.map(\.id))
     }
 }
 

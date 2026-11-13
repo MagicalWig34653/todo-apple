@@ -82,6 +82,19 @@ final class BrainChannelTests: XCTestCase {
         XCTAssertTrue(thread.processingIDs.isEmpty, "a status line of the brain ends the wait")
     }
 
+    func testSameSecondStatusLineCountsAsAnswerToItsRecording() {
+        // The server stamps full seconds: the recording and the "only by text" status line carry the same time.
+        var thread = BrainThread()
+        let v = UUID(), s = UUID()
+        thread.merge(firstPage: page([
+            message(v, kind: "voice_in", text: nil, at: "2026-11-13T09:36:40Z", attachment: UUID()),
+            message(s, kind: "status", author: "agent", text: "Brain gerade nur per Text erreichbar.", at: "2026-11-13T09:36:40Z"),
+        ]))
+        XCTAssertEqual(thread.messages.map(\.id), [s, v], "within one second the brain's line sits below the recording in the thread")
+        XCTAssertEqual(thread.chronological.map(\.id), [v, s])
+        XCTAssertTrue(thread.processingIDs.isEmpty)
+    }
+
     private func decode(_ json: String) throws -> BrainMessage {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601WithMillis
@@ -89,6 +102,19 @@ final class BrainChannelTests: XCTestCase {
     }
 
     // MARK: Requests
+
+    func testClientDecoderKeepsMilliseconds() async throws {
+        let a = UUID(), b = UUID()
+        MockURLProtocol.handler = { _ in
+            let items = [self.message(b, at: "2026-11-13T10:00:00.621Z"), self.message(a, at: "2026-11-13T10:00:00.619Z")]
+            return (200, Data(#"{"items":[\#(items.joined(separator: ","))],"nextCursor":null}"#.utf8))
+        }
+        let result = try await client.brainMessages()
+        XCTAssertEqual(result.items[0].createdAt.timeIntervalSince(result.items[1].createdAt), 0.002, accuracy: 0.0005)
+        var thread = BrainThread()
+        thread.merge(firstPage: result)
+        XCTAssertEqual(thread.messages.map(\.id), [b, a], "sub-second order survives")
+    }
 
     func testListSendsLimitCursorAndSince() async throws {
         MockURLProtocol.handler = { _ in (200, Data(#"{"items":[],"nextCursor":null}"#.utf8)) }
@@ -237,7 +263,8 @@ extension JSONDecoder.DateDecodingStrategy {
         let raw = try decoder.singleValueContainer().decode(String.self)
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = f.date(from: raw) else { throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: raw)) }
+        let plain = ISO8601DateFormatter()
+        guard let date = f.date(from: raw) ?? plain.date(from: raw) else { throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: raw)) }
         return date
     }
 }
