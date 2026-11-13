@@ -12,3 +12,6 @@ xcuserdata/
 .build/
 Signing.local.xcconfig
 build/
+# Speech models (WhisperKit) live in the runner state directory, never in the repository
+voice-models/
+*.mlmodelc/

@@ -89,6 +89,10 @@ public struct CLIContext: Sendable {
     /// Runs an executable with arguments, returns stdout or nil on failure/timeout.
     public var probe: @Sendable (URL, [String]) async -> String?
     public var activity: any ActivityAssertion
+    /// Builds the local speech engines for a voice configuration (WhisperKit lives outside this target); nil = voice not supported.
+    public var makeVoiceEngines: (@Sendable (VoiceConfig, URL, any SecretStore) throws -> VoiceEngines)?
+    /// One-time explicit model download (the only network access of the speech stack). Returns the local model folder.
+    public var downloadVoiceModel: (@Sendable (String, URL) async throws -> URL)?
     public var out: @Sendable (String) -> Void
     public var err: @Sendable (String) -> Void
 
@@ -99,11 +103,13 @@ public struct CLIContext: Sendable {
                 pair: @escaping @Sendable (URL, String) async throws -> DeviceToken = { try await URLSessionRunnerServer.pair(baseURL: $0, code: $1) },
                 probe: @escaping @Sendable (URL, [String]) async -> String? = { _, _ in nil },
                 activity: any ActivityAssertion = NoActivityAssertion(),
+                makeVoiceEngines: (@Sendable (VoiceConfig, URL, any SecretStore) throws -> VoiceEngines)? = nil,
+                downloadVoiceModel: (@Sendable (String, URL) async throws -> URL)? = nil,
                 out: @escaping @Sendable (String) -> Void, err: @escaping @Sendable (String) -> Void) {
         self.directory = directory; self.secrets = secrets; self.claudeExecutable = claudeExecutable
         self.executablePath = executablePath; self.environment = environment; self.interval = interval
         self.makeServer = makeServer; self.makeProvider = makeProvider; self.pair = pair; self.probe = probe
-        self.activity = activity; self.out = out; self.err = err
+        self.activity = activity; self.makeVoiceEngines = makeVoiceEngines; self.downloadVoiceModel = downloadVoiceModel; self.out = out; self.err = err
     }
 }
 
@@ -124,6 +130,10 @@ public struct RunnerCLI: Sendable {
       doctor                             Einrichtung prüfen (claude-CLI, Kopplung, Server, Ordner)
       launchd-plist [--label L]          LaunchAgent-Plist ausgeben (wird nicht installiert)
       release <Lauf-UUID>                Unklaren Lauf nach manueller Prüfung freigeben
+      voice-setup [--model M]            Sprach-Engine einrichten: lädt das WhisperKit-Modell EINMALIG herunter (einziger Netzzugriff dieser Art)
+      voice-setup --http <URL>           Externe Engine auf Loopback (z. B. VoiceStudio) nutzen; API-Key aus TODO_RUNNER_VOICE_KEY
+      voice-status                       Sprach-Fähigkeit prüfen (Modell, deutsche Stimme)
+      voice-once [--timeout Sekunden]    Genau einen Sprachauftrag annehmen und bearbeiten
     Umgebung: TODO_RUNNER_HOME (Zustand), TODO_RUNNER_CLAUDE (Pfad zur claude-CLI),
               TODO_RUNNER_INTERVAL (Sekunden), TODO_RUNNER_SECRETS=file (statt Schlüsselbund, nur Tests/Headless)
     """
@@ -150,9 +160,9 @@ public struct RunnerCLI: Sendable {
                                                 attributes: [.posixPermissions: 0o700])
     }
 
-    private var allowlist: FolderAllowlist { FolderAllowlist(file: context.directory.appendingPathComponent("allowlist.json")) }
+    var allowlist: FolderAllowlist { FolderAllowlist(file: context.directory.appendingPathComponent("allowlist.json")) }
 
-    private func loadConfig() throws -> RunnerConfig {
+    func loadConfig() throws -> RunnerConfig {
         guard RunnerConfig.exists(in: context.directory) else { throw RunnerError.missingToken }
         return try RunnerConfig.load(from: context.directory, secrets: context.secrets)
     }
@@ -201,7 +211,15 @@ public struct RunnerCLI: Sendable {
             let config = try loadConfig()
             let runner = try makeRunner(config: config)
             logFile(token: config.token).append("Runner gestartet (Gerät \(config.deviceID.uuidString.lowercased())).")
-            await runner.runLoop(interval: context.interval)
+            let voice = try? makeVoiceWorker(config: config)
+            if let voice {
+                logFile(token: config.token).append("Sprach-Worker aktiv (Fähigkeit sprache: \(voice.capabilities().isEmpty ? "nein" : "ja")).")
+            }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await runner.runLoop(interval: context.interval) }
+                if let voice { group.addTask { await voice.runLoop() } }
+                await group.waitForAll()
+            }
         case "run-once":
             let config = try loadConfig()
             let runner = try makeRunner(config: config)
@@ -218,6 +236,9 @@ public struct RunnerCLI: Sendable {
             let lines = logFile().tail(count)
             if lines.isEmpty { context.out("Noch keine Log-Einträge (\(logFile().url.path)).") }
             lines.forEach(context.out)
+        case "voice-setup": return try await voiceSetup(Array(args.dropFirst()))
+        case "voice-status": return voiceStatus()
+        case "voice-once": return try await voiceOnce(Array(args.dropFirst()))
         case "doctor": return await doctor()
         case "launchd-plist":
             var label = "de.todo.runner"
@@ -338,6 +359,13 @@ public struct RunnerCLI: Sendable {
         }
         for binding in bindings where entries[binding.repositoryKey] == nil {
             add(.warning, "Binding", "\"\(binding.label)\" hat keinen freigegebenen Ordner; Aufträge dafür werden nicht angenommen.")
+        }
+
+        // Voice (optional)
+        if VoiceConfig.exists(in: context.directory), let voiceConfig = try? VoiceConfig.load(from: context.directory),
+           let engines = try? context.makeVoiceEngines?(voiceConfig, context.directory, context.secrets) {
+            if engines.stt.isReady && engines.tts.isReady { add(.ok, "Sprache", "Modell und deutsche Stimme bereit; Fähigkeit sprache wird gemeldet.") }
+            else { add(.warning, "Sprache", "Modell oder deutsche Stimme fehlt; Fähigkeit sprache wird nicht gemeldet (`todo-runner voice-status`).") }
         }
 
         // Local runs needing attention
