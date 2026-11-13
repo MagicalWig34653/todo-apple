@@ -58,6 +58,7 @@ public struct BrainMessage: Codable, Sendable, Equatable, Identifiable {
 public struct BrainMessagePage: Codable, Sendable, Equatable {
     public let items: [BrainMessage]
     public let nextCursor: String?
+    public init(items: [BrainMessage], nextCursor: String? = nil) { self.items = items; self.nextCursor = nextCursor }
 }
 
 /// Thread state of the channel: messages merged from pages (newest first), deduplicated by id.

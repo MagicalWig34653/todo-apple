@@ -56,6 +56,7 @@ struct SidebarList: View {
                 Section {
                     row(.feed, "view.feed", "sparkles", .tileBlue, count: model.attentionCount, badgeTint: .brand)
                     row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple)
+                    row(.brain, "view.brain", "waveform", .tileTeal)
                     row(.search, "view.search", "magnifyingglass", .tileGray)
                 }
                 Section(isExpanded: $planExpanded) {
@@ -326,6 +327,7 @@ struct SidebarScreen: View {
         case .account: AccountView()
         case .runner: AgentsView()
         case .activity: ActivityView()
+        case .brain: BrainView()
         case .commandCenter: CommandCenterView(projectID: nil)
         case .projectCommandCenter(let id): CommandCenterView(projectID: id).id(id)
         case .project(let id): ProjectView(projectID: id).id(id)

@@ -4,6 +4,8 @@ import TodoCore
 
 enum SidebarItem: Hashable {
     case feed, inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
+    /// Channel #brain: voice and text messages to the brain (ADR 0030).
+    case brain
     /// Project overview (root of the iPhone "Projekte" tab).
     case projects
     case project(UUID)
@@ -264,6 +266,7 @@ final class AppModel {
         outbox = nil; legacyOutboxSnapshot = OutboxSnapshot(); syncMetaOverlay = OutboxSnapshot(); feedPlanning = [:]; feedLabels = []; metaFromFeed = false
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
+        VoicePlayer.clearCache()
         Self.cachedUser = nil
         user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
         phase = .signedOut

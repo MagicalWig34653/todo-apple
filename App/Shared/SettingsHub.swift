@@ -102,6 +102,8 @@ struct SettingsHubSections: View {
 
         NotificationSettingsSections()
 
+        VoiceSettingsSection()
+
         Section {
             ForEach(model.passkeys) { k in
                 LabeledContent {

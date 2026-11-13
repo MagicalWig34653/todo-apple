@@ -184,6 +184,11 @@ enum DebugLaunch {
         await model.reload()
         await model.reloadTeams()
         defer { Task { await runActions(model: model) } }
+        if let mode = DebugVoice.consent, let id = model.user?.id {
+            let store = UserDefaultsVoiceConsentStore()
+            if mode == "granted" { store.save(VoiceConsentRecord(version: VoiceConsent.currentVersion, acceptedAt: Date()), account: id, server: model.serverURL) }
+            else { store.revoke(account: id, server: model.serverURL) }
+        }
         switch target {
         case "feed": model.selection = .feed
         case "projects", "browse": model.selection = .projects
@@ -196,6 +201,7 @@ enum DebugLaunch {
         case "account": model.selection = .account
         case "runner": model.selection = .runner
         case "activity": model.selection = .activity
+        case "brain": model.selection = .brain
         case "commandcenter": model.selection = .commandCenter
         default:
             if target.hasPrefix("cc:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(3)) }) {

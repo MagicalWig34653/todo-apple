@@ -192,7 +192,7 @@ enum PlanSection: String, CaseIterable, Identifiable {
 enum PhoneRouting {
     static func tab(for item: SidebarItem) -> PhoneTab? {
         switch item {
-        case .feed, .commandCenter: .forYou
+        case .feed, .commandCenter, .brain: .forYou
         case .projects, .project, .projectCommandCenter: .projects
         case .today, .upcoming, .inbox, .labels, .label: .plan
         case .search: .search

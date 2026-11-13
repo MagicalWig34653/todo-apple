@@ -67,6 +67,15 @@ struct FeedView: View {
         // Start tab on iPhone: capture from here too, like the PWA's global "+" (it was the only main tab without it).
         .quickAdd()
         .navigationTitle("view.feed")
+        .toolbar {
+            // iPhone: the way into the channel #brain sits on the agent inbox (iPad/Mac have a sidebar entry).
+            if showsAgentOverview {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { app.selection = .brain } label: { Label("view.brain", systemImage: "waveform") }
+                        .accessibilityIdentifier("feed.brain")
+                }
+            }
+        }
         .refreshable { await reload() }
         .task { await reload() }
         .task { if showsSystemStatus { await app.systemStatus.poll(app) } }
