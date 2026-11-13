@@ -4,7 +4,7 @@ import Foundation
 // MARK: Attachments upload/download (contracts/attachments.yaml)
 
 public enum AttachmentRole: String, Codable, Sendable, CaseIterable {
-    case reference, progress, result
+    case reference, progress, result, voice
 }
 
 /// Client-side mirror of the server limits; the server stays authoritative.
@@ -40,6 +40,25 @@ public enum AttachmentRules {
     }
 }
 
+/// Limits of recordings for the channel #brain (ADR 0030); the server checks size, container and duration.
+public enum VoiceRules {
+    public static let maxBytes = 5 * 1024 * 1024
+    public static let maxDuration: TimeInterval = 120
+    public static let m4aMediaType = "audio/mp4"
+    public static let allowedMediaTypes: Set<String> = ["audio/mp4", "audio/wav"]
+}
+
+/// A finished attachment without a task (voice memo); `TaskAttachment` requires a task id.
+public struct VoiceAttachment: Codable, Sendable, Equatable, Identifiable {
+    public let id: UUID
+    public let filename: String
+    public let role: String
+    public let mediaType: String
+    public let size: Int
+    public let checksum: String
+    public let status: String
+}
+
 public struct AttachmentUploadCapability: Codable, Sendable, Equatable {
     public let attachmentID: UUID
     /// Relative backend path; the token is only valid as Bearer for this one PUT.
@@ -49,7 +68,8 @@ public struct AttachmentUploadCapability: Codable, Sendable, Equatable {
 }
 
 struct BeginAttachmentBody: Encodable {
-    let taskID: UUID
+    /// Omitted for voice memos of the channel #brain (they belong to the account, not to a task).
+    let taskID: UUID?
     let filename: String
     let role: AttachmentRole
     let mediaType: String
@@ -83,6 +103,46 @@ extension APIClient {
 
     public func completeAttachment(_ id: UUID) async throws -> TaskAttachment {
         try await send("POST", "v1/attachments/\(id.uuidString)/complete")
+    }
+
+    /// Voice memo without a task (contracts/attachments.yaml 1.2.0): role `voice`, no `taskID`. Only the owner reads it.
+    public func beginVoiceAttachment(filename: String, mediaType: String, size: Int, checksum: String) async throws -> AttachmentUploadCapability {
+        try await send(
+            "POST", "v1/attachments/begin",
+            body: BeginAttachmentBody(
+                taskID: nil, filename: filename, role: .voice, mediaType: mediaType, size: size, checksum: checksum))
+    }
+
+    public func completeVoiceAttachment(_ id: UUID) async throws -> VoiceAttachment {
+        try await send("POST", "v1/attachments/\(id.uuidString)/complete")
+    }
+
+    /// Whole flow for a recording of the channel #brain: begin (role voice, no task), PUT, complete. Same failure handling
+    /// as `uploadAttachment`. The recording is checked against the client-side limits first (the server stays authoritative).
+    public func uploadVoiceRecording(filename: String = "voice.m4a", mediaType: String = VoiceRules.m4aMediaType, data: Data) async throws -> VoiceAttachment {
+        guard !data.isEmpty, data.count <= VoiceRules.maxBytes else { throw APIError.invalidInput(reason: "voice_too_large") }
+        guard VoiceRules.allowedMediaTypes.contains(mediaType) else { throw APIError.invalidInput(reason: "unsupported_audio_type") }
+        let capability = try await beginVoiceAttachment(
+            filename: filename, mediaType: mediaType, size: data.count, checksum: AttachmentRules.sha256Hex(data))
+        do {
+            do { try await putAttachmentData(data, capability: capability) }
+            catch APIError.server(status: 502, _) { try await putAttachmentData(data, capability: capability) }
+            return try await completeVoiceAttachment(capability.attachmentID)
+        } catch let error as APIError {
+            if case .transport = error, let done = try? await completeVoiceAttachment(capability.attachmentID) { return done }
+            try? await abortAttachment(capability.attachmentID)
+            throw error
+        }
+    }
+
+    /// Downloads a voice attachment (original bytes) to `<directory>/<id>.<ext>` for playback; reuses a file already there.
+    public func downloadVoiceFile(_ id: UUID, into directory: URL, fileExtension: String = "m4a") async throws -> URL {
+        let target = directory.appending(path: "\(id.uuidString.lowercased()).\(fileExtension)")
+        if FileManager.default.fileExists(atPath: target.path) { return target }
+        let data = try await downloadAttachment(id)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try data.write(to: target, options: .atomic)
+        return target
     }
 
     /// Aborts a pending upload; completed attachments return a conflict.
