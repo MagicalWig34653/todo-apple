@@ -1,5 +1,6 @@
 @preconcurrency import Foundation
 import TodoRunner
+import TodoRunnerWhisper
 
 /// Runs an executable with a 10 second limit and returns its stdout (nil on failure or timeout).
 private func probe(_ executable: URL, _ arguments: [String]) async -> String? {
@@ -37,6 +38,20 @@ private func probe(_ executable: URL, _ arguments: [String]) async -> String? {
             environment: environment, interval: .seconds(environment["TODO_RUNNER_INTERVAL"].flatMap(Double.init) ?? 15),
             makeProvider: { ClaudeProcessAdapter(executable: claude, scratch: $0) },
             probe: probe, activity: ProcessInfoActivityAssertion(),
+            makeVoiceEngines: { config, _, secrets in
+                let tts = AVSpeechTextToSpeech()
+                switch config.engine {
+                case .whisperKit:
+                    guard let folder = config.modelFolder else { throw VoiceEngineError.engineUnavailable }
+                    return VoiceEngines(stt: WhisperKitSpeechToText(modelFolder: URL(fileURLWithPath: folder)), tts: tts)
+                case .http:
+                    guard let endpoint = config.endpoint, let key = try secrets.read(account: VoiceConfig.apiKeyAccount) else {
+                        throw VoiceEngineError.engineUnavailable
+                    }
+                    return VoiceEngines(stt: try HTTPSpeechToText(endpoint: endpoint, apiKey: key), tts: tts)
+                }
+            },
+            downloadVoiceModel: { model, base in try await WhisperKitSpeechToText.download(model: model, base: base) },
             out: { print($0) },
             err: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) })
         do {
