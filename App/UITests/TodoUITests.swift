@@ -41,8 +41,12 @@ final class TodoUITests: XCTestCase {
         // The task is created from "Heute" and therefore planned for today; it is not in "Eingang" (tasks without a date).
         for _ in 0..<12 where !row.waitForExistence(timeout: 3) { app.swipeUp() }
         XCTAssertTrue(row.exists, "new task row in Heute")
-        // The floating tab bar and the FAB cover the last rows; scroll until the row itself takes the tap.
-        for _ in 0..<4 where !row.isHittable { app.swipeUp() }
+        // The floating tab bar and the FAB cover the last rows. `isHittable` is not enough: a row whose frame reaches under the
+        // translucent tab bar still reports true, but the tap at its centre lands on the tab bar ("Planen" again: the list jumps
+        // to the top, the row is gone). Which row sits there depends on how many tasks other tests left in "Heute".
+        // Scroll in small steps until the whole row ends above the tab bar and clears the FAB.
+        for _ in 0..<8 where !clearsFloatingBars(row) { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(clearsFloatingBars(row), "row scrolled clear of the tab bar")
 
         // Open the detail sheet. A tap while the list still decelerates from the swipes only stops the scrolling and
         // opens nothing (cause of the flaky "detail sheet" failure), so wait until the row stands still first.
@@ -61,6 +65,14 @@ final class TodoUITests: XCTestCase {
         let gone = NSPredicate(format: "exists == false")
         expectation(for: gone, evaluatedWith: row)
         waitForExpectations(timeout: 15)
+    }
+
+    /// True when the row is hittable and its frame ends above the floating tab bar.
+    private func clearsFloatingBars(_ element: XCUIElement) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let bar = app.tabBars.firstMatch
+        let limit = bar.exists ? bar.frame.minY : app.frame.maxY
+        return element.frame.maxY <= limit
     }
 
     /// Waits until the element's frame stops moving (scroll momentum after `swipeUp`), at most about 3 s.
