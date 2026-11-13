@@ -73,7 +73,7 @@ Geprüft: Build Todo-iOS und Todo-macOS (`CODE_SIGNING_ALLOWED=NO`) grün; UI-Te
 ## Plan (Wellen, Karten unter 1786DB8B)
 
 - **Welle 1 – Agenten im Detail, Markdown, Schnellerfassung** (erledigt bis auf Review).
-- **Welle 2 – Navigation neu**: Lino hat am 12.11. Variante A gewählt; umgesetzt (4 Tabs Für dich/Projekte/Planen/Suche, Avatar-Menü, Sidebar gleich gegliedert, Projektseite mit beschrifteten Aktionen; Details `docs/STATUS.md`, Bilder `docs/screenshots/glowup/nav-a-*.png`). Offen: Agentenstatus in Zeilen und Board-Karten (6C88CC5D).
+- **Welle 2 – Navigation neu**: Lino hat am 12.11. Variante A gewählt; umgesetzt (4 Tabs Für dich/Projekte/Planen/Suche, Avatar-Menü, Sidebar gleich gegliedert, Projektseite mit beschrifteten Aktionen; Details `docs/STATUS.md`, Bilder `docs/screenshots/glowup/nav-a-*.png`). Agentenstatus in Zeilen und Board-Karten umgesetzt (6C88CC5D, `docs/screenshots/glowup/agent-state-*.png`).
 - **Welle 2 – Unterhaltung an Karten** (Apple-Teil von 84F150E5): Chat je Karte, je Frage und je Review.
 - **Welle 3 – Funktionslücken**: Bestätigungen (Action Requests), Kriterien bearbeiten, Projektmodus (2EC67248), Abhängigkeiten/Meilensteine lesen, Einstellungs-Hub (Darstellung, Passkeys, Sitzungen, Verbindungen, Runner).
 - **Welle 4 – Politur und Plattformen**: Steuerzentrale entschlacken, Farben vereinheitlichen, Folgepunkte F129D2F7 (macOS-Fenster, `#Preview` je Screen, Zählerchips, Tab-Leisten-Ränder, iPad-Detail bei AX, Projektpalette/`tile*` als Assets).

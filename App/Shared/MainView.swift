@@ -19,11 +19,22 @@ extension EnvironmentValues {
 struct MainView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var meta = TaskMeta()
     @State private var newProjectParent: UUID??  // .some(nil) = new root project
     @State private var newProjectName = ""
     @State private var shareProject: Project?
     @State private var showQuickAdd = false
+
+    /// Task detail as a sheet: compact width, and on iPad with accessibility text sizes, where list, sidebar and
+    /// inspector side by side would leave each of them a few characters wide.
+    private var detailAsSheet: Bool {
+        #if os(iOS)
+        compact || typeSize.isAccessibilitySize
+        #else
+        false
+        #endif
+    }
 
     private var compact: Bool {
         #if os(iOS)
@@ -61,7 +72,7 @@ struct MainView: View {
         .onChange(of: model.feedLabels, initial: true) { _, _ in meta.adoptFeed(model) }
         .onChange(of: model.metaFromFeed) { _, _ in meta.adoptFeed(model) }
         // Compact width: task detail as a sheet. Regular width (iPad, Mac): inspector column in `SplitLayout`.
-        .sheet(item: Binding(get: { compact ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
+        .sheet(item: Binding(get: { detailAsSheet ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
                 .environment(model).environment(meta)
                 // Sheets do not inherit the root tint; without this, bordered buttons in the detail turned system blue.
@@ -124,10 +135,17 @@ struct SyncStatusBar: View {
 private enum InspectorMetrics { static let min: CGFloat = 340, ideal: CGFloat = 420, max: CGFloat = 560 }
 
 struct SplitLayout: View {
+    private var isIOS: Bool { #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
     @Environment(AppModel.self) private var model
     /// Sidebar width follows the text size so entries wrap at word boundaries instead of mid-word; capped so the detail keeps room.
     @ScaledMetric(relativeTo: .body) private var sidebarMin = SidebarMetrics.columnMin
     @ScaledMetric(relativeTo: .body) private var sidebarIdeal = SidebarMetrics.columnIdeal
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         NavigationSplitView {
@@ -141,7 +159,7 @@ struct SplitLayout: View {
                 SidebarScreen(item: model.selection)
             }
             .safeAreaInset(edge: .bottom) { SyncStatusBar() }
-            .inspector(isPresented: Binding(get: { model.path.last != nil }, set: { if !$0 { model.path = [] } })) {
+            .inspector(isPresented: Binding(get: { model.path.last != nil && !(isIOS && typeSize.isAccessibilitySize) }, set: { if !$0 { model.path = [] } })) {
                 if let task = model.path.last {
                     NavigationStack { TaskDetailView(task: task) }
                         .id(task.id)
@@ -174,7 +192,7 @@ enum PlanSection: String, CaseIterable, Identifiable {
 enum PhoneRouting {
     static func tab(for item: SidebarItem) -> PhoneTab? {
         switch item {
-        case .feed, .commandCenter: .forYou
+        case .feed, .commandCenter, .brain: .forYou
         case .projects, .project, .projectCommandCenter: .projects
         case .today, .upcoming, .inbox, .labels, .label: .plan
         case .search: .search

@@ -1,6 +1,14 @@
 import SwiftUI
 import TodoCore
 
+#Preview("Lage-Ampel ohne Daten (ausgeblendet), Light") {
+    SystemStatusBar().environment(AppModel()).padding(Space.l).background(Color.canvas)
+}
+
+#Preview("Lage-Ampel ohne Daten, accessibility5") {
+    SystemStatusBar().environment(AppModel()).dynamicTypeSize(.accessibility5).padding(Space.l).background(Color.canvas)
+}
+
 /// Lage-Ampel state (contract system-status): the watcher's latest report, refetched on live hints and every 60 s
 /// as the fallback. A failed or empty load keeps the last answer (it turns grey by age); a 404 hides the bar.
 @MainActor @Observable

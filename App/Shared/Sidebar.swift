@@ -56,6 +56,7 @@ struct SidebarList: View {
                 Section {
                     row(.feed, "view.feed", "sparkles", .tileBlue, count: model.attentionCount, badgeTint: .brand)
                     row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple)
+                    row(.brain, "view.brain", "waveform", .tileTeal)
                     row(.search, "view.search", "magnifyingglass", .tileGray)
                 }
                 Section(isExpanded: $planExpanded) {
@@ -326,6 +327,7 @@ struct SidebarScreen: View {
         case .account: AccountView()
         case .runner: AgentsView()
         case .activity: ActivityView()
+        case .brain: BrainView()
         case .commandCenter: CommandCenterView(projectID: nil)
         case .projectCommandCenter(let id): CommandCenterView(projectID: id).id(id)
         case .project(let id): ProjectView(projectID: id).id(id)
@@ -384,8 +386,10 @@ struct LabelTasksView: View {
 
 // MARK: Konto, Agenten/Runner
 
+/// Settings hub (avatar menu "Einstellungen"): account, appearance, notifications, passkeys, sessions, connections, runner.
 struct AccountView: View {
     @Environment(AppModel.self) private var model
+    @State private var hub = SettingsHubModel()
 
     var body: some View {
         List {
@@ -393,13 +397,15 @@ struct AccountView: View {
                 LabeledContent("account.name") { Text(verbatim: model.user?.displayName ?? "") }
                 if let u = model.user?.username { LabeledContent("account.username") { Text(verbatim: u) } }
                 LabeledContent("login.server") { Text(verbatim: model.serverURL).textSelection(.enabled) }
-            }
-            NotificationSettingsSections()
+            } header: { Text("settings.account") }
+            SettingsHubSections(model: hub)
             Section {
                 Button("logout", role: .destructive) { Task { await model.logout() } }
             }
         }
         .navigationTitle("view.account")
+        .task { await hub.load(model) }
+        .refreshable { await hub.load(model) }
     }
 }
 

@@ -41,9 +41,15 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         NotificationCategorySetup.register()
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+    // Completion-handler variants on purpose, not the `async` ones: the compiler thunk of an `async` delegate method
+    // calls UIKit's completion handler from a cooperative thread, and UIKit asserts the main thread there
+    // (`_performBlockAfterCATransactionCommitSynchronizes`), which crashed every launch from a notification tap
+    // (TestFlight 2611121259). Here the handler is always called on the main actor.
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let payload = PushPayload(userInfo: notification.request.content.userInfo)
-        await MainActor.run {
+        Task { @MainActor in
             // Foreground push: show it and refresh what it is about; the badge follows the payload.
             if let badge = payload.badge, PushCoordinator.shared.prefs?.badge ?? true {
                 Task { try? await UNUserNotificationCenter.current().setBadgeCount(badge) }
@@ -51,22 +57,30 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             if let model = PushCoordinator.shared.model, model.phase == .signedIn {
                 Task { await model.syncNow(); await model.refreshCommandSummary() }
             }
+            completionHandler([.banner, .list, .sound, .badge])
         }
-        return [.banner, .list, .sound, .badge]
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
         let payload = PushPayload(userInfo: content.userInfo)
         let action = PushResponseAction.resolve(actionIdentifier: response.actionIdentifier, payload: payload)
+        Task { @MainActor in
+            await Self.handle(action, payload: payload, content: content)
+            completionHandler()
+        }
+    }
+
+    @MainActor private static func handle(_ action: PushResponseAction, payload: PushPayload, content: UNNotificationContent) async {
         switch action {
         case .none: break
-        case .open(let link): await MainActor.run { PushCoordinator.shared.open(link) }
-        case .snooze(let taskID): await Self.snooze(content, taskID: taskID)
+        case .open(let link): PushCoordinator.shared.open(link)
+        case .snooze(let taskID): await snooze(content, taskID: taskID)
         case .markDone(let taskID, let projectID):
             let done = await PushActions.markDone(taskID: taskID, projectID: projectID)
             // If it could not be done (offline, signed out), bring the task up instead of losing the tap.
-            if !done, let link = payload.link { await MainActor.run { PushCoordinator.shared.open(link) } }
+            if !done, let link = payload.link { PushCoordinator.shared.open(link) }
         }
     }
 
@@ -116,6 +130,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 }
 #elseif canImport(AppKit)
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        // Offscreen rendering run (TODO_DEBUG_RENDER): no window, no activation, no Dock icon.
+        if ProcessInfo.processInfo.environment["TODO_DEBUG_RENDER"] != nil { NSApp.setActivationPolicy(.prohibited) }
+        #endif
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationDelegate.shared.install()
     }

@@ -113,6 +113,17 @@ final class PushTests: XCTestCase {
         XCTAssertNil(PushPayload(userInfo: info(kind: "test")).link)
     }
 
+    /// The exact bytes `PushMessage.payload()` of the backend sends (sorted keys, uppercase UUIDs), decoded the way
+    /// APNs hands them to the app as `userInfo`.
+    func testBackendPayloadBytesResolveToTaskLink() throws {
+        let json = #"{"aps":{"alert":{"body":"Eine Aufgabe ist fällig.","title":"Erinnerung"},"badge":2,"category":"TODO_REMINDER","mutable-content":1,"sound":"default","thread-id":"\#(tid.uuidString)"},"kind":"reminder","projectID":"\#(pid.uuidString)","taskID":"\#(tid.uuidString)"}"#
+        let userInfo = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [AnyHashable: Any])
+        let payload = PushPayload(userInfo: userInfo)
+        XCTAssertEqual(payload.badge, 2)
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
+                       .open(.task(taskID: tid, projectID: pid)))
+    }
+
     func testPayloadIsTolerant() {
         let p = PushPayload(userInfo: ["kind": "future", "taskID": "not-a-uuid", "aps": ["badge": "x"]])
         XCTAssertNil(p.kind); XCTAssertNil(p.taskID); XCTAssertNil(p.badge); XCTAssertNil(p.link)

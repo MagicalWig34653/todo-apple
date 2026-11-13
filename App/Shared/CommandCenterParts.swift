@@ -54,6 +54,17 @@ enum LanePresentation {
     }
 }
 
+/// Agent state in task rows and board cards: lane symbol in the lane color plus the lane name, never color alone.
+/// Question and review need the person, so their text stays primary; "Läuft" is informational and secondary.
+struct AgentStateItem: View {
+    let state: TaskAgentState
+    var body: some View {
+        MetaItem(symbol: LanePresentation.symbol(state.rawValue), text: LanePresentation.name(state.rawValue),
+                 tint: LanePresentation.color(state.rawValue), textTint: state == .running ? Color.textSecondary : Color.primary)
+            .fontWeight(state == .running ? nil : .semibold)
+    }
+}
+
 enum CommandFormat {
     static func relative(_ date: Date?) -> String {
         guard let date else { return "" }
@@ -396,7 +407,7 @@ struct ReviewDecisionView: View {
                 // Narrow board columns: side by side only when both labels fit on one line, otherwise stacked
                 // (a squeezed prominent button degrades into a circle).
                 let accept = Button { onDecision(.accept, nil) } label: { Label("cc.review.accept", systemImage: "checkmark") }
-                    .buttonStyle(.borderedProminent).tint(Color.tileGreen).controlSize(.large).disabled(busy)
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Color.brand).foregroundStyle(Color.onBrand).controlSize(.large).disabled(busy)
                 let changes = Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
                     .buttonStyle(.bordered).controlSize(.large).disabled(busy)
                 ViewThatFits(in: .horizontal) {

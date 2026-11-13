@@ -4,6 +4,8 @@ import TodoCore
 
 enum SidebarItem: Hashable {
     case feed, inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
+    /// Channel #brain: voice and text messages to the brain (ADR 0030).
+    case brain
     /// Project overview (root of the iPhone "Projekte" tab).
     case projects
     case project(UUID)
@@ -49,6 +51,10 @@ final class AppModel {
     var teamInvitations: [TeamMembership] = []
     /// Localization key of a transient notice (for example after a version conflict).
     var noticeKey: String?
+    /// Account appearance (`/v1/me/preferences`, shared with the PWA); cached on the device so the app starts in it.
+    var colorScheme: ColorSchemeChoice = ColorSchemeChoice(rawValue: UserDefaults.standard.string(forKey: "appearance.colorScheme") ?? "") ?? .system {
+        didSet { UserDefaults.standard.set(colorScheme.rawValue, forKey: "appearance.colorScheme") }
+    }
 
     // Sync (local store + background sync; REST fallback if the server has no usable sync feed)
     enum SyncStatus { case idle, syncing, offline }
@@ -131,8 +137,11 @@ final class AppModel {
         PushCoordinator.shared.model = self
         #if DEBUG
         DebugLaunch.seedSession(model: self)
+        Task { await DebugLaunch.scheduleLocalPushIfRequested() }
+        DebugLaunch.deliverResponseIfRequested()
         #if os(macOS)
         DebugLaunch.snapshotIfRequested()
+        if DebugLaunch.renderRequested { Task { await DebugLaunch.renderIfRequested(model: self) } }
         #endif
         defer { Task { await DebugLaunch.navigate(model: self) } }
         #endif
@@ -257,6 +266,7 @@ final class AppModel {
         outbox = nil; legacyOutboxSnapshot = OutboxSnapshot(); syncMetaOverlay = OutboxSnapshot(); feedPlanning = [:]; feedLabels = []; metaFromFeed = false
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
+        VoicePlayer.clearCache()
         Self.cachedUser = nil
         user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
         phase = .signedOut

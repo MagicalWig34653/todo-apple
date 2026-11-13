@@ -9,6 +9,30 @@ public enum CommandLane: String, Codable, Sendable, CaseIterable {
     case running, question, review, ready, blocked, done
 }
 
+/// Agent state a task row or board card shows next to priority and due date. Only the states that need attention or show
+/// activity; the raw values are the matching `CommandLane` keys.
+public enum TaskAgentState: String, Sendable, CaseIterable {
+    case question, review, running
+
+    /// `lane` is the task's command-center lane if known (it includes open questions and pending reviews, which the task
+    /// status alone does not carry); without a known lane the task status decides. Done tasks never show a state.
+    public init?(lane: String?, status: String) {
+        if status == "done" { return nil }
+        switch lane {
+        case "question": self = .question
+        case "review": self = .review
+        case "running": self = .running
+        case "ready", "blocked", "backlog", "done": return nil
+        default:
+            switch status {
+            case "in_review": self = .review
+            case "in_progress": self = .running
+            default: return nil
+            }
+        }
+    }
+}
+
 public struct CommandProgress: Codable, Sendable, Equatable {
     /// 0...100
     public let percent: Int
@@ -334,6 +358,10 @@ public struct TaskCriterion: Codable, Sendable, Equatable, Identifiable {
     public let text: String
     public let completed: Bool
     public let version: Int
+
+    public init(id: UUID, taskID: UUID, text: String, completed: Bool, version: Int) {
+        self.id = id; self.taskID = taskID; self.text = text; self.completed = completed; self.version = version
+    }
 }
 
 public struct TaskWorkflow: Codable, Sendable, Equatable {

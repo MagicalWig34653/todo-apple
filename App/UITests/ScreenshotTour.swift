@@ -18,6 +18,7 @@ final class ScreenshotTour: XCTestCase {
             ("cclist", "commandcenter", ["TODO_DEBUG_CC_MODE": "list"]),
             ("ccempty", "cc:Website", ["TODO_DEBUG_CC_MODE": "kanban"]),
             ("project", "project:Umzug", [:]),
+            ("website", "project:Website-Relaunch", [:]),
             ("board", "project:Vibecoding", ["TODO_DEBUG_BOARD": "1"]),
             ("task", "task:Angebote fuer Arbeitsplatte einholen", [:]),
             ("account", "account", [:]),

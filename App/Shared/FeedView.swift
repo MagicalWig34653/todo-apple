@@ -49,9 +49,10 @@ struct FeedView: View {
                 } else if !model.state.loaded {
                     if model.failed { EmptyState(symbol: "wifi.exclamationmark", title: "feed.failed", message: "feed.failedHint").padding(.top, Space.xxl) }
                     else { SkeletonRows(count: 5) }
-                } else if model.state.isEmpty && today.isEmpty {
+                } else if model.state.isEmpty && today.isEmpty && model.confirmationCards.isEmpty {
                     EmptyState(symbol: "sparkles", title: "feed.empty", message: "feed.emptyHint").padding(.top, Space.xxl)
                 } else {
+                    if !model.confirmationCards.isEmpty, !Self.debugPostsOnly { confirmations }
                     if !needsYouItems.isEmpty, !Self.debugPostsOnly { needsYou }
                     if !today.isEmpty { todaySection(today) }
                     if !model.state.posts.isEmpty { posts }
@@ -66,6 +67,15 @@ struct FeedView: View {
         // Start tab on iPhone: capture from here too, like the PWA's global "+" (it was the only main tab without it).
         .quickAdd()
         .navigationTitle("view.feed")
+        .toolbar {
+            // iPhone: the way into the channel #brain sits on the agent inbox (iPad/Mac have a sidebar entry).
+            if showsAgentOverview {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { app.selection = .brain } label: { Label("view.brain", systemImage: "waveform") }
+                        .accessibilityIdentifier("feed.brain")
+                }
+            }
+        }
         .refreshable { await reload() }
         .task { await reload() }
         .task { if showsSystemStatus { await app.systemStatus.poll(app) } }
@@ -122,6 +132,18 @@ struct FeedView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .cardSurface()
+        }
+    }
+
+    /// Agents asking to do something large or irreversible (ADR 0026); first, because nothing happens until decided.
+    private var confirmations: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text("confirm.section").font(Font.sectionTitle).foregroundStyle(Color.textSecondary).accessibilityAddTraits(.isHeader)
+            ForEach(model.confirmationCards, id: \.item.id) { card in
+                ConfirmationCard(item: card.item, outcome: card.result, busy: model.deciding.contains(card.item.id)) { confirm in
+                    Task { await model.decide(card.item, confirm: confirm, app) }
+                }
+            }
         }
     }
 

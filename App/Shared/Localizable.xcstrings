@@ -3967,7 +3967,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konto"
+            "value": "Einstellungen"
           }
         }
       }
@@ -5148,6 +5148,1607 @@
           "stringUnit": {
             "state": "translated",
             "value": "Projekte"
+          }
+        }
+      }
+    },
+    "chat.title.task": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung"
+          }
+        }
+      }
+    },
+    "chat.title.question": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung zur Frage"
+          }
+        }
+      }
+    },
+    "chat.title.review": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung zum Review"
+          }
+        }
+      }
+    },
+    "chat.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Nachrichten. Schreib die erste."
+          }
+        }
+      }
+    },
+    "chat.empty.thread": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Nachrichten."
+          }
+        }
+      }
+    },
+    "chat.loadFailed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachrichten konnten nicht geladen werden. Erneut versuchen"
+          }
+        }
+      }
+    },
+    "chat.author.me": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du"
+          }
+        }
+      }
+    },
+    "chat.author.agent": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "chat.author.other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Person"
+          }
+        }
+      }
+    },
+    "chat.new": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachricht schreiben"
+          }
+        }
+      }
+    },
+    "chat.reply": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antworten"
+          }
+        }
+      }
+    },
+    "chat.send": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachricht senden"
+          }
+        }
+      }
+    },
+    "agent.review.accepted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review angenommen"
+          }
+        }
+      }
+    },
+    "agent.review.changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen angefordert"
+          }
+        }
+      }
+    },
+    "agent.review.withdrawn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review zurückgezogen"
+          }
+        }
+      }
+    },
+    "confirm.section": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestätigung nötig"
+          }
+        }
+      }
+    },
+    "confirm.kind.delete_project": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt löschen"
+          }
+        }
+      }
+    },
+    "confirm.kind.delete_task": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe löschen"
+          }
+        }
+      }
+    },
+    "confirm.kind.transfer_project_owner": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigentum übertragen"
+          }
+        }
+      }
+    },
+    "confirm.kind.other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestätigung nötig"
+          }
+        }
+      }
+    },
+    "confirm.by %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ möchte:"
+          }
+        }
+      }
+    },
+    "confirm.agentFallback": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Agent"
+          }
+        }
+      }
+    },
+    "confirm.expires %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft ab: %@"
+          }
+        }
+      }
+    },
+    "confirm.confirm": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestätigen"
+          }
+        }
+      }
+    },
+    "confirm.reject": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablehnen"
+          }
+        }
+      }
+    },
+    "confirm.cancel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
+          }
+        }
+      }
+    },
+    "confirm.typeName %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tippe zur Bestätigung den Namen ein: %@"
+          }
+        }
+      }
+    },
+    "confirm.nameLabel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name zur Bestätigung"
+          }
+        }
+      }
+    },
+    "confirm.understood": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich habe verstanden, dass das nicht rückgängig zu machen ist."
+          }
+        }
+      }
+    },
+    "confirm.run": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endgültig ausführen"
+          }
+        }
+      }
+    },
+    "confirm.busy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird ausgeführt …"
+          }
+        }
+      }
+    },
+    "confirm.done.projectDeleted": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt gelöscht."
+          }
+        }
+      }
+    },
+    "confirm.done.taskDeleted": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe gelöscht."
+          }
+        }
+      }
+    },
+    "confirm.done.ownerChanged": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigentum übertragen."
+          }
+        }
+      }
+    },
+    "confirm.done.executed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgeführt."
+          }
+        }
+      }
+    },
+    "confirm.done.rejected": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abgelehnt. Es wurde nichts geändert."
+          }
+        }
+      }
+    },
+    "confirm.done.expired": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anfrage ist abgelaufen."
+          }
+        }
+      }
+    },
+    "confirm.done.failed %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht ausgeführt: %@"
+          }
+        }
+      }
+    },
+    "confirm.fail.forbidden": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dir fehlen dafür inzwischen die Rechte."
+          }
+        }
+      }
+    },
+    "confirm.fail.notFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht mehr vorhanden oder nicht mehr für die Verbindung freigegeben."
+          }
+        }
+      }
+    },
+    "confirm.fail.conflict": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wurde inzwischen geändert."
+          }
+        }
+      }
+    },
+    "confirm.fail.revoked": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Verbindung wurde widerrufen."
+          }
+        }
+      }
+    },
+    "confirm.fail.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannter Fehler."
+          }
+        }
+      }
+    },
+    "criteria.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Akzeptanzkriterien"
+          }
+        }
+      }
+    },
+    "criteria.count %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld von %2$lld erfüllt"
+          }
+        }
+      }
+    },
+    "criteria.add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium hinzufügen"
+          }
+        }
+      }
+    },
+    "criteria.addButton": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium hinzufügen"
+          }
+        }
+      }
+    },
+    "criteria.edit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium bearbeiten"
+          }
+        }
+      }
+    },
+    "criteria.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium"
+          }
+        }
+      }
+    },
+    "criteria.delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kriterium löschen"
+          }
+        }
+      }
+    },
+    "links.dependencies": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hängt ab von"
+          }
+        }
+      }
+    },
+    "links.done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "erledigt"
+          }
+        }
+      }
+    },
+    "links.open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "offen"
+          }
+        }
+      }
+    },
+    "links.blockedBy %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet noch auf %lld Voraussetzung(en)"
+          }
+        }
+      }
+    },
+    "links.milestone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meilenstein"
+          }
+        }
+      }
+    },
+    "links.milestoneProgress %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld von %2$lld erledigt"
+          }
+        }
+      }
+    },
+    "mode.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projektansicht"
+          }
+        }
+      }
+    },
+    "mode.classic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klassisch"
+          }
+        }
+      }
+    },
+    "mode.management": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projektmanagement"
+          }
+        }
+      }
+    },
+    "mode.classic.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reine Aufgabenliste oder Board: Abschnitte, Fälligkeit, Priorität, Labels, Unteraufgaben und Kommentare."
+          }
+        }
+      }
+    },
+    "mode.management.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zusätzlich Agenten, Kriterien, Abhängigkeiten und Meilensteine."
+          }
+        }
+      }
+    },
+    "settings.account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto"
+          }
+        }
+      }
+    },
+    "settings.appearance": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darstellung"
+          }
+        }
+      }
+    },
+    "settings.appearance.scheme": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erscheinungsbild"
+          }
+        }
+      }
+    },
+    "settings.appearance.system": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        }
+      }
+    },
+    "settings.appearance.light": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hell"
+          }
+        }
+      }
+    },
+    "settings.appearance.dark": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dunkel"
+          }
+        }
+      }
+    },
+    "settings.appearance.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt für dein Konto, auch in der Web-App."
+          }
+        }
+      }
+    },
+    "settings.error.save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Einstellung konnte nicht gespeichert werden."
+          }
+        }
+      }
+    },
+    "settings.passkeys": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkeys"
+          }
+        }
+      }
+    },
+    "settings.passkeys.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit einem Passkey meldest du dich ohne Passwort an. Der letzte Passkey lässt sich nur entfernen, wenn es einen anderen Zugang gibt."
+          }
+        }
+      }
+    },
+    "settings.passkeys.add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey hinzufügen"
+          }
+        }
+      }
+    },
+    "settings.passkeys.name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name, z. B. iPad"
+          }
+        }
+      }
+    },
+    "settings.passkeys.create": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellen"
+          }
+        }
+      }
+    },
+    "settings.passkeys.last": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist dein letzter Passkey. Lege zuerst einen weiteren an."
+          }
+        }
+      }
+    },
+    "settings.revoke": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entfernen"
+          }
+        }
+      }
+    },
+    "settings.sessions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angemeldete Geräte"
+          }
+        }
+      }
+    },
+    "settings.sessions.current": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Gerät"
+          }
+        }
+      }
+    },
+    "settings.sessions.other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Sitzung"
+          }
+        }
+      }
+    },
+    "settings.sessions.since %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seit %@"
+          }
+        }
+      }
+    },
+    "settings.signOut": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden"
+          }
+        }
+      }
+    },
+    "settings.sessions.revokeOthers": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle anderen abmelden"
+          }
+        }
+      }
+    },
+    "settings.connections": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindungen"
+          }
+        }
+      }
+    },
+    "settings.connections.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Verbindungen."
+          }
+        }
+      }
+    },
+    "settings.connections.unnamed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung"
+          }
+        }
+      }
+    },
+    "settings.connections.projects %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Projekte"
+          }
+        }
+      }
+    },
+    "settings.connections.used %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zuletzt %@"
+          }
+        }
+      }
+    },
+    "settings.connections.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP-Clients wie Claude Code, die mit deinem Konto auf freigegebene Projekte zugreifen. Einrichten in der Web-App."
+          }
+        }
+      }
+    },
+    "settings.connections.revokeTitle": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung entfernen?"
+          }
+        }
+      }
+    },
+    "settings.connections.revokeHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Client verliert sofort den Zugriff und muss neu verbunden werden."
+          }
+        }
+      }
+    },
+    "settings.runner": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runner koppeln"
+          }
+        }
+      }
+    },
+    "settings.runner.code": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einmalcode"
+          }
+        }
+      }
+    },
+    "settings.runner.expires %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gültig bis %@"
+          }
+        }
+      }
+    },
+    "settings.runner.label": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name des Macs"
+          }
+        }
+      }
+    },
+    "settings.runner.pair": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code erzeugen"
+          }
+        }
+      }
+    },
+    "settings.runner.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erzeugt einen Einmalcode (10 Minuten gültig), den du auf dem Mac im Runner eingibst."
+          }
+        }
+      }
+    },
+    "view.brain": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brain"
+          }
+        }
+      }
+    },
+    "brain.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Nachrichten"
+          }
+        }
+      }
+    },
+    "brain.emptyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Halte das Mikrofon gedrückt und sprich mit dem Brain, oder schreibe eine Nachricht."
+          }
+        }
+      }
+    },
+    "brain.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verlauf nicht erreichbar"
+          }
+        }
+      }
+    },
+    "brain.failedHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziehe zum Aktualisieren nach unten."
+          }
+        }
+      }
+    },
+    "brain.loadOlder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ältere Nachrichten laden"
+          }
+        }
+      }
+    },
+    "brain.author.me": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du"
+          }
+        }
+      }
+    },
+    "brain.author.brain": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brain"
+          }
+        }
+      }
+    },
+    "brain.processing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird verarbeitet …"
+          }
+        }
+      }
+    },
+    "brain.uploading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gesendet …"
+          }
+        }
+      }
+    },
+    "brain.play": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antwort anhören"
+          }
+        }
+      }
+    },
+    "brain.playMine": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme anhören"
+          }
+        }
+      }
+    },
+    "brain.stop": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anhalten"
+          }
+        }
+      }
+    },
+    "brain.voiceLength %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprachnachricht, %lld s"
+          }
+        }
+      }
+    },
+    "brain.retry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "brain.discard": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwerfen"
+          }
+        }
+      }
+    },
+    "brain.send": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senden"
+          }
+        }
+      }
+    },
+    "brain.composer.placeholder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachricht an das Brain"
+          }
+        }
+      }
+    },
+    "brain.swipe.cancel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Abbrechen nach links wischen"
+          }
+        }
+      }
+    },
+    "brain.release.cancel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loslassen zum Verwerfen"
+          }
+        }
+      }
+    },
+    "brain.hint.tooShort": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu kurz. Halte das Mikrofon gedrückt, während du sprichst."
+          }
+        }
+      }
+    },
+    "brain.hint.cancelled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme verworfen."
+          }
+        }
+      }
+    },
+    "brain.hint.limit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Längste Aufnahme von 2 Minuten erreicht, die Aufnahme wurde gesendet."
+          }
+        }
+      }
+    },
+    "brain.hint.permissionGranted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikrofon erlaubt. Halte die Taste jetzt zum Aufnehmen."
+          }
+        }
+      }
+    },
+    "brain.error.recorder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufnahme konnte nicht gestartet werden."
+          }
+        }
+      }
+    },
+    "brain.error.rate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu viele Sprachnachrichten in kurzer Zeit. Bitte warte einen Moment."
+          }
+        }
+      }
+    },
+    "brain.error.openJobs": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es warten schon mehrere Sprachnachrichten auf eine Antwort. Bitte warte, bis sie beantwortet sind."
+          }
+        }
+      }
+    },
+    "brain.error.tooLarge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufnahme ist zu lang (höchstens 2 Minuten)."
+          }
+        }
+      }
+    },
+    "brain.error.offline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Verbindung zum Server. Die Nachricht wurde nicht gesendet."
+          }
+        }
+      }
+    },
+    "brain.permission.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikrofonzugriff nötig"
+          }
+        }
+      }
+    },
+    "brain.permission.message": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaube Todolino in den Einstellungen den Zugriff auf das Mikrofon, um Sprachnachrichten aufzunehmen."
+          }
+        }
+      }
+    },
+    "brain.permission.open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen öffnen"
+          }
+        }
+      }
+    },
+    "brain.a11y.record": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprachnachricht aufnehmen"
+          }
+        }
+      }
+    },
+    "brain.a11y.recording": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme läuft"
+          }
+        }
+      }
+    },
+    "brain.a11y.seconds %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Sekunden"
+          }
+        }
+      }
+    },
+    "brain.a11y.hintRecord": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Aufnehmen gedrückt halten, zum Senden loslassen. Mit VoiceOver: doppeltippen startet, erneutes Doppeltippen sendet."
+          }
+        }
+      }
+    },
+    "brain.a11y.hintSend": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doppeltippen zum Senden"
+          }
+        }
+      }
+    },
+    "brain.a11y.discard": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme verwerfen"
+          }
+        }
+      }
+    },
+    "voice.consent.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprachnachrichten"
+          }
+        }
+      }
+    },
+    "voice.consent.intro": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du kannst dem Brain Sprachnachrichten schicken: Taste halten, sprechen, loslassen. Vorher ein paar Dinge, die du wissen solltest."
+          }
+        }
+      }
+    },
+    "voice.consent.mic.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikrofon"
+          }
+        }
+      }
+    },
+    "voice.consent.mic.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todolino nimmt nur auf, solange du die Taste hältst, höchstens 2 Minuten. Beim ersten Mal fragt das System zusätzlich nach dem Mikrofonzugriff."
+          }
+        }
+      }
+    },
+    "voice.consent.server.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Server"
+          }
+        }
+      }
+    },
+    "voice.consent.server.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufnahme wird auf deinem Todolino-Server gespeichert. Nur du und dein Mac-Runner können sie lesen."
+          }
+        }
+      }
+    },
+    "voice.consent.local.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokal verarbeitet"
+          }
+        }
+      }
+    },
+    "voice.consent.local.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spracherkennung und Sprachausgabe laufen auf deinem Mac. Audio geht an keine Cloud und nicht an die Claude-API; an das Brain geht nur Text."
+          }
+        }
+      }
+    },
+    "voice.consent.retention.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufbewahrung"
+          }
+        }
+      }
+    },
+    "voice.consent.retention.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorgesehen: Aufnahmen werden nach der Verarbeitung gelöscht, spätestens nach 24 Stunden, Antwort-Audio nach 7 Tagen. Der Textverlauf bleibt, bis du ihn löschst. Die automatische Löschung auf dem Server folgt in einem späteren Update."
+          }
+        }
+      }
+    },
+    "voice.consent.others.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere und Sensibles"
+          }
+        }
+      }
+    },
+    "voice.consent.others.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Achte auf Personen im Hintergrund. Sprich keine Gesundheitsdaten und keine Passwörter aufs Band."
+          }
+        }
+      }
+    },
+    "voice.consent.revoke.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Widerruf"
+          }
+        }
+      }
+    },
+    "voice.consent.revoke.text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du kannst deine Einwilligung jederzeit in den Einstellungen widerrufen."
+          }
+        }
+      }
+    },
+    "voice.consent.accept": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einverstanden"
+          }
+        }
+      }
+    },
+    "voice.consent.decline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht jetzt"
+          }
+        }
+      }
+    },
+    "voice.settings.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprachnachrichten"
+          }
+        }
+      }
+    },
+    "voice.settings.consent": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einwilligung erteilt am"
+          }
+        }
+      }
+    },
+    "voice.settings.off": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprachnachrichten sind aus. Beim ersten Aufnehmen fragt Todolino nach deiner Einwilligung."
+          }
+        }
+      }
+    },
+    "voice.settings.grant": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einwilligung erteilen …"
+          }
+        }
+      }
+    },
+    "voice.settings.revoke": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einwilligung widerrufen"
+          }
+        }
+      }
+    },
+    "voice.settings.revokeTitle": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einwilligung widerrufen?"
+          }
+        }
+      }
+    },
+    "voice.settings.revokeHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spracheingabe wird ausgeschaltet und geladene Audiodateien auf diesem Gerät werden gelöscht. Bereits gesendete Nachrichten bleiben im Verlauf, bis der Server sie löscht."
+          }
+        }
+      }
+    },
+    "voice.settings.open": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brain öffnen"
+          }
+        }
+      }
+    },
+    "voice.settings.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt für dieses Konto auf diesem Server."
           }
         }
       }

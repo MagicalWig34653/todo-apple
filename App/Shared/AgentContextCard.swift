@@ -32,8 +32,9 @@ struct MarkdownText: View {
 // MARK: Agent context in the task detail
 
 /// What agents are doing on this card, shown at the top of the task detail: who works on it, progress, the latest
-/// progress note, open questions and the pending review (answerable here), acceptance criteria and build screenshots.
-/// Hidden when the card has no agent activity, so plain to-dos keep their short detail.
+/// progress note, open questions and the pending review (answerable here, each with its own chat like the PWA), the
+/// decided review with its chat, acceptance criteria and build screenshots. Hidden when the card has no agent activity,
+/// so plain to-dos keep their short detail.
 struct AgentContextCard: View {
     let context: TaskContext
     let busy: Bool
@@ -42,7 +43,7 @@ struct AgentContextCard: View {
 
     static func hasContent(_ c: TaskContext) -> Bool {
         c.workflow.claimedLabel != nil || c.workflow.blockedReason?.isEmpty == false || !c.progressNotes.isEmpty
-            || c.questions.contains(where: \.isOpen) || c.review?.isPending == true || !c.criteria.isEmpty || !c.builds.isEmpty
+            || c.questions.contains(where: \.isOpen) || c.review != nil || !c.builds.isEmpty
     }
 
     private var openQuestions: [Question] { context.questions.filter(\.isOpen) }
@@ -59,12 +60,17 @@ struct AgentContextCard: View {
             ForEach(openQuestions) { q in
                 QuestionAnswerView(prompt: q.prompt, options: q.options, asker: q.askerDisplay, blocking: q.blocking,
                                    askedAt: q.createdAt, busy: busy) { onAnswer(q, $0) }
+                ThreadConversation(taskID: context.task.id, thread: .question(q.id), title: "chat.title.question").id(q.id)
             }
-            if let review = context.review, review.isPending {
-                ReviewDecisionView(summary: review.summary, requestedBy: review.requestedByLabel, requestedAt: review.createdAt,
-                                   busy: busy, onDecision: onDecide)
+            if let review = context.review {
+                if review.isPending {
+                    ReviewDecisionView(summary: review.summary, requestedBy: review.requestedByLabel, requestedAt: review.createdAt,
+                                       busy: busy, onDecision: onDecide)
+                } else {
+                    reviewResult(review)
+                }
+                ThreadConversation(taskID: context.task.id, thread: .review(review.id), title: "chat.title.review").id(review.id)
             }
-            if !context.criteria.isEmpty { criteria }
             if !context.builds.isEmpty { BuildStrip(builds: context.builds, total: context.builds.count) }
         }
         .padding(Space.m)
@@ -103,21 +109,34 @@ struct AgentContextCard: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var criteria: some View {
+    /// Decided or withdrawn review: outcome, who and when, the summary and the decision note.
+    private func reviewResult(_ review: Review) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            Text("agent.criteria \(context.criteria.filter(\.completed).count) \(context.criteria.count)")
-                .font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
-            ForEach(context.criteria) { c in
-                Label {
-                    MarkdownText(c.text).font(.subheadline).strikethrough(c.completed)
-                        .foregroundStyle(c.completed ? Color.textSecondary : Color.primary)
-                } icon: {
-                    Image(systemName: c.completed ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(c.completed ? Color.tileGreen : Color.textSecondary)
+            Label {
+                switch review.state {
+                case "accepted": Text("agent.review.accepted")
+                case "changes_requested": Text("agent.review.changes")
+                default: Text("agent.review.withdrawn")
                 }
-                .accessibilityValue(Text(c.completed ? "agent.criterion.done" : "agent.criterion.open"))
+            } icon: {
+                Image(systemName: review.state == "accepted" ? "checkmark.seal.fill" : review.state == "changes_requested" ? "arrow.uturn.backward.circle.fill" : "xmark.circle")
+                    .foregroundStyle(review.state == "accepted" ? Color.tileGreen : Color.textSecondary)
+            }
+            .font(.subheadline.weight(.semibold))
+            HStack(spacing: Space.s) {
+                if let who = review.requestedByLabel { Text(verbatim: who) }
+                if let at = review.decidedAt ?? review.createdAt { Text(verbatim: CommandFormat.relative(at)) }
+            }
+            .font(.caption).foregroundStyle(Color.textSecondary)
+            MarkdownText(review.summary).font(.subheadline).lineLimit(8).fixedSize(horizontal: false, vertical: true)
+            if let note = review.decisionNote, !note.isEmpty {
+                MarkdownText(note).font(.subheadline)
+                    .padding(.leading, Space.s)
+                    .overlay(alignment: .leading) { Capsule().fill(Color.hairline).frame(width: Space.xxs) }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("agent.review.result")
     }
 }
 

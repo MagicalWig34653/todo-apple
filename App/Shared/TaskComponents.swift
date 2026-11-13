@@ -18,6 +18,11 @@ final class TaskMeta {
     private(set) var subtaskProgress: [UUID: (done: Int, total: Int)] = [:]
     private(set) var subtaskIDs: Set<UUID> = []
     func isSubtask(_ id: UUID) -> Bool { subtaskIDs.contains(id) }
+    /// Command-center lane per task (question, review, running ...); the source for the agent state in rows and cards.
+    private(set) var lanes: [UUID: String] = [:]
+
+    /// Agent state to show for the task ("Frage offen", "Review fällig", "Läuft"); nil for calm or done tasks.
+    func agentState(for task: TodoTask) -> TaskAgentState? { TaskAgentState(lane: lanes[task.id], status: task.status) }
 
     func planning(for id: UUID) -> PlanningData? { overlay.planning[id] ?? confirmedPlanning[id] }
 
@@ -118,11 +123,14 @@ final class TaskMeta {
         if let cards = try? await client.commandCenter(overview).items {
             var progress: [UUID: (done: Int, total: Int)] = [:]
             var children: Set<UUID> = []
+            var laneMap: [UUID: String] = [:]
             for card in cards {
+                laneMap[card.id] = card.lane
+                for sub in card.subtasks where laneMap[sub.id] == nil { laneMap[sub.id] = sub.lane }
                 if card.parentTaskID != nil { children.insert(card.id) }
                 if !card.subtasks.isEmpty { progress[card.id] = (card.subtasks.filter { $0.status == "done" }.count, card.subtasks.count) }
             }
-            subtaskProgress = progress; subtaskIDs = children
+            subtaskProgress = progress; subtaskIDs = children; lanes = laneMap
         }
         if !fromFeed, let labels = try? await client.labels(limit: 100).items {
             var map: [UUID: [TaskLabel]] = [:]
@@ -295,6 +303,7 @@ struct TaskRow: View {
     private var accessibilitySummary: String {
         var parts: [String] = []
         if checked { parts.append(String(localized: "a11y.done")) }
+        if let agent = meta.agentState(for: task) { parts.append(LanePresentation.name(agent.rawValue)) }
         if let p = planning?.priority, p > 0 { parts.append(Self.priorityText(p)) }
         if showDue, let due = planning?.dueAt { parts.append(String(localized: "a11y.due \(DueFormat.text(due))")) }
         if let sub = meta.subtaskProgress[task.id] { parts.append(String(localized: "a11y.subtasks \(sub.done) \(sub.total)")) }
@@ -336,9 +345,11 @@ struct TaskRow: View {
         let sub = meta.subtaskProgress[task.id]
         let showsProject = showProject && project != nil
         let priority = planning?.priority ?? 0
-        if due != nil || !labels.isEmpty || showsProject || sub != nil || (priority > 0 && !task.isDone) {
+        let agent = meta.agentState(for: task)
+        if agent != nil || due != nil || !labels.isEmpty || showsProject || sub != nil || (priority > 0 && !task.isDone) {
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(spacing: Space.s))
             layout {
+                if let agent { AgentStateItem(state: agent) }
                 // Priority is never color alone: flag symbol plus "P1".."P3" next to the colored ring.
                 if priority > 0 && !task.isDone {
                     MetaItem(symbol: "flag.fill", text: "P\(4 - priority)", tint: Color.priority(priority), textTint: Color.textSecondary)
@@ -493,8 +504,8 @@ extension View {
 #if DEBUG
 private enum PreviewData {
     static let project = Project(id: UUID(), parentID: nil, name: "Website-Relaunch", version: 1)
-    static func task(_ title: String, done: Bool = false, description: String = "") -> TodoTask {
-        TodoTask(id: UUID(), projectID: project.id, title: title, description: description, status: done ? "done" : "open")
+    static func task(_ title: String, done: Bool = false, description: String = "", status: String? = nil) -> TodoTask {
+        TodoTask(id: UUID(), projectID: project.id, title: title, description: description, status: status ?? (done ? "done" : "open"))
     }
 }
 
@@ -505,6 +516,8 @@ private struct TaskRowGallery: View {
         List {
             TaskRow(task: PreviewData.task("Angebot für die Datenschutzerklärung überarbeiten", description: "Rücksprache mit der Rechtsabteilung")).taskRowInsets()
             TaskRow(task: PreviewData.task("Kurz")).taskRowInsets()
+            TaskRow(task: PreviewData.task("Agent arbeitet daran", status: "in_progress")).taskRowInsets()
+            TaskRow(task: PreviewData.task("Wartet auf Abnahme", status: "in_review")).taskRowInsets()
             TaskRow(task: PreviewData.task("Erledigt", done: true)).taskRowInsets()
         }
         .taskListStyle()

@@ -33,18 +33,12 @@ extension Color {
         }
     }
 
-    /// Stable project dot color derived from the project id (the server has no project colors yet).
+    /// Stable project dot color derived from the project id (the server has no project colors yet). Ten asset colors `Project0`...`Project9` with dark and high-contrast variants.
     static func project(_ id: UUID?) -> Color {
         guard let id else { return Color("PriorityP4") }
-        let palette: [Color] = [
-            Color(red: 0.86, green: 0.30, blue: 0.25), Color(red: 0.92, green: 0.54, blue: 0.04),
-            Color(red: 0.76, green: 0.65, blue: 0.10), Color(red: 0.27, green: 0.68, blue: 0.36),
-            Color(red: 0.16, green: 0.67, blue: 0.67), Color(red: 0.14, green: 0.44, blue: 0.88),
-            Color(red: 0.42, green: 0.35, blue: 0.85), Color(red: 0.72, green: 0.32, blue: 0.78),
-            Color(red: 0.88, green: 0.32, blue: 0.55), Color(red: 0.45, green: 0.45, blue: 0.48),
-        ]
+        let paletteCount = 10
         let sum = withUnsafeBytes(of: id.uuid) { $0.enumerated().reduce(0) { ($0 &* 131 &+ Int($1.element) &+ $1.offset) & 0xFFFFFF } }
-        return palette[sum % palette.count]
+        return Color("Project\(sum % paletteCount)")
     }
 }
 
@@ -91,8 +85,24 @@ enum DueStyle {
     }
 }
 
+/// The app's "now" for due-date defaults. Debug builds can pin the time of day on the current calendar day with
+/// `TODO_DEBUG_NOW=HH:mm` (UI tests must not depend on the real time of day); release builds always use the system clock.
+enum AppClock {
+    static var now: Date {
+        #if DEBUG
+        if let text = ProcessInfo.processInfo.environment["TODO_DEBUG_NOW"] {
+            let parts = text.split(separator: ":").compactMap { Int($0) }
+            if parts.count == 2, let pinned = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: Date()) {
+                return pinned
+            }
+        }
+        #endif
+        return Date()
+    }
+}
+
 enum DueFormat {
-    static func style(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> DueStyle {
+    static func style(_ date: Date, now: Date = AppClock.now, calendar: Calendar = .current) -> DueStyle {
         let today = calendar.startOfDay(for: now)
         let day = calendar.startOfDay(for: date)
         if day < today { return .overdue }
@@ -107,7 +117,7 @@ enum DueFormat {
     }
 
     /// "Heute", "Morgen", weekday within a week, otherwise "28. Okt."; the time is appended when set.
-    static func text(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+    static func text(_ date: Date, now: Date = AppClock.now, calendar: Calendar = .current) -> String {
         let today = calendar.startOfDay(for: now)
         let day = calendar.startOfDay(for: date)
         let diff = calendar.dateComponents([.day], from: today, to: day).day ?? 0
@@ -126,30 +136,34 @@ enum DueFormat {
         return base
     }
 
-    static func startOfToday(_ calendar: Calendar = .current) -> Date { calendar.startOfDay(for: Date()) }
+    static func startOfToday(_ calendar: Calendar = .current) -> Date { calendar.startOfDay(for: AppClock.now) }
 
     /// Next Saturday at 09:00 (today if it is Saturday already and before 09:00 is not special-cased).
-    static func weekend(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    static func weekend(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         var c = DateComponents(); c.weekday = 7
         let sat = calendar.nextDate(after: calendar.startOfDay(for: now).addingTimeInterval(-1), matching: c, matchingPolicy: .nextTime) ?? now
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: sat) ?? sat
     }
 
-    static func nextWeek(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    static func nextWeek(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         var c = DateComponents(); c.weekday = 2
         let mon = calendar.nextDate(after: now, matching: c, matchingPolicy: .nextTime) ?? now
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: mon) ?? mon
     }
 
-    static func tomorrow(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    static func tomorrow(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         let d = calendar.date(byAdding: .day, value: 1, to: now) ?? now
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: d) ?? d
     }
 
-    /// Today at 17:00, or the next full hour if that has passed.
-    static func today(calendar: Calendar = .current, now: Date = Date()) -> Date {
+    /// Today at 17:00, or one hour from now if that has passed; never later than 23:59 today, so "Heute" stays today
+    /// when it is late in the evening (now + 1 h would be tomorrow).
+    static func today(calendar: Calendar = .current, now: Date = AppClock.now) -> Date {
         let t = calendar.date(bySettingHour: 17, minute: 0, second: 0, of: now) ?? now
-        return t > now ? t : calendar.date(byAdding: .hour, value: 1, to: now) ?? now
+        if t > now { return t }
+        let later = calendar.date(byAdding: .hour, value: 1, to: now) ?? now
+        guard !calendar.isDate(later, inSameDayAs: now) else { return later }
+        return calendar.date(bySettingHour: 23, minute: 59, second: 0, of: now) ?? now
     }
 }
 
@@ -202,14 +216,14 @@ extension Font {
     static let detailTitle = Font.system(.title2, design: .rounded).weight(.bold)
 }
 
-/// Tinted tile colors for sidebar and property icons (fixed hues, each at least 3.2:1 against the white glyph).
+/// Tinted tile colors for sidebar and property icons (asset colors `Tile*`: at least 3.2:1 against the white glyph, 4.5:1 with increased contrast).
 extension Color {
-    static let tileBlue = Color(red: 0.20, green: 0.48, blue: 0.95)
-    static let tileGreen = Color(red: 0.18, green: 0.64, blue: 0.36)
-    static let tileOrange = Color(red: 0.80, green: 0.48, blue: 0.10)
-    static let tilePurple = Color(red: 0.52, green: 0.38, blue: 0.90)
-    static let tileTeal = Color(red: 0.10, green: 0.61, blue: 0.65)
-    static let tileGray = Color(red: 0.50, green: 0.52, blue: 0.56)
+    static let tileBlue = Color("TileBlue")
+    static let tileGreen = Color("TileGreen")
+    static let tileOrange = Color("TileOrange")
+    static let tilePurple = Color("TilePurple")
+    static let tileTeal = Color("TileTeal")
+    static let tileGray = Color("TileGray")
 }
 
 /// Raised surface with a hairline border and a soft shadow (cards, grouped property blocks).

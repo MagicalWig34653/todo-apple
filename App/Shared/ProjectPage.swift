@@ -106,12 +106,15 @@ struct ProjectView: View {
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
             .accessibilityIdentifier("project.layout")
-            Button { model.selection = .projectCommandCenter(projectID) } label: {
-                Label("project.agents", systemImage: "rectangle.3.group")
-                    .font(.subheadline.weight(.semibold))
+            // Classic projects are plain to-do lists: no agent overview (PWA: project mode, per account).
+            if model.mode(for: projectID) == .management {
+                Button { model.selection = .projectCommandCenter(projectID) } label: {
+                    Label("project.agents", systemImage: "rectangle.3.group")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered).buttonBorderShape(.capsule).tint(Color.brand)
+                .accessibilityIdentifier("project.agents")
             }
-            .buttonStyle(.bordered).buttonBorderShape(.capsule).tint(Color.brand)
-            .accessibilityIdentifier("project.agents")
         }
         .padding(.top, Space.xs)
     }
@@ -188,6 +191,17 @@ struct DisplayOptions: View {
             Binding(get: { get(model.prefs(for: projectID)) }, set: { model.setPrefs(patch($0), for: projectID) })
         }
         return VStack(alignment: .leading, spacing: Space.m) {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text("mode.title").font(.caption.weight(.semibold)).foregroundStyle(Color.textSecondary)
+                Picker("mode.title", selection: binding({ $0.projectMode }, { ProjectPrefsPatch(mode: $0.rawValue) })) {
+                    Text("mode.classic").tag(ProjectMode.classic)
+                    Text("mode.management").tag(ProjectMode.management)
+                }
+                .pickerStyle(.segmented).labelsHidden()
+                .accessibilityIdentifier("project.mode")
+                Text(p.projectMode == .classic ? "mode.classic.hint" : "mode.management.hint")
+                    .font(.caption).foregroundStyle(Color.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
             Picker("display.layout", selection: binding(\.view, { ProjectPrefsPatch(view: $0) })) {
                 Label("display.list", systemImage: "list.bullet").tag(ProjectDisplayPrefs.View.list.rawValue)
                 Label("display.board", systemImage: "rectangle.split.3x1").tag(ProjectDisplayPrefs.View.board.rawValue)

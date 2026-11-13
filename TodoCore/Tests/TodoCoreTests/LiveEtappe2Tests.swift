@@ -425,8 +425,12 @@ final class LiveEtappe2Tests: XCTestCase {
         if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_FEED"] == "1" {
             // "Für dich" demo: agent question with options, review, progress and a build screenshot.
             let shot = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
-            _ = try await a.askQuestion(taskID: t3.id, prompt: "Soll die Startseite zuerst auf Mobil optimiert werden?", options: ["Ja, mobil zuerst", "Desktop zuerst"], blocking: true, agentName: "Claude")
-            _ = try await a.requestReview(taskID: t4.id, summary: "Texte sind eingebaut und getestet.", agentName: "Claude")
+            let mobile = try await a.askQuestion(taskID: t3.id, prompt: "Soll die Startseite zuerst auf Mobil optimiert werden?", options: ["Ja, mobil zuerst", "Desktop zuerst"], blocking: true, agentName: "Claude")
+            let review = try await a.requestReview(taskID: t4.id, summary: "Texte sind eingebaut und getestet.", agentName: "Claude")
+            // Chats of the question, the review and the task (detail conversation).
+            _ = try await a.addComment(taskID: t3.id, body: "Zählt das iPad auch als mobil?", thread: .question(mobile.id))
+            _ = try await a.addComment(taskID: t4.id, body: "Bitte die Datenschutzerklärung noch prüfen.", thread: .review(review.id))
+            _ = try await a.addComment(taskID: t3.id, body: "Entwurf bitte bis Freitag.", thread: .task)
             _ = try await a.postProgressNote(taskID: t3.id, note: "Farbpalette und Typografie sind im Entwurf.", percent: 40)
             let att = try await a.uploadAttachment(taskID: t3.id, filename: "entwurf.png", role: .result, mediaType: "image/png", data: shot)
             _ = try await a.registerBuild(attachmentID: att.id, buildID: "seed-1", label: "Entwurf Startseite", platform: "ios")
@@ -438,6 +442,25 @@ final class LiveEtappe2Tests: XCTestCase {
                 let answered = try await a.askQuestion(taskID: t4.id, prompt: "Soll der Text der Startseite gekürzt werden?", options: nil, blocking: false, agentName: "Claude")
                 _ = try await a.answerQuestion(answered.id, answer: "Ja, bitte kürzen. Die Einleitung ist zu lang und wiederholt sich im zweiten Absatz.\n\nZusätzlich sollen die drei Kernaussagen als Liste erscheinen, nicht als Fließtext. Bitte außerdem den Abschnitt zur Firmengeschichte komplett nach unten verschieben, weil ihn kaum jemand liest, und die Überschriften auf maximal sechs Wörter beschränken. Danach noch einmal gegenlesen lassen und die Rechtschreibung prüfen, insbesondere bei den Eigennamen.\n\nUnd bitte nichts am Impressum ändern.")
             }
+        }
+        if ProcessInfo.processInfo.environment["TODO_LIVE_SEED_W3"] == "1" {
+            // Wave 3 demo: criteria, a prerequisite, a milestone, project modes and two agent confirmations.
+            let c1 = try await a.createCriterion(taskID: t3.id, text: "Mobil zuerst")
+            _ = try await a.updateCriterion(taskID: t3.id, id: c1.id, version: c1.version, completed: true)
+            _ = try await a.createCriterion(taskID: t3.id, text: "Kontrast mindestens AA")
+            try await a.addDependency(t3.id, prerequisite: e4.id)
+            let beta = try await a.createMilestone(projectID: arbeit.id, title: "Beta-Start", dueAt: nextWeek)
+            try await a.attachMilestone(beta.id, taskID: t3.id)
+            try await a.attachMilestone(beta.id, taskID: t4.id)
+            let prefs = try await a.projectPrefs(includeDefaults: true)
+            for (p, mode) in [(arbeit.id, "management"), (sport.id, "classic")] {
+                _ = try await a.patchProjectPrefs(p, revision: prefs.first { $0.projectID == p }?.revision ?? 0, ProjectPrefsPatch(mode: mode))
+            }
+            let alt = try await a.createProject(name: "Altprojekt")
+            _ = try await a.createTask(projectID: alt.id, title: "Alte Notizen")
+            let mcp = try await LiveMCPConnection.connect(a, name: "Claude Code", projects: [alt.id, sport.id])
+            _ = try await mcp.requestConfirmation("delete_task", ["taskID": e6.id.uuidString])
+            _ = try await mcp.requestConfirmation("delete_project", ["projectID": alt.id.uuidString])
         }
         let team = try await a.createTeam(name: "Haushalt")
         _ = try await a.inviteMember(teamID: team.id, userID: f.bobUser.id)
@@ -465,6 +488,10 @@ final class LiveEtappe2Tests: XCTestCase {
                 let moved = try await a.moveTask(t.id, version: t.version, toColumn: c.0)
                 if i == 0 { _ = try await a.setPlanning(taskID: moved.id, PlanningData(dueAt: now.addingTimeInterval(3600), priority: 2)); try await a.addLabel(blocker.id, toTask: moved.id) }
                 if i == 6 { try await a.addLabel(privat.id, toTask: moved.id) }
+                // Agent states on board cards: one running (claimed), one with an open question, one waiting for review.
+                if i == 7 { _ = try await a.claimTask(moved.id, agentName: "Claude") }
+                if i == 5 { _ = try await a.askQuestion(taskID: moved.id, prompt: "Tritt das nur im Hintergrund auf?", options: ["Ja", "Nein"], blocking: true, agentName: "Claude") }
+                if i == 8 { _ = try await a.requestReview(taskID: moved.id, summary: "Spalten sind sortiert.", agentName: "Claude") }
             }
         }
         let token = try XCTUnwrap(try f.adminStore.load())

@@ -89,12 +89,28 @@ public struct FeedPage: Codable, Sendable, Equatable {
     public let projectID: UUID?
     public let needsYou: [FeedNeedsYou]
     public let needsYouTotal: Int
+    /// Pending confirmation requests of agents (ADR 0026); empty on older servers.
+    public let confirmations: [FeedConfirmation]
     public let posts: [FeedPost]
     public let nextCursor: String?
 
-    public init(generatedAt: Date, mode: String, projectID: UUID?, needsYou: [FeedNeedsYou], needsYouTotal: Int, posts: [FeedPost], nextCursor: String?) {
+    public init(generatedAt: Date, mode: String, projectID: UUID?, needsYou: [FeedNeedsYou], needsYouTotal: Int,
+                confirmations: [FeedConfirmation] = [], posts: [FeedPost], nextCursor: String?) {
         self.generatedAt = generatedAt; self.mode = mode; self.projectID = projectID; self.needsYou = needsYou
-        self.needsYouTotal = needsYouTotal; self.posts = posts; self.nextCursor = nextCursor
+        self.needsYouTotal = needsYouTotal; self.confirmations = confirmations; self.posts = posts; self.nextCursor = nextCursor
+    }
+
+    private enum CodingKeys: String, CodingKey { case generatedAt, mode, projectID, needsYou, needsYouTotal, confirmations, posts, nextCursor }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        generatedAt = try c.decode(Date.self, forKey: .generatedAt)
+        mode = try c.decode(String.self, forKey: .mode)
+        projectID = try c.decodeIfPresent(UUID.self, forKey: .projectID)
+        needsYou = try c.decode([FeedNeedsYou].self, forKey: .needsYou)
+        needsYouTotal = try c.decode(Int.self, forKey: .needsYouTotal)
+        confirmations = try c.decodeIfPresent([FeedConfirmation].self, forKey: .confirmations) ?? []
+        posts = try c.decode([FeedPost].self, forKey: .posts)
+        nextCursor = try c.decodeIfPresent(String.self, forKey: .nextCursor)
     }
 }
 
@@ -104,6 +120,7 @@ public enum FeedMode: String, Sendable { case all, classic, management }
 public struct FeedState: Sendable, Equatable {
     public private(set) var needsYou: [FeedNeedsYou] = []
     public private(set) var needsYouTotal = 0
+    public private(set) var confirmations: [FeedConfirmation] = []
     public private(set) var posts: [FeedPost] = []
     public private(set) var nextCursor: String?
     public private(set) var loaded = false
@@ -111,7 +128,7 @@ public struct FeedState: Sendable, Equatable {
     public init() {}
 
     public mutating func replace(with page: FeedPage) {
-        needsYou = page.needsYou; needsYouTotal = page.needsYouTotal; posts = page.posts; nextCursor = page.nextCursor; loaded = true
+        needsYou = page.needsYou; needsYouTotal = page.needsYouTotal; confirmations = page.confirmations; posts = page.posts; nextCursor = page.nextCursor; loaded = true
     }
 
     public mutating func append(_ page: FeedPage) {
@@ -126,7 +143,12 @@ public struct FeedState: Sendable, Equatable {
         needsYouTotal = max(0, needsYouTotal - 1)
     }
 
-    public var isEmpty: Bool { loaded && needsYou.isEmpty && posts.isEmpty }
+    /// Drops a decided confirmation immediately.
+    public mutating func remove(confirmationID id: UUID) {
+        confirmations.removeAll { $0.id == id }
+    }
+
+    public var isEmpty: Bool { loaded && needsYou.isEmpty && confirmations.isEmpty && posts.isEmpty }
 }
 
 extension APIClient {

@@ -23,7 +23,6 @@ struct CommandCenterView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            PushPrimerCard()
             Group {
                 if cc.unsupported {
                     EmptyState(symbol: "exclamationmark.triangle", title: "cc.unsupported", message: "cc.unsupportedHint")
@@ -36,6 +35,8 @@ struct CommandCenterView: View {
                 }
             }
         }
+        // The notification explainer sits below the content so it never pushes the title and controls down.
+        .safeAreaInset(edge: .bottom, spacing: 0) { PushPrimerCard() }
         .background(Color.canvas)
         // The page header already shows the title; an inline copy in the bar would duplicate it.
         #if os(iOS)
@@ -65,30 +66,18 @@ struct CommandCenterView: View {
 
     // MARK: Header
 
+    /// Control layers above the content: the toolbar (mode, menu) and this section picker. Lane counts live in the
+    /// lane headers, so there is no separate counter strip.
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     Text("cc.title").font(typeSize.isAccessibilitySize ? Font.system(.title, design: .rounded).weight(.bold) : .screenTitle).fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
-                    if let project {
-                        Button { app.selectedProjectID = project.id } label: {
-                            HStack(spacing: Space.xs) {
-                                Text(verbatim: "#").foregroundStyle(Color.project(project.id))
-                                Text(verbatim: project.name)
-                                Image(systemName: "chevron.right").font(.caption2)
-                            }
-                            .font(.subheadline).foregroundStyle(Color.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .tapTarget()
-                    } else {
-                        Text("cc.scope.account").font(.subheadline).foregroundStyle(Color.textSecondary)
-                    }
+                    subtitle
                 }
                 Spacer()
                 if cc.loading { ProgressView().controlSize(.small) }
             }
-            summaryStrip
             Picker("cc.section", selection: $cc.section) {
                 Text("cc.section.overview").tag(CommandCenterModel.Section.overview)
                 Text("cc.section.updates").tag(CommandCenterModel.Section.updates)
@@ -99,44 +88,32 @@ struct CommandCenterView: View {
         .pageMargins().padding(.top, Space.s).padding(.bottom, Space.m)
     }
 
-    @ViewBuilder private var summaryStrip: some View {
-        if typeSize.isAccessibilitySize {
-            // Accessibility sizes: wrap into a column instead of a clipped horizontal strip.
-            VStack(alignment: .leading, spacing: Space.s) { summaryChips }
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: Space.s) { summaryChips } }
-        }
-    }
-
-    @ViewBuilder private var summaryChips: some View {
-        ForEach(CommandLane.allCases, id: \.self) { lane in
-            chip(lane.rawValue, cc.summary.count(for: lane))
-        }
-        if cc.summary.activeAgents > 0 {
-            HStack(spacing: Space.xs) {
-                Image(systemName: "cpu")
-                Text("cc.summary.agents \(cc.summary.activeAgents)")
+    /// Scope (account or project link) plus the number of agents that are working right now.
+    private var subtitle: some View {
+        AdaptiveStack(spacing: Space.s) {
+            if let project {
+                Button { app.selectedProjectID = project.id } label: {
+                    HStack(spacing: Space.xs) {
+                        Text(verbatim: "#").foregroundStyle(Color.project(project.id))
+                        Text(verbatim: project.name)
+                        Image(systemName: "chevron.right").font(.caption2)
+                    }
+                    .font(.subheadline).foregroundStyle(Color.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .tapTarget()
+            } else {
+                Text("cc.scope.account").font(.subheadline).foregroundStyle(Color.textSecondary)
             }
-            .font(.caption.weight(.medium)).foregroundStyle(Color.priority(1))
-            .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
-            .background(Color.priority(1).opacity(0.10), in: Capsule())
-            .accessibilityElement(children: .combine)
+            if cc.summary.activeAgents > 0 {
+                HStack(spacing: Space.xs) {
+                    Image(systemName: "cpu").accessibilityHidden(true)
+                    Text("cc.summary.agents \(cc.summary.activeAgents)")
+                }
+                .font(.subheadline.weight(.medium)).foregroundStyle(Color.priority(1))
+                .accessibilityElement(children: .combine)
+            }
         }
-    }
-
-    private func chip(_ key: String, _ count: Int) -> some View {
-        let color = LanePresentation.color(key)
-        return HStack(spacing: Space.xs) {
-            Image(systemName: LanePresentation.symbol(key))
-            LanePresentation.title(key, fallback: key).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-            Text(verbatim: String(count)).monospacedDigit().fontWeight(.bold)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .font(.caption.weight(.medium))
-        .foregroundStyle(count > 0 ? color : Color.textSecondary)
-        .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
-        .background((count > 0 ? color : Color.textSecondary).opacity(0.10), in: Capsule())
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: Overview
@@ -156,13 +133,15 @@ struct CommandCenterView: View {
 
     @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Picker("cc.mode", selection: $cc.mode) {
-                Label("cc.mode.kanban", systemImage: "rectangle.split.3x1").tag(CommandCenterModel.Mode.kanban)
-                Label("cc.mode.list", systemImage: "list.bullet").tag(CommandCenterModel.Mode.list)
+            if cc.section == .overview {
+                Picker("cc.mode", selection: $cc.mode) {
+                    Label("cc.mode.kanban", systemImage: "rectangle.split.3x1").tag(CommandCenterModel.Mode.kanban)
+                    Label("cc.mode.list", systemImage: "list.bullet").tag(CommandCenterModel.Mode.list)
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+                .fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelStyle(.iconOnly)
-            .fixedSize()
             Menu {
                 Button { Task { await cc.refresh(app) } } label: { Label("cc.refresh", systemImage: "arrow.clockwise") }
                     .keyboardShortcut("r", modifiers: .command)

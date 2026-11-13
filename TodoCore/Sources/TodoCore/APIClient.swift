@@ -173,7 +173,8 @@ public struct APIClient: Sendable {
             let plain = ISO8601DateFormatter()
             let fractional = ISO8601DateFormatter()
             fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = plain.date(from: raw) ?? fractional.date(from: raw) { return date }
+            // Fractional first: the plain formatter may accept a fractional string and silently drop the fraction (message order needs milliseconds).
+            if let date = fractional.date(from: raw) ?? plain.date(from: raw) { return date }
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "bad date \(raw)"))
         }
         return decoder
