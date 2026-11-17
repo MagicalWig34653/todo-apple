@@ -130,9 +130,32 @@ enum DebugLaunch {
     /// `ImageRenderer` and quits. The app runs with activation policy `.prohibited` (see `AppDelegate`), so no window
     /// appears and nothing is activated. `TODO_DEBUG_RENDER_MODE=hosting` renders an `NSHostingView` in an off-screen
     /// window (never ordered front) instead, for views whose content loads in `.task`.
-    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil }
+    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil }
+
+    /// `TODO_DEBUG_NOW_RENDER=<dir>`: the "Jetzt" screen with sample data, light and dark, off-screen (no server needed).
+    static func renderNowSamples(dir: String) async {
+        let url = URL(fileURLWithPath: dir)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let size = CGSize(width: 900, height: 1500)
+        for dark in [false, true] {
+            let host = NSHostingView(rootView: OverviewNowPreviewHost().environment(\.colorScheme, dark ? .dark : .light).preferredColorScheme(dark ? .dark : .light))
+            host.frame = CGRect(origin: .zero, size: size)
+            let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .seconds(2))
+            host.layoutSubtreeIfNeeded()
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { exit(2) }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: url.appendingPathComponent("mac-jetzt-\(dark ? "dark" : "light").png"))
+            window.contentView = nil
+        }
+        exit(0)
+    }
 
     static func renderIfRequested(model: AppModel) async {
+        if let dir = env["TODO_DEBUG_NOW_RENDER"] { await renderNowSamples(dir: dir); return }
         guard let spec = env["TODO_DEBUG_RENDER"] else { return }
         let parts = spec.components(separatedBy: ":")
         let dir = URL(fileURLWithPath: parts[0])
@@ -203,6 +226,7 @@ enum DebugLaunch {
         case "activity": model.selection = .activity
         case "brain": model.selection = .brain
         case "commandcenter": model.selection = .commandCenter
+        case "now": model.selection = .now
         default:
             if target.hasPrefix("cc:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(3)) }) {
                 model.selection = .projectCommandCenter(p.id)
