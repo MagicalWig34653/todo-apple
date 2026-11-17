@@ -62,6 +62,7 @@ public actor SyncEngine {
     private let client: APIClient
     private let store: any SyncStore
     private var state: SyncState
+    private var invalidated = false
     private var syncing = false
     private var rerun = false
     /// Mutation currently on the wire (never merged away by newer edits).
@@ -482,6 +483,7 @@ public actor SyncEngine {
     }
 
     private func enqueue(_ template: SyncMutation) throws -> SyncSnapshot {
+        try checkActive()
         var m = template
         let merged = merge(m)
         if merged.skip {
@@ -570,8 +572,12 @@ public actor SyncEngine {
         return snapshot()
     }
 
-    /// Wipes everything (logout, account switch). Pending mutations are lost.
+    /// Permanently fences this engine off from storage and subsequent requests.
+    public func invalidate() { invalidated = true; rerun = false }
+
+    /// Invalidates the engine and wipes the account cache, including pending mutations.
     public func reset() throws {
+        invalidate()
         do { try store.wipe() } catch { throw SyncEngineError.store(String(describing: error)) }
         state = SyncState()
     }
@@ -581,6 +587,7 @@ public actor SyncEngine {
     /// Sends the queue, then pulls the feed. Transport/5xx problems set `offline` instead of throwing; `unauthorized`
     /// and unexpected feed errors (for example `notFound` when the server has no sync feed) are thrown.
     public func sync() async throws -> SyncReport {
+        try checkActive()
         if syncing { rerun = true; var r = SyncReport(); r.skipped = true; return r }
         syncing = true
         defer { syncing = false }
@@ -624,6 +631,7 @@ public actor SyncEngine {
     }
 
     private func flush(_ report: inout SyncReport) async throws {
+        try checkActive()
         if planningSyncSupport == .unsupported { try parkUnsupported(&report) }
         while let next = nextSendable() {
             var m = next.mutation
@@ -632,6 +640,7 @@ public actor SyncEngine {
             defer { inFlight = nil }
             do {
                 let result = try await client.applyMutation(m)
+                try checkActive()
                 if m.type.isPlanningSync { planningSyncSupport = .supported }
                 try transact { s in
                     s.queue.removeAll { $0.id == next.id }
@@ -639,6 +648,7 @@ public actor SyncEngine {
                 }
                 report.pushed += 1
             } catch let error as APIError {
+                try checkActive()
                 switch error {
                 case .transport, .server:
                     report.offline = true
@@ -724,6 +734,7 @@ public actor SyncEngine {
     }
 
     private func pull(_ report: inout SyncReport) async throws {
+        try checkActive()
         do {
             try await pullFeed(from: state.cursor, report: &report)
         } catch let error as APIError {
@@ -761,11 +772,13 @@ public actor SyncEngine {
     /// From `c0` the whole feed is collected first and then replaces the confirmed entities in one commit, so an
     /// interrupted full sync never leaves a half-empty store and a resync drops what the server no longer shows.
     private func pullFeed(from start: String, report: inout SyncReport) async throws {
+        try checkActive()
         var cursor = start
         if start == "c0" {
             var all: [SyncChange] = []
             while true {
                 let page = try await client.syncChanges(cursor: cursor, limit: pageSize)
+                try checkActive()
                 all += page.changes
                 cursor = page.cursor
                 if !page.hasMore { break }
@@ -785,6 +798,7 @@ public actor SyncEngine {
         }
         while true {
             let page = try await client.syncChanges(cursor: cursor, limit: pageSize)
+            try checkActive()
             let next = page.cursor
             try transact { s in
                 for change in page.changes { Self.apply(change, to: &s) }
@@ -867,7 +881,12 @@ public actor SyncEngine {
     // MARK: Persistence
 
     /// Mutates a copy, writes the difference atomically and only then adopts the copy, so memory and disk agree.
+    private func checkActive() throws {
+        if invalidated { throw CancellationError() }
+    }
+
     private func transact(_ body: (inout SyncState) -> Void) throws {
+        try checkActive()
         var next = state
         body(&next)
         // Ranks live only as long as their task (confirmed or about to be created by a queued mutation).

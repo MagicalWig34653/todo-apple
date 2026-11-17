@@ -59,6 +59,7 @@ extension AppModel {
     /// Sends unsent settings; transport problems keep them for the next sync, a stale revision is refetched once.
     func flushPrefs() async {
         guard let client, !prefsFlushing, !pendingPrefs.isEmpty else { return }
+        let generation = sessionGeneration
         prefsFlushing = true
         defer { prefsFlushing = false }
         for (id, patch) in pendingPrefs {
@@ -66,33 +67,43 @@ extension AppModel {
             for _ in 0..<2 {
                 do {
                     let result = try await client.patchProjectPrefs(id, revision: revision, patch)
+                    guard generation == sessionGeneration else { return }
                     displayPrefs[id] = result
                     if pendingPrefs[id] == patch { pendingPrefs[id] = nil }
                     break
                 } catch APIError.conflict(let reason) where reason == "revision_conflict" {
                     guard let fresh = try? await client.projectPrefs(for: id) else { break }
+                    guard generation == sessionGeneration else { return }
                     displayPrefs[id] = fresh
                     revision = fresh.revision
                 } catch APIError.notFound {
+                    guard generation == sessionGeneration else { return }
                     pendingPrefs[id] = nil
                     break
                 } catch { break }
             }
         }
+        guard generation == sessionGeneration else { return }
         savePrefsCache()
     }
 
     /// After a sync: send local settings, fetch the stored ones, import the old device-local values once.
     func refreshServerState() async {
         guard let client else { return }
+        let generation = sessionGeneration
         await flushPrefs()
+        guard generation == sessionGeneration else { return }
         // With the defaults the derived project mode (classic/management) of never-written projects is known too.
         if let list = try? await client.projectPrefs(includeDefaults: true) {
+            guard generation == sessionGeneration else { return }
             displayPrefs = Dictionary(list.map { ($0.projectID, $0) }, uniquingKeysWith: { a, _ in a })
             savePrefsCache()
         }
+        guard generation == sessionGeneration else { return }
         await importLegacyIfNeeded(client)
-        if let prefs = try? await client.preferences(), prefs.revision > 0 { colorScheme = prefs.appearance.scheme }
+        guard generation == sessionGeneration else { return }
+        if let prefs = try? await client.preferences(), prefs.revision > 0,
+           generation == sessionGeneration { colorScheme = prefs.appearance.scheme }
     }
 
     /// Project view of this account: classic (plain list/board) or management (agents, criteria, dependencies).
@@ -104,6 +115,7 @@ extension AppModel {
     /// One-time import of the former UserDefaults values (favourites, display options, descriptions) into the
     /// account, but only where the server has nothing yet. Skipped silently while offline and retried later.
     private func importLegacyIfNeeded(_ client: APIClient) async {
+        let generation = sessionGeneration
         let d = UserDefaults.standard
         let doneKey = "legacyImport.\(accountKey)"
         guard !d.bool(forKey: doneKey), user != nil else { return }
@@ -116,11 +128,13 @@ extension AppModel {
         }
         if favs.isEmpty && options.isEmpty && descriptions.isEmpty { d.set(true, forKey: doneKey); return }
         guard !projects.isEmpty, let serverFavorites = try? await client.favorites() else { return }
+        guard generation == sessionGeneration else { return }
         let known = Set(projects.map(\.id))
         if serverFavorites.isEmpty {
             var entries: [FavoriteEntry] = []
             for id in favs where known.contains(id) {
                 guard let list = try? await client.setFavorite(id) else { return }
+                guard generation == sessionGeneration else { return }
                 entries = list
             }
             if !entries.isEmpty { await applyFavorites(entries) }
@@ -135,6 +149,7 @@ extension AppModel {
             guard let id = UUID(uuidString: key), let p = projects.first(where: { $0.id == id }),
                 (p.description ?? "").isEmpty, !text.isEmpty else { continue }
             await updateProject(p, ProjectUpdate(description: text))
+            guard generation == sessionGeneration else { return }
         }
         clearLegacy()
     }

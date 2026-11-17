@@ -96,6 +96,9 @@ public actor PlanningOutbox {
     private let store: any OutboxStore
     private var ops: [OutboxOp]
     private var flushing = false
+    private var invalidated = false
+
+    public func invalidate() { invalidated = true }
 
     public init(store: any OutboxStore) {
         self.store = store
@@ -186,7 +189,7 @@ public actor PlanningOutbox {
     /// Drops everything (sign-out: the account's cache is discarded as well).
     public func reset() { ops = []; persist() }
 
-    public func dismiss(_ id: UUID) { ops.removeAll { $0.id == id }; persist() }
+    public func dismiss(_ id: UUID) { guard !invalidated else { return }; ops.removeAll { $0.id == id }; persist() }
 
     // MARK: Reading
 
@@ -218,15 +221,19 @@ public actor PlanningOutbox {
     /// 401 is thrown so the caller can sign out.
     public func flush(client: APIClient, skipping: Set<UUID> = []) async throws -> OutboxReport {
         var report = OutboxReport()
+        guard !invalidated else { throw CancellationError() }
         guard !flushing else { return report }
         flushing = true
         defer { flushing = false }
         for op in ops where op.status == .pending && !skipping.contains(op.taskID) {
+            guard !invalidated else { throw CancellationError() }
             do {
                 try await send(op, client: client, report: &report)
+                guard !invalidated else { throw CancellationError() }
                 ops.removeAll { $0.id == op.id }
                 report.sent += 1
             } catch let error as APIError {
+                guard !invalidated else { throw CancellationError() }
                 switch error {
                 case .transport: report.offline = true
                 case .server(let status, _) where status >= 500: report.offline = true
@@ -242,6 +249,7 @@ public actor PlanningOutbox {
                 if report.offline { break }
             }
         }
+        guard !invalidated else { throw CancellationError() }
         persist()
         return report
     }
@@ -265,6 +273,7 @@ public actor PlanningOutbox {
                 label = try await client.createLabel(name: name)
                 report.createdLabels.append(label)
             }
+            guard !invalidated else { throw CancellationError() }
             try await client.addLabel(label.id, toTask: op.taskID)
         }
     }

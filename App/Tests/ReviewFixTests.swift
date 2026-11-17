@@ -21,6 +21,34 @@ final class ReviewURLProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class ReviewFixTests: XCTestCase {
+    func testInvalidatedSyncCannotPersistOrPublishDelayedFeed() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReviewURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let app = AppModel(session: session, tokenStoreForServer: { _ in InMemoryTokenStore() })
+        let store = InMemorySyncStore()
+        let engine = try SyncEngine(client: APIClient(baseURL: URL(string: "https://a.invalid")!, session: session), store: store)
+        app.engine = engine
+        let started = expectation(description: "feed started")
+        var response: CheckedContinuation<Void, Never>?
+        ReviewURLProtocol.handler = { _ in
+            await withCheckedContinuation { response = $0; started.fulfill() }
+            return Data(#"{"changes":[],"cursor":"c9","hasMore":false}"#.utf8)
+        }
+        let sync = Task { await app.syncNow() }
+        await fulfillment(of: [started], timeout: 2)
+        app.sessionGeneration = UUID()
+        app.engine = nil
+        try await engine.reset()
+        response?.resume()
+        await sync.value
+        XCTAssertEqual(try store.load().cursor, "c0")
+        XCTAssertFalse(app.usesREST)
+        XCTAssertTrue(app.tasks.isEmpty)
+        do { _ = try await engine.createProject(name: "late"); XCTFail("Invalidated engine accepted a write") }
+        catch is CancellationError {}
+    }
+
     func testServerSwitchDiscardsDelayedLoginAndScopesToken() async throws {
         let a = InMemoryTokenStore(), b = InMemoryTokenStore()
         let config = URLSessionConfiguration.ephemeral

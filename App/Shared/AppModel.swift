@@ -311,15 +311,25 @@ final class AppModel {
     }
 
     func logout() async {
-        await PushCoordinator.shared.accountWillSignOut(client: client, userID: user?.id)
+        sessionGeneration = UUID()
+        let generation = sessionGeneration
+        let logoutClient = client, logoutUserID = user?.id
+        let oldMetaCacheURL = metaCacheURL
+        let oldEngine = engine, oldOutbox = outbox
+        engine = nil; outbox = nil
+        await oldEngine?.invalidate()
+        await oldOutbox?.invalidate()
+        await PushCoordinator.shared.accountWillSignOut(client: logoutClient, userID: logoutUserID)
         syncLoop?.cancel(); syncLoop = nil
-        try? await engine?.reset()
-        await outbox?.reset()
-        if let url = metaCacheURL { try? FileManager.default.removeItem(at: url) }
+        try? await oldEngine?.reset()
+        await oldOutbox?.reset()
+        if let url = oldMetaCacheURL { try? FileManager.default.removeItem(at: url) }
+        guard generation == sessionGeneration else { return }
         metaCacheURL = nil
         outbox = nil; legacyOutboxSnapshot = OutboxSnapshot(); syncMetaOverlay = OutboxSnapshot(); feedPlanning = [:]; feedLabels = []; metaFromFeed = false
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
-        try? await client?.logout()
+        try? await logoutClient?.logout()
+        guard generation == sessionGeneration else { return }
         VoicePlayer.clearCache()
         cachedUser = nil
         user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
@@ -349,17 +359,22 @@ final class AppModel {
         guard let client, let user, let path = storePath(for: user),
             let store = try? SQLiteSyncStore(path: path), let engine = try? SyncEngine(client: client, store: store)
         else { usesREST = true; loadPrefsCache(); await reloadREST(); await refreshServerState(); return }
+        let generation = sessionGeneration
         self.engine = engine
         metaCacheURL = URL(fileURLWithPath: path + ".meta.json")
         outbox = PlanningOutbox(store: FileOutboxStore(url: URL(fileURLWithPath: path + ".outbox.json")))
-        legacyOutboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
+        let outboxCached = await outbox?.snapshot() ?? OutboxSnapshot()
+        guard generation == sessionGeneration, self.engine === engine else { return }
+        legacyOutboxSnapshot = outboxCached
         usesREST = false
         loadPrefsCache()
         let cached = await engine.snapshot()
+        guard generation == sessionGeneration, self.engine === engine else { return }
         // A cache that already holds feed planning (contract 1.4.0) serves chips and due dates offline right away.
         metaFromFeed = !cached.planning.isEmpty
         publish(cached)
         await syncNow()
+        guard generation == sessionGeneration, self.engine === engine else { return }
         selectDefaultIfNeeded()
         openPendingPushLink()
         syncLoop = Task { [weak self] in
@@ -393,29 +408,45 @@ final class AppModel {
     /// Sends queued changes, pulls the feed and refreshes the lists. Offline is not an error: cached data stays.
     func syncNow() async {
         guard let engine, !usesREST else { return }
+        let generation = sessionGeneration
+        func isCurrent() -> Bool { generation == sessionGeneration && self.engine === engine }
         syncStatus = .syncing
         do {
             await migrateOutboxToEngine()
+            guard isCurrent() else { return }
             let report = try await engine.sync()
+            guard isCurrent() else { return }
             await handOverUnsupported(engine)
+            guard isCurrent() else { return }
             let support = await engine.planningSyncSupport
+            guard isCurrent() else { return }
             if (support == .supported) != metaFromFeed {
                 metaFromFeed = support == .supported
                 if !metaFromFeed { feedPlanning = [:]; feedLabels = [] }
                 metaRevision += 1
             }
             var snap = await engine.snapshot()
+            guard isCurrent() else { return }
             if snap.rejected.isEmpty == false {
                 for q in snap.rejected { snap = (try? await engine.dismiss(q.id)) ?? snap }
                 noticeKey = "notice.syncRejected"
             }
+            guard isCurrent() else { return }
             publish(snap)
             syncStatus = report.offline ? .offline : .idle
             selectDefaultIfNeeded()
-            if !report.offline { await flushOutbox(); await reloadAgenda(); await refreshServerState() }
+            if !report.offline {
+                await flushOutbox()
+                guard isCurrent() else { return }
+                await reloadAgenda()
+                guard isCurrent() else { return }
+                await refreshServerState()
+            }
         } catch APIError.unauthorized {
+            guard isCurrent() else { return }
             await logout(); errorKey = "error.sessionExpired"
         } catch {
+            guard isCurrent(), !(error is CancellationError) else { return }
             // No usable feed (older server, decoding or store problem): use REST for everything.
             syncLoop?.cancel(); syncLoop = nil
             usesREST = true; syncStatus = .idle; pendingChanges = 0; conflict = nil
@@ -474,7 +505,9 @@ final class AppModel {
     /// predate it). Returns false when the REST outbox has to take the edit.
     private func queueMeta(_ edit: (SyncEngine) async throws -> SyncSnapshot) async -> Bool {
         guard let engine, !usesREST, await engine.planningSyncSupport != .unsupported else { return false }
+        let generation = sessionGeneration
         guard let snap = try? await edit(engine) else { return false }
+        guard generation == sessionGeneration, self.engine === engine else { return true }
         publish(snap)
         metaRevision += 1
         Task { await syncNow() }
@@ -485,7 +518,9 @@ final class AppModel {
     /// edits keep their order and merge with newer ones. An entry leaves the outbox only after the queue has it.
     private func migrateOutboxToEngine() async {
         guard let engine, let outbox, await engine.planningSyncSupport != .unsupported else { return }
+        let generation = sessionGeneration
         for op in await outbox.pendingOps() {
+            guard generation == sessionGeneration, self.engine === engine else { return }
             let queued: SyncSnapshot?
             switch op.kind {
             case .setPlanning:
@@ -503,55 +538,78 @@ final class AppModel {
             }
             if queued != nil { await outbox.dismiss(op.id) }  // an unknown task stays in the outbox
         }
-        legacyOutboxSnapshot = await outbox.snapshot()
+        let snap = await outbox.snapshot()
+        guard generation == sessionGeneration, self.engine === engine else { return }
+        legacyOutboxSnapshot = snap
     }
 
     /// The server predates contract 1.4.0: planning/label entries parked by the engine move to the REST outbox.
     private func handOverUnsupported(_ engine: SyncEngine) async {
+        let generation = sessionGeneration
         let parked = await engine.unsupportedMutations()
-        guard !parked.isEmpty, let outbox else { return }
+        guard generation == sessionGeneration, self.engine === engine, !parked.isEmpty, let outbox else { return }
         await outbox.adopt(parked.map(\.mutation))
         for q in parked { _ = try? await engine.dismiss(q.id) }
-        legacyOutboxSnapshot = await outbox.snapshot()
+        let snap = await outbox.snapshot()
+        guard generation == sessionGeneration, self.engine === engine else { return }
+        legacyOutboxSnapshot = snap
         Task { await flushOutbox() }
     }
 
     private func outboxChanged() async {
-        legacyOutboxSnapshot = await outbox?.snapshot() ?? OutboxSnapshot()
+        let generation = sessionGeneration
+        let snap = await outbox?.snapshot() ?? OutboxSnapshot()
+        guard generation == sessionGeneration else { return }
+        legacyOutboxSnapshot = snap
         Task { await flushOutbox() }
     }
 
     /// Replays the outbox after the sync queue (tasks created offline have to exist on the server first).
     func flushOutbox() async {
         guard let outbox, let client, !usesREST else { return }
+        let generation = sessionGeneration
         let current = await outbox.snapshot()
+        guard generation == sessionGeneration else { return }
         guard current.pending > 0 || !current.rejected.isEmpty else { return }
         let waiting = await engine?.queuedEntityIDs() ?? []
         do {
             let report = try await outbox.flush(client: client, skipping: waiting)
+            guard generation == sessionGeneration else { return }
             for confirmed in report.confirmed where tasks.first(where: { $0.id == confirmed.task.id })?.version != confirmed.task.version {
                 apply(confirmed.task)
             }
             let rejected = await outbox.snapshot().rejected
+            guard generation == sessionGeneration else { return }
             for op in rejected { await outbox.dismiss(op.id) }
             if !rejected.isEmpty { noticeKey = "notice.syncRejected" }
-            legacyOutboxSnapshot = await outbox.snapshot()
+            let snap = await outbox.snapshot()
+            guard generation == sessionGeneration else { return }
+            legacyOutboxSnapshot = snap
             if report.sent > 0 || !rejected.isEmpty { metaRevision += 1; await reloadAgenda() }
             if report.offline { syncStatus = .offline }
         } catch APIError.unauthorized {
+            guard generation == sessionGeneration else { return }
             await logout(); errorKey = "error.sessionExpired"
         } catch {}
     }
 
     func resolveConflict(keepMine: Bool) async {
         guard let engine, let c = conflict else { return }
-        if let snap = try? await engine.resolveConflict(c.id, keepMine: keepMine) { publish(snap) }
+        let generation = sessionGeneration
+        if let snap = try? await engine.resolveConflict(c.id, keepMine: keepMine),
+           generation == sessionGeneration, self.engine === engine { publish(snap) }
+        guard generation == sessionGeneration else { return }
         await syncNow()
     }
 
     func queueChange(_ change: (SyncEngine) async throws -> SyncSnapshot) async -> Bool {
         guard let engine, !usesREST else { return false }
-        do { publish(try await change(engine)) } catch { noticeKey = "error.generic"; return true }
+        let generation = sessionGeneration
+        do {
+            let snap = try await change(engine)
+            guard generation == sessionGeneration, self.engine === engine else { return true }
+            publish(snap)
+        } catch { noticeKey = "error.generic"; return true }
         Task { await syncNow() }
         return true
     }
@@ -562,25 +620,34 @@ final class AppModel {
 
     func reloadREST() async {
         guard let client else { return }
+        let generation = sessionGeneration
         do {
             async let p = client.projects()
             async let t = client.tasks()
-            (projects, tasks) = try await (p, t)
+            let result = try await (p, t)
+            guard generation == sessionGeneration else { return }
+            (projects, tasks) = result
             if selection == nil || (selectedProjectID != nil && !projects.contains(where: { $0.id == selectedProjectID })) {
                 selection = .feed
             }
             await reloadAgenda()
             await refreshServerState()
-        } catch { await handle(error) }
+        } catch {
+            guard generation == sessionGeneration else { return }
+            await handle(error)
+        }
     }
 
     /// Today/upcoming come from the server (calendar day in the device time zone). Failures only keep the old lists.
     func reloadAgenda() async {
         guard let client else { return }
+        let generation = sessionGeneration
         async let t = client.today()
         async let u = client.upcoming()
-        if let t = try? await t { today = t }
-        if let u = try? await u { upcoming = u }
+        let result = await (try? t, try? u)
+        guard generation == sessionGeneration else { return }
+        if let t = result.0 { today = t }
+        if let u = result.1 { upcoming = u }
         agendaLoaded = true
     }
 
@@ -600,9 +667,11 @@ final class AppModel {
     /// Light fetch (summary plus the first running cards); failures keep the last value because this is a background refresh.
     func refreshCommandSummary() async {
         guard let client else { return }
+        let generation = sessionGeneration
         var options = CommandCenterOptions(view: .kanban)
         options.laneLimit = 3; options.updatesLimit = 0
         if let center = try? await client.commandCenter(options) {
+            guard generation == sessionGeneration else { return }
             commandSummary = center.summary
             let running = center.lanes?.first { $0.lane == .running }?.cards ?? []
             if running != runningCards { runningCards = running }
@@ -612,10 +681,13 @@ final class AppModel {
 
     func reloadTeams() async {
         guard let client else { return }
+        let generation = sessionGeneration
         do {
             async let t = client.teams()
             async let i = client.teamInvitations()
-            (teams, teamInvitations) = try await (t, i)
+            let result = try await (t, i)
+            guard generation == sessionGeneration else { return }
+            (teams, teamInvitations) = result
         } catch APIError.transport {
             // Offline: keep the last lists, no alert for a background refresh.
         } catch { await handle(error) }
@@ -703,7 +775,13 @@ final class AppModel {
     func apply(_ updated: TodoTask) {
         if let engine, !usesREST {
             // Queued edits stay on top of the confirmed state, so republish from the engine instead of overwriting.
-            Task { try? await engine.acceptServer(task: updated); publish(await engine.snapshot()); await syncNow() }
+            let generation = sessionGeneration
+            Task {
+                guard (try? await engine.acceptServer(task: updated)) != nil else { return }
+                let snap = await engine.snapshot()
+                guard generation == sessionGeneration, self.engine === engine else { return }
+                publish(snap); await syncNow()
+            }
         } else if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }
     }
 
