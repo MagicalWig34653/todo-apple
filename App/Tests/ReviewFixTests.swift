@@ -21,6 +21,30 @@ final class ReviewURLProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class ReviewFixTests: XCTestCase {
+    func testExpiredSessionPreservesAccountQueueForReauthentication() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReviewURLProtocol.self]
+        let session = URLSession(configuration: config)
+        ReviewURLProtocol.handler = { _ in Data("{}".utf8) }
+        let app = AppModel(session: session, tokenStoreForServer: { _ in InMemoryTokenStore() })
+        let client = APIClient(baseURL: URL(string: "https://a.invalid")!, session: session)
+        let store = InMemorySyncStore()
+        let engine = try SyncEngine(client: client, store: store)
+        _ = try await engine.createProject(name: "Offline work")
+        let outboxStore = InMemoryOutboxStore()
+        let outbox = PlanningOutbox(store: outboxStore)
+        await outbox.setPlanning(taskID: UUID(), PlanningData(priority: 2))
+        app.engine = engine; app.outbox = outbox
+        await app.handle(APIError.unauthorized(reason: nil))
+        let reopened = try SyncEngine(client: client, store: store)
+        let snap = await reopened.snapshot()
+        XCTAssertEqual(snap.pending, 1)
+        XCTAssertEqual(snap.projects.first?.name, "Offline work")
+        XCTAssertEqual(try outboxStore.load().count, 1)
+        XCTAssertNil(app.engine)
+        XCTAssertEqual(app.phase, .signedOut)
+    }
+
     func testInvalidatedSyncCannotPersistOrPublishDelayedFeed() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ReviewURLProtocol.self]

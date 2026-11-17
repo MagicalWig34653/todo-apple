@@ -310,7 +310,7 @@ final class AppModel {
         await run { try await $0.passwordLogin(username: username, password: password) }
     }
 
-    func logout() async {
+    func logout(preservingLocalData: Bool = false) async {
         sessionGeneration = UUID()
         let generation = sessionGeneration
         let logoutClient = client, logoutUserID = user?.id
@@ -321,9 +321,11 @@ final class AppModel {
         await oldOutbox?.invalidate()
         await PushCoordinator.shared.accountWillSignOut(client: logoutClient, userID: logoutUserID)
         syncLoop?.cancel(); syncLoop = nil
-        try? await oldEngine?.reset()
-        await oldOutbox?.reset()
-        if let url = oldMetaCacheURL { try? FileManager.default.removeItem(at: url) }
+        if !preservingLocalData {
+            try? await oldEngine?.reset()
+            await oldOutbox?.reset()
+            if let url = oldMetaCacheURL { try? FileManager.default.removeItem(at: url) }
+        }
         guard generation == sessionGeneration else { return }
         metaCacheURL = nil
         outbox = nil; legacyOutboxSnapshot = OutboxSnapshot(); syncMetaOverlay = OutboxSnapshot(); feedPlanning = [:]; feedLabels = []; metaFromFeed = false
@@ -444,7 +446,7 @@ final class AppModel {
             }
         } catch APIError.unauthorized {
             guard isCurrent() else { return }
-            await logout(); errorKey = "error.sessionExpired"
+            await logout(preservingLocalData: true); errorKey = "error.sessionExpired"
         } catch {
             guard isCurrent(), !(error is CancellationError) else { return }
             // No usable feed (older server, decoding or store problem): use REST for everything.
@@ -589,7 +591,7 @@ final class AppModel {
             if report.offline { syncStatus = .offline }
         } catch APIError.unauthorized {
             guard generation == sessionGeneration else { return }
-            await logout(); errorKey = "error.sessionExpired"
+            await logout(preservingLocalData: true); errorKey = "error.sessionExpired"
         } catch {}
     }
 
@@ -802,7 +804,7 @@ final class AppModel {
             noticeKey = "notice.conflict"
             await reload()
         case .unauthorized:
-            await logout(); errorKey = "error.sessionExpired"
+            await logout(preservingLocalData: true); errorKey = "error.sessionExpired"
         default:
             noticeKey = Self.key(for: error)
         }

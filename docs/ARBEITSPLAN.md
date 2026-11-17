@@ -20,3 +20,8 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 - Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: SyncEngine dauerhaft invalidiert, verspätete Feed-/Mutationsantworten vor Persistierung abgewiesen; App-Veröffentlichung durch Sitzungsgeneration und Engine-Identität geschützt. REST-Leser und Outbox ebenfalls abgegrenzt.
 - Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
 - Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
+
+## Review-Fixes 17.11.2026 – Befund 3
+- Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: 401 beendet und invalidiert die Sitzung ohne lokale Queue-/Metadatenlöschung. Erneute Anmeldung öffnet denselben server-/kontogebundenen Store; explizites Abmelden verwirft wie bisher. Regression prüft Wiederöffnung samt Outbox.
+- Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
+- Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
