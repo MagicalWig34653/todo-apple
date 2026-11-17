@@ -6762,6 +6762,856 @@
           }
         }
       }
+    },
+    "view.now": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt"
+          }
+        }
+      }
+    },
+    "now.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt"
+          }
+        }
+      }
+    },
+    "now.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was gerade in deinen Projekten passiert: laufende Karten, Sitzungen, offene Fragen und Reviews."
+          }
+        }
+      }
+    },
+    "now.asOf %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stand %@"
+          }
+        }
+      }
+    },
+    "now.loading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird geladen …"
+          }
+        }
+      }
+    },
+    "now.error": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Stand konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "now.errorStale": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisierung fehlgeschlagen, es wird der letzte bekannte Stand gezeigt."
+          }
+        }
+      }
+    },
+    "now.retry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "now.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerade passiert nichts"
+          }
+        }
+      }
+    },
+    "now.emptyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobald ein Agent arbeitet oder etwas auf dich wartet, erscheint es hier."
+          }
+        }
+      }
+    },
+    "now.unsupported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Server kennt die Übersicht noch nicht"
+          }
+        }
+      }
+    },
+    "now.unsupportedHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobald der Server aktualisiert ist, erscheint hier, was gerade in deinen Projekten passiert."
+          }
+        }
+      }
+    },
+    "now.quiet %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ruhig (%lld Projekt ohne Aktivität in den letzten 24 Std.)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ruhig (%lld Projekte ohne Aktivität in den letzten 24 Std.)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "now.nothingOpen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nichts offen"
+          }
+        }
+      }
+    },
+    "now.lastActivity %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zuletzt %@"
+          }
+        }
+      }
+    },
+    "now.stat.running %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld läuft"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld laufen"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "now.stat.sessions %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Session"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Sessions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "now.stat.waiting %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wartet auf dich"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld warten auf dich"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "now.stat.builds %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Build"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Builds"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "now.section.running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft"
+          }
+        }
+      }
+    },
+    "now.section.sessions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
+          }
+        }
+      }
+    },
+    "now.section.jobs": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agentenaufträge"
+          }
+        }
+      }
+    },
+    "now.section.waiting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf dich"
+          }
+        }
+      }
+    },
+    "now.section.builds": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Builds"
+          }
+        }
+      }
+    },
+    "now.section.events": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ereignisse"
+          }
+        }
+      }
+    },
+    "now.noWorker": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Bearbeiter gemeldet"
+          }
+        }
+      }
+    },
+    "now.progress %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortschritt %lld Prozent"
+          }
+        }
+      }
+    },
+    "now.noNote": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Fortschrittsnotiz."
+          }
+        }
+      }
+    },
+    "now.heartbeat %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heartbeat %@"
+          }
+        }
+      }
+    },
+    "now.session.active": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aktiv"
+          }
+        }
+      }
+    },
+    "now.session.orphaned": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verwaist"
+          }
+        }
+      }
+    },
+    "now.session.orphanedHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Meldung seit über 30 Min."
+          }
+        }
+      }
+    },
+    "now.question": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frage"
+          }
+        }
+      }
+    },
+    "now.review": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review"
+          }
+        }
+      }
+    },
+    "now.answer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antworten"
+          }
+        }
+      }
+    },
+    "now.look": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ansehen"
+          }
+        }
+      }
+    },
+    "now.build.untitled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build"
+          }
+        }
+      }
+    },
+    "now.event.unknown %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ereignis (%@)"
+          }
+        }
+      }
+    },
+    "now.a11y.expanded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aufgeklappt"
+          }
+        }
+      }
+    },
+    "now.a11y.collapsed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zugeklappt"
+          }
+        }
+      }
+    },
+    "now.event.comment.created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommentar hinzugefügt"
+          }
+        }
+      }
+    },
+    "now.event.comment.updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommentar geändert"
+          }
+        }
+      }
+    },
+    "now.event.comment.deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommentar gelöscht"
+          }
+        }
+      }
+    },
+    "now.event.criterion.created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abnahmekriterium hinzugefügt"
+          }
+        }
+      }
+    },
+    "now.event.criterion.updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abnahmekriterium geändert"
+          }
+        }
+      }
+    },
+    "now.event.criterion.deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abnahmekriterium gelöscht"
+          }
+        }
+      }
+    },
+    "now.event.task.created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe angelegt"
+          }
+        }
+      }
+    },
+    "now.event.task.updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe geändert"
+          }
+        }
+      }
+    },
+    "now.event.task.status_changed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status geändert"
+          }
+        }
+      }
+    },
+    "now.event.task.moved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe verschoben"
+          }
+        }
+      }
+    },
+    "now.event.task.planning_updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planung geändert"
+          }
+        }
+      }
+    },
+    "now.event.agent.claimed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auftrag vom Runner übernommen"
+          }
+        }
+      }
+    },
+    "now.event.agent.released": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auftrag für den Runner freigegeben"
+          }
+        }
+      }
+    },
+    "now.event.agent.question": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runner hat eine Rückfrage gestellt"
+          }
+        }
+      }
+    },
+    "now.event.agent.answered": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rückfrage beantwortet"
+          }
+        }
+      }
+    },
+    "now.event.agent.resume": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runner hat die Arbeit fortgesetzt"
+          }
+        }
+      }
+    },
+    "now.event.agent.submit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runner hat ein Ergebnis eingereicht"
+          }
+        }
+      }
+    },
+    "now.event.agent.stop": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auftrag gestoppt"
+          }
+        }
+      }
+    },
+    "now.event.agent.fail": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auftrag fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "now.event.agent.accept": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ergebnis abgenommen"
+          }
+        }
+      }
+    },
+    "now.event.agent.request_changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen am Ergebnis angefordert"
+          }
+        }
+      }
+    },
+    "now.event.task.claimed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe übernommen"
+          }
+        }
+      }
+    },
+    "now.event.task.released": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe freigegeben"
+          }
+        }
+      }
+    },
+    "now.event.task.blocked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufgabe blockiert"
+          }
+        }
+      }
+    },
+    "now.event.task.unblocked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blockade aufgehoben"
+          }
+        }
+      }
+    },
+    "now.event.task.dependency_added": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abhängigkeit hinzugefügt"
+          }
+        }
+      }
+    },
+    "now.event.task.dependency_removed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abhängigkeit entfernt"
+          }
+        }
+      }
+    },
+    "now.event.build.added": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshot oder Build hinzugefügt"
+          }
+        }
+      }
+    },
+    "now.event.attachment.deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anhang gelöscht"
+          }
+        }
+      }
+    },
+    "now.event.progress.posted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortschritt gemeldet"
+          }
+        }
+      }
+    },
+    "now.event.question.asked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frage gestellt"
+          }
+        }
+      }
+    },
+    "now.event.question.answered": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frage beantwortet"
+          }
+        }
+      }
+    },
+    "now.event.question.withdrawn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frage zurückgezogen"
+          }
+        }
+      }
+    },
+    "now.event.review.requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review angefragt"
+          }
+        }
+      }
+    },
+    "now.event.review.accepted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review angenommen"
+          }
+        }
+      }
+    },
+    "now.event.review.changes_requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen angefordert"
+          }
+        }
+      }
+    },
+    "now.event.review.undone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entscheidung zurückgenommen"
+          }
+        }
+      }
+    },
+    "now.event.review.withdrawn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review zurückgezogen"
+          }
+        }
+      }
+    },
+    "now.refresh": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisieren"
+          }
+        }
+      }
     }
   }
 }

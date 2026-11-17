@@ -66,11 +66,11 @@ struct AgentStateItem: View {
 }
 
 enum CommandFormat {
-    static func relative(_ date: Date?) -> String {
+    static func relative(_ date: Date?, now: Date = Date()) -> String {
         guard let date else { return "" }
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .short
-        return f.localizedString(for: date, relativeTo: Date())
+        return f.localizedString(for: date, relativeTo: now)
     }
 
     /// Localized label for the runner job state; unknown states show the raw value.

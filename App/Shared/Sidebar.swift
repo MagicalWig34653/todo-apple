@@ -56,6 +56,7 @@ struct SidebarList: View {
                 Section {
                     row(.feed, "view.feed", "sparkles", .tileBlue, count: model.attentionCount, badgeTint: .brand)
                     row(.commandCenter, "view.commandCenter", "rectangle.3.group.fill", .tilePurple)
+                    row(.now, "view.now", "dot.radiowaves.left.and.right", .tileOrange)
                     row(.brain, "view.brain", "waveform", .tileTeal)
                     row(.search, "view.search", "magnifyingglass", .tileGray)
                 }
@@ -329,6 +330,7 @@ struct SidebarScreen: View {
         case .activity: ActivityView()
         case .brain: BrainView()
         case .commandCenter: CommandCenterView(projectID: nil)
+        case .now: OverviewNowView()
         case .projectCommandCenter(let id): CommandCenterView(projectID: id).id(id)
         case .project(let id): ProjectView(projectID: id).id(id)
         }

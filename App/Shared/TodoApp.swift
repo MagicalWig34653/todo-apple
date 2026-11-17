@@ -1,4 +1,5 @@
 import SwiftUI
+import TodoCore
 
 @main
 struct TodoApp: App {
@@ -44,6 +45,17 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        #if DEBUG
+        // Debug screenshots without a server: `TODO_DEBUG_NOW_PREVIEW=full|empty` shows the "Jetzt" screen with sample data.
+        if let variant = ProcessInfo.processInfo.environment["TODO_DEBUG_NOW_PREVIEW"] {
+            OverviewNowPreviewHost(data: variant == "empty" ? OverviewNow(serverTime: OverviewNowSample.now) : OverviewNowSample.data)
+        } else { realBody }
+        #else
+        realBody
+        #endif
+    }
+
+    @ViewBuilder private var realBody: some View {
         switch model.phase {
         case .launching: ProgressView()
         case .signedOut: LoginView()
@@ -83,6 +95,7 @@ struct AppCommands: Commands {
             Button("view.today") { model.selection = .today }.keyboardShortcut("2")
             Button("view.upcoming") { model.selection = .upcoming }.keyboardShortcut("3")
             Button("view.commandCenter") { model.selection = .commandCenter }.keyboardShortcut("4")
+            Button("view.now") { model.selection = .now }.keyboardShortcut("7")
             Button("view.labels") { model.selection = .labels }.keyboardShortcut("5")
             Divider()
             Button("view.teams") { model.selection = .teams }.keyboardShortcut("6")

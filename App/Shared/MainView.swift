@@ -174,7 +174,7 @@ struct SplitLayout: View {
 
 /// The four iPhone tabs (navigation variant A "Agenten zuerst", Lino 12.11.2026): agent work first, then projects,
 /// date planning and search. Account, teams, agents/runner and activity sit behind the avatar menu.
-enum PhoneTab: Hashable { case forYou, projects, plan, search }
+enum PhoneTab: Hashable { case forYou, now, projects, plan, search }
 
 /// Segments of the "Planen" tab (the former Todoist-style tabs).
 enum PlanSection: String, CaseIterable, Identifiable {
@@ -193,6 +193,7 @@ enum PhoneRouting {
     static func tab(for item: SidebarItem) -> PhoneTab? {
         switch item {
         case .feed, .commandCenter, .brain: .forYou
+        case .now: .now
         case .projects, .project, .projectCommandCenter: .projects
         case .today, .upcoming, .inbox, .labels, .label: .plan
         case .search: .search
@@ -203,7 +204,7 @@ enum PhoneRouting {
     /// Items that are the root screen of their tab (no push).
     static func isRoot(_ item: SidebarItem) -> Bool {
         switch item {
-        case .feed, .projects, .today, .upcoming, .inbox, .search: true
+        case .feed, .now, .projects, .today, .upcoming, .inbox, .search: true
         default: false
         }
     }
@@ -230,6 +231,7 @@ struct PhoneTabs: View {
     private func rootItem(_ t: PhoneTab) -> SidebarItem {
         switch t {
         case .forYou: .feed
+        case .now: .now
         case .projects: .projects
         case .plan: planSection.item
         case .search: .search
@@ -240,6 +242,9 @@ struct PhoneTabs: View {
         TabView(selection: $tab) {
             stack(.forYou) { FeedView(showsAgentOverview: true, showsSystemStatus: true) }
                 .tabItem { Label("view.feed", systemImage: "sparkles") }.tag(PhoneTab.forYou)
+                .badge(model.attentionCount)
+            stack(.now) { OverviewNowView() }
+                .tabItem { Label("view.now", systemImage: "dot.radiowaves.left.and.right") }.tag(PhoneTab.now)
                 .badge(model.attentionCount)
             stack(.projects) { ProjectsHome() }
                 .tabItem { Label("view.projects", systemImage: "folder") }.tag(PhoneTab.projects)

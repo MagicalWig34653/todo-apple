@@ -6,6 +6,8 @@ enum SidebarItem: Hashable {
     case feed, inbox, today, upcoming, search, teams, labels, account, runner, activity, commandCenter
     /// Channel #brain: voice and text messages to the brain (ADR 0030).
     case brain
+    /// "Jetzt": what runs, waits and reports in all projects right now.
+    case now
     /// Project overview (root of the iPhone "Projekte" tab).
     case projects
     case project(UUID)
