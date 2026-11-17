@@ -55,3 +55,10 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 - Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: Brain-Aufträge vor Versand atomar als konto-/servergetrenntes Manifest speichern; Aufnahmen in Application Support übernehmen. Wiederöffnung stellt fehlgeschlagene Aufträge mit UUID/Dateireferenz wieder her. Bestätigung oder Verwerfen entfernt Manifest-Eintrag und Audio; Start räumt unterbrochene Dateilöschung nach. Keine Backend-/Vertragsänderung. Regression: Offline-Text, Audio, Wiederöffnung, Konto-/Serverisolation, Verwerfen.
 - Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
 - Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
+
+## Übergabe 17.11.2026 – Review-Fixes 1–9
+- Alle neun Befunde am Code bestätigt und bearbeitet; zwölf Regressionstests zuerst geschrieben, keine ausgeführt. Ein deutscher Commit je Befund auf `codex/review-fixes`; genaue Hashes und Testbefehle: `BERICHT-FIXES.md`.
+- Statische Quell-/Git-Durchsicht und `git diff --check` ohne Befund. Keine Builds, Tests, Netzaufrufe, Pushes oder eigenen Jobs. Prozessinventar sandboxbedingt unbekannt. Keine Vertrags-/Servermigration, Hauptrepo nur gelesen.
+- Neues macOS-XCTest-Target muss vom Aufrufer mit XcodeGen erzeugt werden. Ungebundene alte Tokens nicht migriert: erneute Anmeldung nötig. Brain-Manifest zusätzlich, bestehende Sync-/Outbox-Pfade unverändert.
+- `.workspace.local.json` fehlt hier; Originaldatei verweist auf veraltete Documents-Pfade. Hauptrepo unter `~/Development/PhpstormProjects/todo` gelesen.
+- Keine bekannten verbleibenden Implementierungsbefunde aus 1–9; Kompilierung, Testausführung, Gerät/Keychain/Sandbox bleiben ausdrücklich offen. Alle beauftragten Änderungen einschließlich Bericht werden lokal committet. Nächster Schritt: Aufrufer führt Befehle im Bericht und betroffene Apple-Builds aus.
