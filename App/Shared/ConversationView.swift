@@ -51,14 +51,15 @@ final class ConversationModel {
     }
 
     func send(_ app: AppModel) async {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sentDraft = draft
+        let text = sentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !sending, let client = app.client else { return }
         sending = true
         defer { sending = false }
         do {
             let created = try await client.addComment(taskID: taskID, body: text, thread: thread, idempotencyKey: sendKey)
             if !items.contains(where: { $0.id == created.id }) { items.append(created) }
-            draft = ""
+            if draft == sentDraft { draft = "" }
             sendKey = UUID()
             Haptics.success()
             await onChange?()

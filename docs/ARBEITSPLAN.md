@@ -40,3 +40,8 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 - Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: initiales Detail-Laden übernimmt Serverwerte nur für währenddessen unveränderte Felder. Bearbeitete Felder samt Basisversion bleiben bestehen; XCTest deckt Teilbearbeitung und unveränderten Entwurf ab.
 - Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
 - Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
+
+## Review-Fixes 17.11.2026 – Befund 7
+- Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: Chat sendet einen unveränderlichen Textstand und leert nur den noch identischen Entwurf. Regression verzögert die Antwort und schreibt währenddessen die nächste Nachricht.
+- Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
+- Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.

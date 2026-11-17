@@ -35,6 +35,27 @@ final class ReviewFixTests: XCTestCase {
         XCTAssertEqual(app.legacyOutboxSnapshot.pending, 0)
     }
 
+    func testChatSuccessKeepsTextTypedWhileSending() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReviewURLProtocol.self]
+        let app = AppModel(session: URLSession(configuration: config), tokenStoreForServer: { _ in InMemoryTokenStore() })
+        let chat = ConversationModel(taskID: UUID(), thread: .task)
+        chat.draft = "First"
+        let started = expectation(description: "post started")
+        var response: CheckedContinuation<Void, Never>?
+        ReviewURLProtocol.handler = { _ in
+            await withCheckedContinuation { response = $0; started.fulfill() }
+            return Data("{\"id\":\"\(UUID())\",\"taskID\":\"\(chat.taskID)\",\"authorID\":\"\(UUID())\",\"body\":\"First\",\"version\":1}".utf8)
+        }
+        let sending = Task { await chat.send(app) }
+        await fulfillment(of: [started], timeout: 2)
+        chat.draft = "Next message"
+        response?.resume()
+        await sending.value
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertEqual(chat.draft, "Next message")
+    }
+
     func testInitialDetailLoadPreservesTypedFieldsAndDraftVersion() {
         let task = TodoTask(id: UUID(), projectID: UUID(), title: "Old", description: "A", version: 1)
         let detail = TaskDetailModel(task: task)
