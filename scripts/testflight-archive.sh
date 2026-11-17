@@ -9,6 +9,9 @@
 #   TODO_UPLOAD=1       export with destination=upload (direct upload to App Store Connect via Xcode account)
 #   TODO_UNSIGNED=1     archive only with CODE_SIGNING_ALLOWED=NO (no export; for verification)
 set -euo pipefail
+# Xcode's export (-exportArchive) copies the app with rsync from PATH. Homebrew rsync 3.5.2 (/opt/homebrew/bin) makes it fail
+# with "Packaging: Copy failed" (seen 13.11. FiSi export and 17.11. here), so system tools go first.
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
 cd "$(dirname "$0")/.."
 
 OUT="${TODO_OUT_DIR:-$PWD/build/testflight}"

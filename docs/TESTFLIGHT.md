@@ -119,3 +119,5 @@ Aus Branch `glowup` (def0e78: Glow-up W1, iPhone-Navigation Variante A 432c190, 
 - macOS: Build 2611121304, "Upload succeeded", Delivery UUID `61b723c0-6ec7-4496-abd5-2f5a297b8615`, Exit 0.
 - Stolperstein Worktree: In einem zusaetzlichen Worktree fehlt die gitignorierte `App/Config/Signing.local.xcconfig`. iOS laeuft trotzdem, macOS scheitert dann beim Archiv mit `"Todo-macOS" requires a provisioning profile with the Associated Domains and Push Notifications features` (Builds 2611121301/2611121302, nicht hochgeladen). Loesung: Datei aus dem Haupt-Worktree kopieren.
 - Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
+
+- Stolperstein 17.11.2026: Homebrew-rsync 3.5.2 vor /usr/bin/rsync im PATH laesst den Export mit "Packaging: Copy failed" scheitern. Beide Skripte setzen deshalb am Anfang `export PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH`. Ein HTTP 500 beim "Error Downloading App Information" ist ein Serverfehler bei App Store Connect: spaeter wiederholen.
