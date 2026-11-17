@@ -28,7 +28,17 @@ final class AppModel {
     /// Host of the configured server, used in error texts.
     var serverHost: String { URL(string: serverURL)?.host ?? serverURL }
     var busy = false
-    var serverURL = AppConfig.savedBaseURL
+    var sessionGeneration = UUID()
+    var serverURL = AppConfig.savedBaseURL {
+        didSet {
+            if serverURL != oldValue {
+                sessionGeneration = UUID()
+                recoveryToken = nil
+                capabilities = nil
+                phase = .signedOut
+            }
+        }
+    }
 
     // Data
     var projects: [Project] = []
@@ -97,20 +107,27 @@ final class AppModel {
     private(set) var usesREST = false
     private static let syncInterval: Duration = .seconds(30)
 
-    #if DEBUG
-    // Unsigned simulator builds have no keychain access group; a debug token from the environment lives in memory.
-    private let tokenStore: any TokenStore = {
-        if let t = ProcessInfo.processInfo.environment["TODO_DEBUG_TOKEN"] { return InMemoryTokenStore(token: t) }
-        return KeychainTokenStore()
-    }()
-    #else
-    private let tokenStore: any TokenStore = KeychainTokenStore()
-    #endif
+    @ObservationIgnored private let tokenStoreForServer: (URL) -> any TokenStore
+    @ObservationIgnored private let networkSession: URLSession
+
+    init(session: URLSession? = nil, tokenStoreForServer: ((URL) -> any TokenStore)? = nil) {
+        networkSession = session ?? Self.session
+        let initialURL = URL(string: AppConfig.savedBaseURL)
+        let debugStore = InMemoryTokenStore(token: ProcessInfo.processInfo.environment["TODO_DEBUG_TOKEN"])
+        self.tokenStoreForServer = tokenStoreForServer ?? { url in
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["TODO_DEBUG_TOKEN"] != nil,
+               initialURL.map({ ServerIdentity.origin($0) }) == ServerIdentity.origin(url) { return debugStore }
+            #endif
+            return KeychainTokenStore(account: ServerIdentity.origin(url))
+        }
+    }
+
     private let passkey = PlatformPasskey()
 
     var client: APIClient? {
         guard let url = URL(string: serverURL), url.scheme != nil, url.host != nil else { return nil }
-        return APIClient(baseURL: url, session: Self.session, tokenStore: tokenStore)
+        return APIClient(baseURL: url, session: networkSession, tokenStore: tokenStoreForServer(url))
     }
 
     private static let session: URLSession = {
@@ -120,9 +137,9 @@ final class AppModel {
     }()
 
     /// Last signed-in account, so a launch without network can still open the local store.
-    private static var cachedUser: User? {
-        get { UserDefaults.standard.data(forKey: "cachedUser").flatMap { try? JSONDecoder().decode(User.self, from: $0) } }
-        set { UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: "cachedUser") }
+    private var cachedUser: User? {
+        get { UserDefaults.standard.data(forKey: "cachedUser." + serverURL).flatMap { try? JSONDecoder().decode(User.self, from: $0) } }
+        set { UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: "cachedUser." + serverURL) }
     }
 
     var selectedProjectID: UUID? {
@@ -146,17 +163,23 @@ final class AppModel {
         defer { Task { await DebugLaunch.navigate(model: self) } }
         #endif
         guard let client, client.hasStoredSession() else { phase = .signedOut; await refreshCapabilities(); return }
+        let generation = sessionGeneration
         do {
-            user = try await client.me()
-            Self.cachedUser = user
+            let result = try await client.me()
+            guard generation == sessionGeneration else { return }
+            user = result
+            cachedUser = user
             phase = .signedIn
             await beginSync()
         } catch APIError.unauthorized {
+            guard generation == sessionGeneration else { return }
             try? await client.logout()
+            guard generation == sessionGeneration else { return }
             phase = .signedOut
             await refreshCapabilities()
         } catch {
-            if let cached = Self.cachedUser {
+            guard generation == sessionGeneration else { return }
+            if let cached = cachedUser {
                 // Offline at launch with a stored session: work from the local store, sync when the server is back.
                 user = cached
                 phase = .signedIn
@@ -172,33 +195,56 @@ final class AppModel {
         errorKey = nil
         guard let client else { errorKey = "error.invalidServer"; return }
         AppConfig.savedBaseURL = serverURL
-        do { capabilities = try await client.capabilities() }
-        catch { capabilities = nil; errorKey = "error.network" }
+        let generation = sessionGeneration
+        do {
+            let result = try await client.capabilities()
+            guard generation == sessionGeneration else { return }
+            capabilities = result
+        } catch {
+            guard generation == sessionGeneration else { return }
+            capabilities = nil; errorKey = "error.network"
+        }
     }
 
     private func run(_ work: (APIClient) async throws -> User) async {
-        guard let client else { errorKey = "error.invalidServer"; return }
+        guard let url = URL(string: serverURL), url.scheme != nil, url.host != nil, !busy else { return }
+        let loginTokens = InMemoryTokenStore()
+        let client = APIClient(baseURL: url, session: networkSession, tokenStore: loginTokens)
+        let generation = sessionGeneration
         busy = true; errorKey = nil; errorDetail = nil
         defer { busy = false }
         do {
-            user = try await work(client)
-            Self.cachedUser = user
+            let result = try await work(client)
+            guard generation == sessionGeneration else { return }
+            if let token = try loginTokens.load() { try tokenStoreForServer(url).save(token) }
+            user = result
+            cachedUser = user
             phase = .signedIn
             await beginSync()
-        } catch { errorKey = Self.key(for: error); errorDetail = Self.detail(for: error) }
+        } catch {
+            guard generation == sessionGeneration else { return }
+            errorKey = Self.key(for: error); errorDetail = Self.detail(for: error)
+        }
     }
 
     /// Recovery with a one-time code issued by an admin: redeem, create a new passkey for the existing account
     /// (iCloud Keychain on this device), then sign in with it. If creating the passkey fails after the code was
     /// redeemed, the restricted bearer is kept so the user can retry without a new code (it expires after minutes).
     func recover(code: String, passkeyName: String) async {
-        guard let client else { errorKey = "error.invalidServer"; return }
+        guard let url = URL(string: serverURL), url.scheme != nil, url.host != nil, !busy else { return }
+        let loginTokens = InMemoryTokenStore()
+        let client = APIClient(baseURL: url, session: networkSession, tokenStore: loginTokens)
         busy = true; errorKey = nil; errorDetail = nil
         defer { busy = false }
+        let generation = sessionGeneration
         if let t = recoveryToken, t.expiresAt <= Date() { recoveryToken = nil }
         do {
             if recoveryToken == nil {
-                do { recoveryToken = try await client.redeemRecovery(code: code) }
+                do {
+                    let redeemed = try await client.redeemRecovery(code: code)
+                    guard generation == sessionGeneration else { return }
+                    recoveryToken = redeemed
+                }
                 catch { throw RecoveryStepError.redeem(error) }
             }
             guard let bearer = recoveryToken?.token else { return }
@@ -207,19 +253,27 @@ final class AppModel {
                 try await client.registerRecoveryPasskey(
                     bearer: bearer, passkeyName: name.isEmpty ? nil : name, authenticator: passkey)
             } catch APIError.unauthorized {
+                guard generation == sessionGeneration else { return }
                 recoveryToken = nil
                 throw RecoveryStepError.expired
             }
+            guard generation == sessionGeneration else { return }
             recoveryToken = nil
-            user = try await client.loginWithPasskey(authenticator: passkey)
-            Self.cachedUser = user
+            let result = try await client.loginWithPasskey(authenticator: passkey)
+            guard generation == sessionGeneration else { return }
+            if let token = try loginTokens.load() { try tokenStoreForServer(url).save(token) }
+            user = result
+            cachedUser = user
             phase = .signedIn
             await beginSync()
         } catch RecoveryStepError.redeem(let e) {
+            guard generation == sessionGeneration else { return }
             errorKey = Self.recoveryRedeemKey(for: e); errorDetail = Self.detail(for: e)
         } catch RecoveryStepError.expired {
+            guard generation == sessionGeneration else { return }
             errorKey = "error.recovery.expired"
         } catch {
+            guard generation == sessionGeneration else { return }
             errorKey = Self.key(for: error); errorDetail = Self.detail(for: error)
         }
     }
@@ -267,7 +321,7 @@ final class AppModel {
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await client?.logout()
         VoicePlayer.clearCache()
-        Self.cachedUser = nil
+        cachedUser = nil
         user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
         phase = .signedOut
         await refreshCapabilities()

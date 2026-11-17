@@ -102,7 +102,7 @@ enum PushActions {
             return await model.markDoneFromPush(taskID: taskID, projectID: projectID)
         }
         guard let projectID, let url = URL(string: AppConfig.savedBaseURL) else { return false }
-        let client = APIClient(baseURL: url, tokenStore: KeychainTokenStore())
+        let client = APIClient(baseURL: url, tokenStore: KeychainTokenStore(account: ServerIdentity.origin(url)))
         guard client.hasStoredSession() else { return false }
         do {
             guard let task = try await client.tasks(projectID: projectID).first(where: { $0.id == taskID }) else { return false }

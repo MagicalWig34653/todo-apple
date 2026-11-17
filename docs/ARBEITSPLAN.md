@@ -10,3 +10,8 @@ Globale Planung bleibt ausschließlich im Hauptrepository. Dieser Checkpoint bes
 - [ ] Grenzen und nächsten Integrationsschritt dokumentieren, Commit versuchen; kein Push.
 
 Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des parallel entwickelten Serververtrags. Lokale Pfade werden nicht an `RunnerServer` übergeben. Bei unklarer Prozessidentität nach Neustart keine PID-Signale und kein automatischer Neustart; expliziter Abgleich bleibt erforderlich.
+
+## Review-Fixes 17.11.2026 – Befund 1
+- Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: unveränderlicher Client, Origin-getrennte Keychain-Einträge und Generation vor Login-Veröffentlichung; Recovery ebenfalls gebunden. Alte ungebundene Tokens werden bewusst nicht migriert (erneute Anmeldung nötig). macOS-XCTest-Target ergänzt.
+- Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
+- Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
