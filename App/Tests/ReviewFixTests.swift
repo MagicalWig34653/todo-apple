@@ -21,6 +21,15 @@ final class ReviewURLProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class ReviewFixTests: XCTestCase {
+    func testDetailTextPatchOnlyContainsEditedFields() {
+        let task = TodoTask(id: UUID(), projectID: UUID(), title: "Old", description: "A", version: 1)
+        let detail = TaskDetailModel(task: task)
+        let patch = detail.textUpdate(title: "New", description: "A")
+        XCTAssertEqual(patch.title, "New")
+        XCTAssertNil(patch.description)
+        XCTAssertNil(detail.textUpdate(title: "Old", description: "A").title)
+    }
+
     func testExpiredSessionPreservesAccountQueueForReauthentication() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ReviewURLProtocol.self]

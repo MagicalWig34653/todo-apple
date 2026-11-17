@@ -361,8 +361,11 @@ public actor SyncEngine {
     }
 
     @discardableResult
-    public func updateTask(_ id: UUID, _ update: TaskUpdate) throws -> SyncSnapshot {
-        try enqueue(
+    public func updateTask(_ id: UUID, _ update: TaskUpdate, expectedVersion: Int? = nil) throws -> SyncSnapshot {
+        if let expectedVersion, let current = state.tasks[id], current.version != expectedVersion {
+            throw APIError.versionConflict
+        }
+        return try enqueue(
             SyncMutation(
                 type: .taskUpdate, id: id, projectID: update.projectID, title: update.title, description: update.description,
                 status: update.status?.rawValue))

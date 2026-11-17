@@ -17,6 +17,20 @@ final class SyncEngineTests: XCTestCase {
         store = InMemorySyncStore()
     }
 
+    func testStaleDetailVersionCannotUseNewConfirmedVersion() async throws {
+        let e = try engine()
+        let old = TodoTask(id: t1, projectID: pid, title: "Old", description: "A", version: 1)
+        let current = TodoTask(id: t1, projectID: pid, title: "Old", description: "B", version: 2)
+        try await e.acceptServer(task: current)
+        do {
+            _ = try await e.updateTask(t1, TaskUpdate(title: "Edited"), expectedVersion: old.version)
+            XCTFail("Stale draft was accepted")
+        } catch { XCTAssertEqual(error as? APIError, .versionConflict) }
+        let snap = await e.snapshot()
+        XCTAssertEqual(snap.pending, 0)
+        XCTAssertEqual(snap.tasks.first?.description, "B")
+    }
+
     // MARK: Fixtures
 
     func engine(pageSize: Int = 200, store: (any SyncStore)? = nil) throws -> SyncEngine {

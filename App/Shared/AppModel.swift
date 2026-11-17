@@ -764,7 +764,19 @@ final class AppModel {
     /// also work offline); without it they go through REST. Returns the task as it should now be shown.
     func updateTask(_ task: TodoTask, _ update: TaskUpdate) async -> TodoTask? {
         guard let client else { return nil }
-        if await queueChange({ try await $0.updateTask(task.id, update) }) { return tasks.first { $0.id == task.id } ?? task }
+        if let engine, !usesREST {
+            let generation = sessionGeneration
+            do {
+                let snap = try await engine.updateTask(task.id, update, expectedVersion: task.version)
+                guard generation == sessionGeneration, self.engine === engine else { return nil }
+                publish(snap)
+                Task { await syncNow() }
+                return tasks.first { $0.id == task.id }
+            } catch {
+                guard generation == sessionGeneration else { return nil }
+                await handle(error); return nil
+            }
+        }
         do {
             let updated = try await client.updateTask(task.id, version: task.version, update)
             if let i = tasks.firstIndex(where: { $0.id == updated.id }) { tasks[i] = updated }

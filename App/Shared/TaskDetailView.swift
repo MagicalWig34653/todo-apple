@@ -4,6 +4,8 @@ import TodoCore
 @MainActor @Observable
 final class TaskDetailModel {
     var task: TodoTask
+    /// Version and field values the editable text was based on.
+    var textBase: TodoTask
     var planning = PlanningData()
     /// The task's own chat (question and review chats live in the agent card).
     let chat: ConversationModel
@@ -25,6 +27,7 @@ final class TaskDetailModel {
 
     init(task: TodoTask) {
         self.task = task
+        self.textBase = task
         chat = ConversationModel(taskID: task.id, thread: .task)
     }
 
@@ -203,11 +206,16 @@ final class TaskDetailModel {
         await app.savePlanning(taskID: task.id, planning)
     }
 
+    func textUpdate(title: String, description: String) -> TaskUpdate {
+        TaskUpdate(title: title != textBase.title ? title : nil,
+                   description: description != textBase.description ? description : nil)
+    }
+
     func saveText(title: String, description: String, _ app: AppModel) async {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, title != task.title || description != task.description else { return }
-        if let updated = await app.updateTask(task, TaskUpdate(title: title, description: description)) { task = updated }
-        else { await load(app) }
+        let update = textUpdate(title: title, description: description)
+        guard !title.isEmpty, update.title != nil || update.description != nil else { return }
+        if let updated = await app.updateTask(textBase, update) { task = updated; textBase = updated }
     }
 
     func setStatus(_ status: TaskStatus, _ app: AppModel) async {
