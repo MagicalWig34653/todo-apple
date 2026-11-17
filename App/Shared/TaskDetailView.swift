@@ -206,6 +206,18 @@ final class TaskDetailModel {
         await app.savePlanning(taskID: task.id, planning)
     }
 
+    /// Called after the asynchronous initial load; each edited field keeps its draft and original version.
+    func initialText(title: String, description: String, initialTitle: String, initialDescription: String) -> (title: String, description: String) {
+        let titleEdited = title != initialTitle, descriptionEdited = description != initialDescription
+        if !titleEdited && !descriptionEdited { textBase = task }
+        textBase = TodoTask(id: textBase.id, projectID: textBase.projectID,
+                            title: titleEdited ? textBase.title : task.title,
+                            description: descriptionEdited ? textBase.description : task.description,
+                            status: textBase.status, version: textBase.version,
+                            columnID: textBase.columnID, boardPosition: textBase.boardPosition)
+        return (titleEdited ? title : task.title, descriptionEdited ? description : task.description)
+    }
+
     func textUpdate(title: String, description: String) -> TaskUpdate {
         TaskUpdate(title: title != textBase.title ? title : nil,
                    description: description != textBase.description ? description : nil)
@@ -337,7 +349,12 @@ struct TaskDetailView: View {
                 .accessibilityLabel(Text("project.more"))
             }
         }
-        .task { await model.load(app, meta: meta); title = model.task.title; text = model.task.description }
+        .task {
+            let initialTitle = title, initialDescription = text
+            await model.load(app, meta: meta)
+            let merged = model.initialText(title: title, description: text, initialTitle: initialTitle, initialDescription: initialDescription)
+            title = merged.title; text = merged.description
+        }
         .onDisappear { saveText() }
     }
 

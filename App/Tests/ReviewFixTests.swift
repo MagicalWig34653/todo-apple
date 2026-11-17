@@ -35,6 +35,22 @@ final class ReviewFixTests: XCTestCase {
         XCTAssertEqual(app.legacyOutboxSnapshot.pending, 0)
     }
 
+    func testInitialDetailLoadPreservesTypedFieldsAndDraftVersion() {
+        let task = TodoTask(id: UUID(), projectID: UUID(), title: "Old", description: "A", version: 1)
+        let detail = TaskDetailModel(task: task)
+        detail.task = TodoTask(id: task.id, projectID: task.projectID, title: "Server", description: "B", version: 2)
+        let merged = detail.initialText(title: "Typed", description: "A", initialTitle: "Old", initialDescription: "A")
+        XCTAssertEqual(merged.title, "Typed")
+        XCTAssertEqual(merged.description, "B")
+        XCTAssertEqual(detail.textBase.version, 1)
+        XCTAssertNil(detail.textUpdate(title: merged.title, description: merged.description).description)
+        let untouched = TaskDetailModel(task: task)
+        untouched.task = detail.task
+        let fresh = untouched.initialText(title: "Old", description: "A", initialTitle: "Old", initialDescription: "A")
+        XCTAssertEqual(fresh.title, "Server")
+        XCTAssertEqual(untouched.textBase.version, 2)
+    }
+
     func testDetailTextPatchOnlyContainsEditedFields() {
         let task = TodoTask(id: UUID(), projectID: UUID(), title: "Old", description: "A", version: 1)
         let detail = TaskDetailModel(task: task)
