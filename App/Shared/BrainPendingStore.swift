@@ -48,10 +48,11 @@ struct BrainPendingStore {
 
     /// Also completes cleanup interrupted between committing the manifest and deleting an audio file.
     func cleanUnreferencedRecordings() throws {
-        let referenced = Set(try load().compactMap(\.fileURL))
+        // Über den Dateinamen vergleichen: contentsOfDirectory löst /var → /private/var auf, das Manifest nicht.
+        let referenced = Set(try load().compactMap { $0.fileURL?.lastPathComponent })
         guard FileManager.default.fileExists(atPath: directory.path) else { return }
         for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            where file.pathExtension == "m4a" && !referenced.contains(file) {
+            where file.pathExtension == "m4a" && !referenced.contains(file.lastPathComponent) {
             try FileManager.default.removeItem(at: file)
         }
     }
