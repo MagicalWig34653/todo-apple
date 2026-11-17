@@ -430,3 +430,8 @@ Branch glowup def0e78 hochgeladen: iOS 2611121259 (UUID cbe671cf-646f-4e25-baa7-
 - Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: Chat sendet einen unveränderlichen Textstand und leert nur den noch identischen Entwurf. Regression verzögert die Antwort und schreibt währenddessen die nächste Nachricht.
 - Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
 - Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
+
+## Review-Fixes 17.11.2026 – Befund 8
+- Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: fehlgeschlagene Chat-Aufträge behalten unveränderlichen Text und Idempotenzschlüssel getrennt vom Composer. Gleicher Inhalt wiederholt denselben Auftrag; bearbeiteter Inhalt erhält einen neuen Schlüssel. Regression prüft verlorene Antwort, unveränderten Retry, Bearbeitung und Rückkehr zum Original.
+- Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
+- Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.

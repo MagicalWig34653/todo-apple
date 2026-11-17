@@ -35,6 +35,30 @@ final class ReviewFixTests: XCTestCase {
         XCTAssertEqual(app.legacyOutboxSnapshot.pending, 0)
     }
 
+    func testEditedChatAfterLostResponseUsesNewIdempotencyKey() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReviewURLProtocol.self]
+        let app = AppModel(session: URLSession(configuration: config), tokenStoreForServer: { _ in InMemoryTokenStore() })
+        let chat = ConversationModel(taskID: UUID(), thread: .task)
+        var keys: [String] = []
+        ReviewURLProtocol.handler = { request in
+            keys.append(request.value(forHTTPHeaderField: "Idempotency-Key")!)
+            throw URLError(.networkConnectionLost)
+        }
+        chat.draft = "Original"
+        await chat.send(app)
+        await chat.send(app)
+        chat.draft = "Edited"
+        await chat.send(app)
+        XCTAssertEqual(keys.count, 3)
+        XCTAssertEqual(keys[0], keys[1])
+        XCTAssertNotEqual(keys[1], keys[2])
+        XCTAssertEqual(chat.pendingSends.map(\.body), ["Original", "Edited"])
+        chat.draft = "Original"
+        await chat.send(app)
+        XCTAssertEqual(keys[3], keys[0])
+    }
+
     func testChatSuccessKeepsTextTypedWhileSending() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ReviewURLProtocol.self]

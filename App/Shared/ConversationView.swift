@@ -16,8 +16,12 @@ final class ConversationModel {
     var sending = false
     /// Runs after a message was sent or deleted (for example to refresh the activity list).
     @ObservationIgnored var onChange: (@MainActor () async -> Void)?
-    /// Same key for retries of the same draft, so a lost response does not post twice.
-    @ObservationIgnored private var sendKey = UUID()
+    struct SendJob: Equatable {
+        let key: UUID
+        let body: String
+    }
+    /// Failed requests keep their original payload and key independently of the editable composer.
+    private(set) var pendingSends: [SendJob] = []
 
     init(taskID: UUID, thread: CommentThread) {
         self.taskID = taskID
@@ -54,13 +58,19 @@ final class ConversationModel {
         let sentDraft = draft
         let text = sentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !sending, let client = app.client else { return }
+        let job: SendJob
+        if let pending = pendingSends.first(where: { $0.body == text }) { job = pending }
+        else {
+            job = SendJob(key: UUID(), body: text)
+            pendingSends.append(job)
+        }
         sending = true
         defer { sending = false }
         do {
-            let created = try await client.addComment(taskID: taskID, body: text, thread: thread, idempotencyKey: sendKey)
+            let created = try await client.addComment(taskID: taskID, body: job.body, thread: thread, idempotencyKey: job.key)
             if !items.contains(where: { $0.id == created.id }) { items.append(created) }
             if draft == sentDraft { draft = "" }
-            sendKey = UUID()
+            pendingSends.removeAll { $0.key == job.key }
             Haptics.success()
             await onChange?()
         } catch {
