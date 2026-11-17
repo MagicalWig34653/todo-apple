@@ -6752,6 +6752,16 @@
           }
         }
       }
+    },
+    "error.localSave": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Änderung konnte nicht auf diesem Gerät gespeichert werden. Bitte Speicherplatz prüfen und erneut versuchen."
+          }
+        }
+      }
     }
   }
 }

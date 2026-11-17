@@ -21,6 +21,20 @@ final class ReviewURLProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class ReviewFixTests: XCTestCase {
+    private struct FailingOutboxStore: OutboxStore {
+        func load() throws -> [OutboxOp] { [] }
+        func save(_ ops: [OutboxOp]) throws { throw CocoaError(.fileWriteOutOfSpace) }
+    }
+
+    func testPlanningSaveReportsPersistenceFailure() async {
+        let app = AppModel()
+        app.outbox = PlanningOutbox(store: FailingOutboxStore())
+        let saved = await app.savePlanning(taskID: UUID(), PlanningData(priority: 3))
+        XCTAssertFalse(saved)
+        XCTAssertEqual(app.noticeKey, "error.localSave")
+        XCTAssertEqual(app.legacyOutboxSnapshot.pending, 0)
+    }
+
     func testDetailTextPatchOnlyContainsEditedFields() {
         let task = TodoTask(id: UUID(), projectID: UUID(), title: "Old", description: "A", version: 1)
         let detail = TaskDetailModel(task: task)
@@ -42,7 +56,7 @@ final class ReviewFixTests: XCTestCase {
         _ = try await engine.createProject(name: "Offline work")
         let outboxStore = InMemoryOutboxStore()
         let outbox = PlanningOutbox(store: outboxStore)
-        await outbox.setPlanning(taskID: UUID(), PlanningData(priority: 2))
+        try await outbox.setPlanning(taskID: UUID(), PlanningData(priority: 2))
         app.engine = engine; app.outbox = outbox
         await app.handle(APIError.unauthorized(reason: nil))
         let reopened = try SyncEngine(client: client, store: store)

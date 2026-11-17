@@ -323,7 +323,7 @@ final class AppModel {
         syncLoop?.cancel(); syncLoop = nil
         if !preservingLocalData {
             try? await oldEngine?.reset()
-            await oldOutbox?.reset()
+            try? await oldOutbox?.reset()
             if let url = oldMetaCacheURL { try? FileManager.default.removeItem(at: url) }
         }
         guard generation == sessionGeneration else { return }
@@ -464,9 +464,11 @@ final class AppModel {
     func savePlanning(taskID: UUID, _ data: PlanningData) async -> Bool {
         if await queueMeta({ try await $0.setPlanning(taskID, data) }) { return true }
         if let outbox, !usesREST {
-            await outbox.setPlanning(taskID: taskID, data)
-            await outboxChanged()
-            return true
+            do {
+                try await outbox.setPlanning(taskID: taskID, data)
+                await outboxChanged()
+                return true
+            } catch { noticeKey = "error.localSave"; return false }
         }
         guard let client else { return false }
         do { apply(try await client.setPlanning(taskID: taskID, data).task); await reloadAgenda(); metaRevision += 1; return true }
@@ -476,8 +478,10 @@ final class AppModel {
     func setLabel(_ label: TaskLabel, on taskID: UUID, enabled: Bool) async {
         if await queueMeta({ e in try await e.setLabel(await e.resolvedLabelID(label), on: taskID, enabled: enabled) }) { return }
         if let outbox, !usesREST {
-            if enabled { await outbox.addLabel(label.id, toTask: taskID) } else { await outbox.removeLabel(label.id, fromTask: taskID) }
-            await outboxChanged()
+            do {
+                if enabled { try await outbox.addLabel(label.id, toTask: taskID) } else { try await outbox.removeLabel(label.id, fromTask: taskID) }
+                await outboxChanged()
+            } catch { noticeKey = "error.localSave" }
             return
         }
         guard let client else { return }
@@ -494,8 +498,10 @@ final class AppModel {
         if let match = known.first(where: { $0.name.lowercased() == name.lowercased() }) { await setLabel(match, on: taskID, enabled: true); return }
         if await queueMeta({ try await $0.addLabel(named: name, to: taskID) }) { return }
         if let outbox, !usesREST {
-            await outbox.addLabel(named: name, toTask: taskID)
-            await outboxChanged()
+            do {
+                try await outbox.addLabel(named: name, toTask: taskID)
+                await outboxChanged()
+            } catch { noticeKey = "error.localSave" }
             return
         }
         guard let client else { return }
@@ -538,7 +544,10 @@ final class AppModel {
                 guard let n = op.labelName else { continue }
                 queued = try? await engine.addLabel(named: n, to: op.taskID)
             }
-            if queued != nil { await outbox.dismiss(op.id) }  // an unknown task stays in the outbox
+            if queued != nil {
+                do { try await outbox.dismiss(op.id) }
+                catch { noticeKey = "error.localSave"; return }
+            }  // an unknown task stays in the outbox
         }
         let snap = await outbox.snapshot()
         guard generation == sessionGeneration, self.engine === engine else { return }
@@ -550,7 +559,8 @@ final class AppModel {
         let generation = sessionGeneration
         let parked = await engine.unsupportedMutations()
         guard generation == sessionGeneration, self.engine === engine, !parked.isEmpty, let outbox else { return }
-        await outbox.adopt(parked.map(\.mutation))
+        do { try await outbox.adopt(parked.map(\.mutation)) }
+        catch { noticeKey = "error.localSave"; return }
         for q in parked { _ = try? await engine.dismiss(q.id) }
         let snap = await outbox.snapshot()
         guard generation == sessionGeneration, self.engine === engine else { return }
@@ -582,7 +592,7 @@ final class AppModel {
             }
             let rejected = await outbox.snapshot().rejected
             guard generation == sessionGeneration else { return }
-            for op in rejected { await outbox.dismiss(op.id) }
+            for op in rejected { try await outbox.dismiss(op.id) }
             if !rejected.isEmpty { noticeKey = "notice.syncRejected" }
             let snap = await outbox.snapshot()
             guard generation == sessionGeneration else { return }
@@ -592,7 +602,10 @@ final class AppModel {
         } catch APIError.unauthorized {
             guard generation == sessionGeneration else { return }
             await logout(preservingLocalData: true); errorKey = "error.sessionExpired"
-        } catch {}
+        } catch {
+            guard generation == sessionGeneration else { return }
+            noticeKey = "error.localSave"
+        }
     }
 
     func resolveConflict(keepMine: Bool) async {

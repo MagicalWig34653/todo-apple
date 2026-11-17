@@ -17,20 +17,38 @@ final class PlanningOutboxTests: XCTestCase {
         store = InMemoryOutboxStore()
     }
 
+    private struct FailingStore: OutboxStore {
+        let original: [OutboxOp]
+        func load() throws -> [OutboxOp] { original }
+        func save(_ ops: [OutboxOp]) throws { throw CocoaError(.fileWriteOutOfSpace) }
+    }
+
+    func testFailedPersistenceThrowsAndPreservesPreviousPlanning() async throws {
+        let original = OutboxOp(kind: .setPlanning, taskID: t1, planning: PlanningData(priority: 1))
+        let box = PlanningOutbox(store: FailingStore(original: [original]))
+        do {
+            try await box.setPlanning(taskID: t1, PlanningData(priority: 3))
+            XCTFail("Undurable edit reported success")
+        } catch { XCTAssertEqual((error as? CocoaError)?.code, .fileWriteOutOfSpace) }
+        let snap = await box.snapshot()
+        XCTAssertEqual(snap.planning[t1]?.priority, 1)
+        XCTAssertEqual(snap.pending, 1)
+    }
+
     func planningResponse(_ id: UUID, priority: Int = 0, version: Int = 2) -> (Int, Data) {
         (200, Data(#"{"task":{"id":"\#(id)","projectID":"\#(UUID())","title":"T","description":"","status":"open","version":\#(version)},"position":0,"priority":\#(priority),"reminders":[]}"#.utf8))
     }
     var paths: [String] { MockURLProtocol.seen.map { "\($0.httpMethod ?? "") \($0.url!.path)" } }
 
-    func testCoalescesPlanningPerTaskAndLabelPairs() async {
+    func testCoalescesPlanningPerTaskAndLabelPairs() async throws {
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(priority: 1))
-        await box.setPlanning(taskID: t1, PlanningData(priority: 3))
-        await box.setPlanning(taskID: t2, PlanningData(priority: 2))
-        await box.addLabel(l1, toTask: t1)
-        await box.removeLabel(l1, fromTask: t1)   // supersedes the add
-        await box.addLabel(named: "Home", toTask: t1)
-        await box.addLabel(named: "home", toTask: t1)   // duplicate by name
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 3))
+        try await box.setPlanning(taskID: t2, PlanningData(priority: 2))
+        try await box.addLabel(l1, toTask: t1)
+        try await box.removeLabel(l1, fromTask: t1)   // supersedes the add
+        try await box.addLabel(named: "Home", toTask: t1)
+        try await box.addLabel(named: "home", toTask: t1)   // duplicate by name
         let s = await box.snapshot()
         XCTAssertEqual(s.planning[t1]?.priority, 3)
         XCTAssertEqual(s.planning[t2]?.priority, 2)
@@ -46,9 +64,9 @@ final class PlanningOutboxTests: XCTestCase {
             req.httpMethod == "PUT" && req.url!.path.contains("/planning/") ? planningResponse(t1, priority: 2) : (204, Data())
         }
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(dueAt: due, priority: 2, recurrence: RecurrenceRule(frequency: .weekly, timeZone: "Europe/Berlin"), reminders: [due]))
-        await box.addLabel(l1, toTask: t1)
-        await box.removeLabel(l2, fromTask: t1)
+        try await box.setPlanning(taskID: t1, PlanningData(dueAt: due, priority: 2, recurrence: RecurrenceRule(frequency: .weekly, timeZone: "Europe/Berlin"), reminders: [due]))
+        try await box.addLabel(l1, toTask: t1)
+        try await box.removeLabel(l2, fromTask: t1)
         let r = try await box.flush(client: client)
         XCTAssertEqual(paths, ["PUT /v1/planning/tasks/\(t1.uuidString)", "PUT /v1/tasks/\(t1.uuidString)/labels/\(l1.uuidString)", "DELETE /v1/tasks/\(t1.uuidString)/labels/\(l2.uuidString)"])
         XCTAssertEqual(r.sent, 3); XCTAssertFalse(r.offline)
@@ -64,8 +82,8 @@ final class PlanningOutboxTests: XCTestCase {
     func testOfflineKeepsQueueAndPersists() async throws {
         MockURLProtocol.handler = { _ in (-1, Data()) }
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(priority: 1))
-        await box.addLabel(l1, toTask: t1)
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await box.addLabel(l1, toTask: t1)
         let r = try await box.flush(client: client)
         XCTAssertTrue(r.offline)
         XCTAssertEqual(MockURLProtocol.seen.count, 1, "stops at the first transport failure")
@@ -82,7 +100,7 @@ final class PlanningOutboxTests: XCTestCase {
     func testServerErrorIsTreatedAsOffline() async throws {
         MockURLProtocol.handler = { _ in (503, Data()) }
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 1))
         let r = try await box.flush(client: client)
         XCTAssertTrue(r.offline)
         let pending = await box.pendingCount
@@ -95,15 +113,15 @@ final class PlanningOutboxTests: XCTestCase {
             return planningResponse(t2)
         }
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(priority: 1))
-        await box.setPlanning(taskID: t2, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t2, PlanningData(priority: 1))
         let r = try await box.flush(client: client)
         XCTAssertEqual(r.rejected, 1); XCTAssertEqual(r.sent, 1)
         let s = await box.snapshot()
         XCTAssertEqual(s.rejected.map(\.taskID), [t1])
         XCTAssertEqual(s.rejected.first?.reason, "not_found")
         XCTAssertNil(s.planning[t1], "rejected edits no longer overlay the confirmed state")
-        await box.dismiss(s.rejected[0].id)
+        try await box.dismiss(s.rejected[0].id)
         let after = await box.snapshot()
         XCTAssertTrue(after.rejected.isEmpty)
     }
@@ -111,7 +129,7 @@ final class PlanningOutboxTests: XCTestCase {
     func testRemovingAnAlreadyRemovedLabelIsSuccess() async throws {
         MockURLProtocol.handler = { _ in (404, Data(#"{"error":true}"#.utf8)) }
         let box = PlanningOutbox(store: store)
-        await box.removeLabel(l1, fromTask: t1)
+        try await box.removeLabel(l1, fromTask: t1)
         let r = try await box.flush(client: client)
         XCTAssertEqual(r.sent, 1); XCTAssertEqual(r.rejected, 0)
     }
@@ -119,8 +137,8 @@ final class PlanningOutboxTests: XCTestCase {
     func testSkipsTasksThatAreStillWaitingInTheSyncQueue() async throws {
         MockURLProtocol.handler = { [self] _ in planningResponse(t2) }
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(priority: 1))
-        await box.setPlanning(taskID: t2, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t2, PlanningData(priority: 1))
         let r = try await box.flush(client: client, skipping: [t1])
         XCTAssertEqual(r.sent, 1)
         XCTAssertEqual(paths, ["PUT /v1/planning/tasks/\(t2.uuidString)"])
@@ -137,8 +155,8 @@ final class PlanningOutboxTests: XCTestCase {
             return p.contains("/labels/") ? (204, Data()) : (500, Data())
         }
         let box = PlanningOutbox(store: store)
-        await box.addLabel(named: "home", toTask: t1)
-        await box.addLabel(named: "Work", toTask: t1)
+        try await box.addLabel(named: "home", toTask: t1)
+        try await box.addLabel(named: "Work", toTask: t1)
         let r = try await box.flush(client: client)
         XCTAssertEqual(r.sent, 2)
         XCTAssertEqual(r.createdLabels.map(\.id), [created])
@@ -158,16 +176,16 @@ final class PlanningOutboxTests: XCTestCase {
             return (204, Data())
         }
         let box = PlanningOutbox(store: store)
-        await box.addLabel(named: "deep", toTask: t1)
+        try await box.addLabel(named: "deep", toTask: t1)
         let r = try await box.flush(client: client)
         XCTAssertEqual(r.sent, 1); XCTAssertTrue(r.createdLabels.isEmpty)
         XCTAssertFalse(paths.contains { $0.hasPrefix("POST") })
     }
 
-    func testUnauthorizedIsThrownAndKeepsOps() async {
+    func testUnauthorizedIsThrownAndKeepsOps() async throws {
         MockURLProtocol.handler = { _ in (401, Data()) }
         let box = PlanningOutbox(store: store)
-        await box.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await box.setPlanning(taskID: t1, PlanningData(priority: 1))
         do { _ = try await box.flush(client: client); XCTFail("expected 401") } catch { XCTAssertEqual(error as? APIError, .unauthorized(reason: nil)) }
         let pending = await box.pendingCount
         XCTAssertEqual(pending, 1)

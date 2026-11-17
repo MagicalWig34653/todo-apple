@@ -87,7 +87,10 @@ public struct FileOutboxStore: OutboxStore {
     }
 
     public func save(_ ops: [OutboxOp]) throws {
-        if ops.isEmpty { try? FileManager.default.removeItem(at: url); return }
+        if ops.isEmpty {
+            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+            return
+        }
         try Self.encoder.encode(ops).write(to: url, options: .atomic)
     }
 }
@@ -108,32 +111,40 @@ public actor PlanningOutbox {
     // MARK: Enqueue (with coalescing)
 
     /// Replaces all planning data of the task; an older unsent edit of the same task is superseded.
-    public func setPlanning(taskID: UUID, _ data: PlanningData) {
+    public func setPlanning(taskID: UUID, _ data: PlanningData) throws {
+        guard !invalidated else { throw CancellationError() }
+        let previous = ops
         ops.removeAll { $0.status == .pending && $0.kind == .setPlanning && $0.taskID == taskID }
         ops.append(OutboxOp(kind: .setPlanning, taskID: taskID, planning: data))
-        persist()
+        try persist(previous: previous)
     }
 
-    public func addLabel(_ labelID: UUID, toTask taskID: UUID) {
+    public func addLabel(_ labelID: UUID, toTask taskID: UUID) throws {
+        guard !invalidated else { throw CancellationError() }
+        let previous = ops
         dropLabelOps(taskID: taskID, labelID: labelID)
         ops.append(OutboxOp(kind: .addLabel, taskID: taskID, labelID: labelID))
-        persist()
+        try persist(previous: previous)
     }
 
-    public func removeLabel(_ labelID: UUID, fromTask taskID: UUID) {
+    public func removeLabel(_ labelID: UUID, fromTask taskID: UUID) throws {
+        guard !invalidated else { throw CancellationError() }
+        let previous = ops
         dropLabelOps(taskID: taskID, labelID: labelID)
         ops.append(OutboxOp(kind: .removeLabel, taskID: taskID, labelID: labelID))
-        persist()
+        try persist(previous: previous)
     }
 
     /// Adds the label with this name (case-insensitive); it is looked up or created on the server during the replay.
-    public func addLabel(named name: String, toTask taskID: UUID) {
+    public func addLabel(named name: String, toTask taskID: UUID) throws {
+        guard !invalidated else { throw CancellationError() }
+        let previous = ops
         let name = name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         let exists = ops.contains { $0.status == .pending && $0.kind == .addLabelNamed && $0.taskID == taskID && $0.labelName?.lowercased() == name.lowercased() }
         guard !exists else { return }
         ops.append(OutboxOp(kind: .addLabelNamed, taskID: taskID, labelName: name))
-        persist()
+        try persist(previous: previous)
     }
 
     private func dropLabelOps(taskID: UUID, labelID: UUID) {
@@ -144,7 +155,9 @@ public actor PlanningOutbox {
     /// contract 1.4.0 (`unsupportedByServerReason`). Returns how many could not be represented (label rename/delete
     /// have no REST outbox equivalent) and were dropped.
     @discardableResult
-    public func adopt(_ mutations: [SyncMutation]) -> Int {
+    public func adopt(_ mutations: [SyncMutation]) throws -> Int {
+        guard !invalidated else { throw CancellationError() }
+        let previous = ops
         var created: [UUID: String] = [:]
         var dropped = 0
         for m in mutations {
@@ -173,7 +186,7 @@ public actor PlanningOutbox {
             default: break
             }
         }
-        persist()
+        try persist(previous: previous)
         return dropped
     }
 
@@ -181,15 +194,17 @@ public actor PlanningOutbox {
     public func pendingOps() -> [OutboxOp] { ops.filter { $0.status == .pending } }
 
     /// Forget everything queued for a task (deleted locally).
-    public func discard(taskID: UUID) {
+    public func discard(taskID: UUID) throws {
+        guard !invalidated else { throw CancellationError() }
+        let previous = ops
         ops.removeAll { $0.taskID == taskID }
-        persist()
+        try persist(previous: previous)
     }
 
     /// Drops everything (sign-out: the account's cache is discarded as well).
-    public func reset() { ops = []; persist() }
+    public func reset() throws { let previous = ops; ops = []; try persist(previous: previous) }
 
-    public func dismiss(_ id: UUID) { guard !invalidated else { return }; ops.removeAll { $0.id == id }; persist() }
+    public func dismiss(_ id: UUID) throws { guard !invalidated else { throw CancellationError() }; let previous = ops; ops.removeAll { $0.id == id }; try persist(previous: previous) }
 
     // MARK: Reading
 
@@ -237,7 +252,7 @@ public actor PlanningOutbox {
                 switch error {
                 case .transport: report.offline = true
                 case .server(let status, _) where status >= 500: report.offline = true
-                case .unauthorized: persist(); throw error
+                case .unauthorized: try persist(); throw error
                 default:
                     // A repeated delete of a gone label is a success; everything else is final.
                     if op.kind == .removeLabel, case .notFound = error { ops.removeAll { $0.id == op.id }; report.sent += 1; continue }
@@ -250,7 +265,7 @@ public actor PlanningOutbox {
             }
         }
         guard !invalidated else { throw CancellationError() }
-        persist()
+        try persist()
         return report
     }
 
@@ -300,5 +315,11 @@ public actor PlanningOutbox {
         }
     }
 
-    private func persist() { try? store.save(ops) }
+    private func persist(previous: [OutboxOp]? = nil) throws {
+        do { try store.save(ops) }
+        catch {
+            if let previous { ops = previous }
+            throw error
+        }
+    }
 }

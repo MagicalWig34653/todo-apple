@@ -16,8 +16,8 @@ extension LiveEtappe2Tests {
 
         // Offline-style edits for a task the server does not know yet.
         let due = Date(timeIntervalSince1970: (Date().timeIntervalSince1970 / 60).rounded(.down) * 60 + 86_400)
-        await box.setPlanning(taskID: tid, PlanningData(dueAt: due, priority: 2, recurrence: RecurrenceRule(frequency: .weekly, timeZone: "Europe/Berlin"), reminders: [due.addingTimeInterval(-3600)]))
-        await box.addLabel(named: "Outbox-\(f.suffix)", toTask: tid)
+        try await box.setPlanning(taskID: tid, PlanningData(dueAt: due, priority: 2, recurrence: RecurrenceRule(frequency: .weekly, timeZone: "Europe/Berlin"), reminders: [due.addingTimeInterval(-3600)]))
+        try await box.addLabel(named: "Outbox-\(f.suffix)", toTask: tid)
         let waiting = await engine.queuedEntityIDs()
         XCTAssertTrue(waiting.contains(tid))
         let skipped = try await box.flush(client: f.admin, skipping: waiting)
@@ -42,9 +42,9 @@ extension LiveEtappe2Tests {
 
         // Replaying the same edits is idempotent; removing the label works; a foreign task is rejected, not retried.
         let label = try XCTUnwrap(labels.first)
-        await box.addLabel(label.id, toTask: tid)
-        await box.removeLabel(label.id, fromTask: tid)
-        await box.setPlanning(taskID: UUID(), PlanningData(priority: 1))
+        try await box.addLabel(label.id, toTask: tid)
+        try await box.removeLabel(label.id, fromTask: tid)
+        try await box.setPlanning(taskID: UUID(), PlanningData(priority: 1))
         let again = try await box.flush(client: f.admin)
         XCTAssertEqual(again.sent, 1)
         XCTAssertEqual(again.rejected, 1)

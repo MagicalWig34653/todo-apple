@@ -308,7 +308,7 @@ extension SyncEngineTests {
 
         // The app hands them to the REST outbox.
         let outbox = PlanningOutbox(store: InMemoryOutboxStore())
-        await outbox.adopt(parked.map(\.mutation))
+        try await outbox.adopt(parked.map(\.mutation))
         let ops = await outbox.pendingOps()
         XCTAssertEqual(ops.map(\.kind), [.setPlanning, .addLabelNamed])
         XCTAssertEqual(ops[0].planning?.priority, 2)
@@ -343,9 +343,9 @@ extension SyncEngineTests {
         let l1 = UUID()
         serve(feed: baseFeed(extra: [upsertLabel(4, l1, "Haus")]), mutation: { [self] m in ok14(m, task: taskJSON(t1, version: 2), planning: planningJSON(priority: 2), label: labelJSON(l1, "Haus", tasks: [t1])) })
         let outbox = PlanningOutbox(store: InMemoryOutboxStore())
-        await outbox.setPlanning(taskID: t1, PlanningData(priority: 1))
-        await outbox.addLabel(named: "haus", toTask: t1)
-        await outbox.removeLabel(l1, fromTask: t2)
+        try await outbox.setPlanning(taskID: t1, PlanningData(priority: 1))
+        try await outbox.addLabel(named: "haus", toTask: t1)
+        try await outbox.removeLabel(l1, fromTask: t2)
         let e = try engine()
         _ = try await e.sync()
         for op in await outbox.pendingOps() {
@@ -355,7 +355,7 @@ extension SyncEngineTests {
             case .removeLabel: try await e.setLabel(op.labelID!, on: op.taskID, enabled: false)
             case .addLabel: try await e.setLabel(op.labelID!, on: op.taskID, enabled: true)
             }
-            await outbox.dismiss(op.id)
+            try await outbox.dismiss(op.id)
         }
         let remaining = await outbox.pendingOps()
         XCTAssertTrue(remaining.isEmpty)

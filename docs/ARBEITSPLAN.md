@@ -30,3 +30,8 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 - Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: Textentwurf behält Basisversion; nur geänderte Felder werden gesendet. Engine weist veraltete Entwurfsversion vor dem Enqueue als Versionskonflikt ab; späterer Serverkonflikt bleibt über bestehende Konflikt-Queue sichtbar. Entwurf bleibt bei Fehler erhalten.
 - Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
 - Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
+
+## Review-Fixes 17.11.2026 – Befund 5
+- Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: Outbox-Schreibvorgänge werfen Speicherfehler und nehmen fehlgeschlagene Enqueues im Speicher zurück. App bestätigt erst nach Speicherung, meldet lokalisierten Speicherfehler und behält Planung. Übergabe aus Sync-Queue löscht erst nach dauerhafter Outbox-Adoption. Bestehende Testaufrufe an throws angepasst; Auth-Mock vervollständigt.
+- Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
+- Keine API-/Servermigration; nur Apple-Repository geändert. Nächster Schritt: nächster Befund, abschließend `BERICHT-FIXES.md` und Prüfung durch Aufrufer.
