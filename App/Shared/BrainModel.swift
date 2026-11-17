@@ -34,9 +34,9 @@ final class VoiceConsentModel {
 }
 
 /// A message the person sent that the server has not accepted yet (recording or text), shown at the end of the thread.
-struct BrainOutgoing: Identifiable, Equatable {
-    enum Kind: Equatable { case voice(duration: TimeInterval), text(String) }
-    enum State: Equatable { case sending, failed(errorKey: String) }
+struct BrainOutgoing: Identifiable, Equatable, Codable {
+    enum Kind: Equatable, Codable { case voice(duration: TimeInterval), text(String) }
+    enum State: Equatable, Codable { case sending, failed(errorKey: String) }
 
     /// The `clientUUID` of the post: a retry sends the same one, so a lost response never posts twice.
     let id: UUID
@@ -72,6 +72,49 @@ final class BrainModel {
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var holding = false
 
+    @ObservationIgnored private let pendingRoot: URL
+    @ObservationIgnored private var pendingStore: BrainPendingStore?
+    @ObservationIgnored private var pendingIdentity: String?
+
+    init(pendingRoot: URL? = nil) {
+        self.pendingRoot = pendingRoot ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Todo/brain-pending", isDirectory: true)
+    }
+
+    func restorePending(_ app: AppModel) {
+        guard let account = app.user?.id else { return }
+        let identity = app.serverURL + account.uuidString
+        guard pendingIdentity != identity else { return }
+        let store = BrainPendingStore(root: pendingRoot, account: account, server: app.serverURL)
+        do {
+            let saved = try store.load()
+            outgoing = saved.map { item in
+                var item = item
+                item.state = .failed(errorKey: "brain.error.offline")
+                return item
+            }
+            pendingStore = store; pendingIdentity = identity
+            try store.cleanUnreferencedRecordings()
+        } catch { errorKey = "error.localSave" }
+    }
+
+    /// Commit the request before clearing the composer or starting any network operation.
+    @discardableResult
+    func enqueue(_ original: BrainOutgoing, _ app: AppModel) -> Bool {
+        restorePending(app)
+        guard let store = pendingStore, pendingIdentity == app.serverURL + (app.user?.id.uuidString ?? "") else { return false }
+        var item = original
+        do {
+            if let source = item.fileURL { item.fileURL = try store.keepRecording(source, id: item.id) }
+            outgoing = try store.upsert(item)
+            if let source = original.fileURL, source != item.fileURL { try? FileManager.default.removeItem(at: source) }
+            return true
+        } catch {
+            errorKey = "error.localSave"
+            return false
+        }
+    }
+
     static let pollWhileWaiting: Duration = .seconds(3)
     static let pollIdle: Duration = .seconds(15)
 
@@ -93,6 +136,7 @@ final class BrainModel {
 
     func load(_ app: AppModel) async {
         consent.load(app)
+        restorePending(app)
         guard let client = app.client, !loading else { return }
         LiveHub.shared.subscribe(self) { [weak self] in await self?.refresh(app) }
         loading = true; defer { loading = false }
@@ -161,9 +205,9 @@ final class BrainModel {
     func sendText(_ app: AppModel) async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canSendText else { return }
-        draft = ""
         let item = BrainOutgoing(id: UUID(), kind: .text(text), state: .sending)
-        outgoing.append(item)
+        guard enqueue(item, app) else { return }
+        draft = ""
         Haptics.tap()
         await deliver(item.id, app)
     }
@@ -221,7 +265,7 @@ final class BrainModel {
             return
         }
         let item = BrainOutgoing(id: UUID(), kind: .voice(duration: recording.duration), state: .sending, fileURL: recording.url)
-        outgoing.append(item)
+        guard enqueue(item, app) else { return }
         Haptics.success()
         await deliver(item.id, app)
     }
@@ -234,12 +278,18 @@ final class BrainModel {
     // MARK: Delivery
 
     private func update(_ id: UUID, _ change: (inout BrainOutgoing) -> Void) {
-        if let i = outgoing.firstIndex(where: { $0.id == id }) { change(&outgoing[i]) }
+        if let i = outgoing.firstIndex(where: { $0.id == id }) {
+            change(&outgoing[i])
+            do { if let pendingStore { _ = try pendingStore.upsert(outgoing[i]) } }
+            catch { errorKey = "error.localSave" }
+        }
     }
 
     /// Uploads (voice) and posts; the same `clientUUID` for every attempt.
     private func deliver(_ id: UUID, _ app: AppModel) async {
-        guard let item = outgoing.first(where: { $0.id == id }), let client = app.client else { return }
+        guard let item = outgoing.first(where: { $0.id == id }), let client = app.client,
+              pendingIdentity == app.serverURL + (app.user?.id.uuidString ?? "") else { return }
+        let generation = app.sessionGeneration
         update(id) { $0.state = .sending }
         do {
             let result: BrainPostResult
@@ -251,19 +301,24 @@ final class BrainModel {
                 if attachmentID == nil {
                     guard let url = item.fileURL, let data = try? Data(contentsOf: url) else { throw APIError.invalidInput(reason: "voice_unreadable") }
                     attachmentID = try await client.uploadVoiceRecording(data: data).id
+                    guard generation == app.sessionGeneration else { return }
                     update(id) { $0.attachmentID = attachmentID }
                 }
                 result = try await client.postBrainVoice(attachmentID: attachmentID!, clientUUID: id)
             }
-            thread.add(result.message)
             finish(id)
+            guard generation == app.sessionGeneration else { return }
+            thread.add(result.message)
         } catch APIError.unauthorized {
+            update(id) { $0.state = .failed(errorKey: "error.sessionExpired") }
+            guard generation == app.sessionGeneration else { return }
             await app.handle(APIError.unauthorized(reason: nil))
         } catch {
             update(id) { $0.state = .failed(errorKey: Self.errorKey(for: error)) }
             Haptics.warning()
         }
         // A fresh page picks up what the server did with it (status line, job).
+        guard generation == app.sessionGeneration else { return }
         await refresh(app)
     }
 
@@ -272,8 +327,11 @@ final class BrainModel {
     func discard(_ item: BrainOutgoing) { finish(item.id) }
 
     private func finish(_ id: UUID) {
-        if let url = outgoing.first(where: { $0.id == id })?.fileURL { try? FileManager.default.removeItem(at: url) }
-        outgoing.removeAll { $0.id == id }
+        guard let store = pendingStore else { return }
+        do {
+            outgoing = try store.remove(id)
+            try store.cleanUnreferencedRecordings()
+        } catch { errorKey = "error.localSave" }
     }
 
     /// Texts for the server's reasons (contracts/voice.yaml); everything else falls back to the generic ones.

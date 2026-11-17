@@ -35,6 +35,73 @@ final class ReviewFixTests: XCTestCase {
         XCTAssertEqual(app.legacyOutboxSnapshot.pending, 0)
     }
 
+    func testBrainConfirmedDeliveryRemovesAudioAndManifest() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let source = root.appendingPathComponent("source.m4a")
+        try Data([1, 2, 3]).write(to: source)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReviewURLProtocol.self]
+        let app = AppModel(session: URLSession(configuration: config), tokenStoreForServer: { _ in InMemoryTokenStore() })
+        app.user = User(id: UUID(), displayName: "A", isAdmin: false, username: nil)
+        let brain = BrainModel(pendingRoot: root)
+        let id = UUID()
+        let item = BrainOutgoing(id: id, kind: .voice(duration: 3), state: .sending, fileURL: source, attachmentID: UUID())
+        XCTAssertTrue(brain.enqueue(item, app))
+        let durableURL = try XCTUnwrap(brain.outgoing.first?.fileURL)
+        ReviewURLProtocol.handler = { _ in
+            Data("{\"id\":\"\(UUID())\",\"kind\":\"voice_in\",\"author\":\"person\",\"clientUUID\":\"\(id)\",\"createdAt\":\"2026-11-17T12:00:00Z\"}".utf8)
+        }
+        await brain.retry(item, app)
+        XCTAssertTrue(brain.outgoing.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: durableURL.path))
+        let reopened = BrainModel(pendingRoot: root)
+        reopened.restorePending(app)
+        XCTAssertTrue(reopened.outgoing.isEmpty)
+    }
+
+    func testBrainPendingMessagesSurviveReopeningAndCleanUpAudio() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReviewURLProtocol.self]
+        let app = AppModel(session: URLSession(configuration: config), tokenStoreForServer: { _ in InMemoryTokenStore() })
+        app.serverURL = "https://a.invalid"
+        let account = User(id: UUID(), displayName: "A", isAdmin: false, username: nil)
+        app.user = account
+        ReviewURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        let brain = BrainModel(pendingRoot: root)
+        brain.draft = "Keep this message"
+        await brain.sendText(app)
+        let textID = try XCTUnwrap(brain.outgoing.first?.id)
+        let source = root.appendingPathComponent("recording.m4a")
+        try Data([1, 2, 3]).write(to: source)
+        let voiceID = UUID()
+        XCTAssertTrue(brain.enqueue(BrainOutgoing(id: voiceID, kind: .voice(duration: 3), state: .sending, fileURL: source), app))
+        let reopened = BrainModel(pendingRoot: root)
+        reopened.restorePending(app)
+        XCTAssertEqual(reopened.outgoing.map(\.id), [textID, voiceID])
+        let recording = try XCTUnwrap(reopened.outgoing.last)
+        let durableURL = try XCTUnwrap(recording.fileURL)
+        XCTAssertEqual(try Data(contentsOf: durableURL), Data([1, 2, 3]))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        app.user = User(id: UUID(), displayName: "B", isAdmin: false, username: nil)
+        let otherAccount = BrainModel(pendingRoot: root)
+        otherAccount.restorePending(app)
+        XCTAssertTrue(otherAccount.outgoing.isEmpty)
+        app.user = account; app.serverURL = "https://b.invalid"
+        let otherServer = BrainModel(pendingRoot: root)
+        otherServer.restorePending(app)
+        XCTAssertTrue(otherServer.outgoing.isEmpty)
+        app.serverURL = "https://a.invalid"
+        reopened.discard(recording)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: durableURL.path))
+        let final = BrainModel(pendingRoot: root)
+        final.restorePending(app)
+        XCTAssertEqual(final.outgoing.map(\.id), [textID])
+    }
+
     func testEditedChatAfterLostResponseUsesNewIdempotencyKey() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ReviewURLProtocol.self]
