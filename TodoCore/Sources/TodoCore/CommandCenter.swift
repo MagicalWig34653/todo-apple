@@ -129,6 +129,33 @@ public struct BuildArtifact: Codable, Sendable, Equatable, Identifiable, Hashabl
     /// Server-relative path of the authenticated preview route (for example `/v1/attachments/{id}/preview`).
     public let previewURL: String
     public let createdAt: Date?
+    /// Optional since contract 1.7.0; unknown or invalid values decode to nil.
+    public let status: BuildStatus?
+    /// 7 to 40 lowercase hex characters, else nil.
+    public let commit: String?
+
+    public var commitShort: String? { commit.map { String($0.prefix(7)) } }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, attachmentID, taskID, buildID, label, platform, filename, mediaType, size, previewURL, createdAt, status, commit
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        attachmentID = try c.decode(UUID.self, forKey: .attachmentID)
+        taskID = try c.decode(UUID.self, forKey: .taskID)
+        buildID = try c.decode(String.self, forKey: .buildID)
+        label = try c.decodeIfPresent(String.self, forKey: .label)
+        platform = try c.decodeIfPresent(String.self, forKey: .platform)
+        filename = try c.decode(String.self, forKey: .filename)
+        mediaType = try c.decode(String.self, forKey: .mediaType)
+        size = try c.decode(Int.self, forKey: .size)
+        previewURL = try c.decode(String.self, forKey: .previewURL)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        status = (try? c.decodeIfPresent(BuildStatus.self, forKey: .status)) ?? nil
+        commit = BuildStatus.validCommit((try? c.decodeIfPresent(String.self, forKey: .commit)) ?? nil)
+    }
 }
 
 public struct CommandCard: Codable, Sendable, Equatable, Identifiable {

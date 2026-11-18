@@ -168,4 +168,50 @@ final class OverviewNowTests: XCTestCase {
         XCTAssertEqual(OverviewBuild(taskID: UUID(), buildID: "x", createdAt: nil, commit: "0123456789abcdef").commitShort, "0123456")
         XCTAssertNil(OverviewBuild(taskID: UUID(), buildID: "x", createdAt: nil, commit: nil).commitShort)
     }
+
+    // MARK: Build status (session-status 1.2.0)
+
+    private func buildOf(_ extra: String) throws -> OverviewBuild {
+        let s = #"{"projects":[{"projectID":"\#(p1)","projectName":"A","builds":[{"taskID":"\#(t1)","buildID":"b"\#(extra)}]}]}"#
+        return try XCTUnwrap(decode(s).projects[0].builds.first)
+    }
+
+    func testBuildStatusMissingIsNil() throws {
+        let b = try buildOf("")
+        XCTAssertNil(b.status)
+        XCTAssertNil(b.commit)
+    }
+
+    func testBuildStatusValidValues() throws {
+        XCTAssertEqual(try buildOf(#","status":"building""#).status, .building)
+        XCTAssertEqual(try buildOf(#","status":"succeeded""#).status, .succeeded)
+        let failed = try buildOf(#","status":"failed","commit":"d955b88c0ffee""#)
+        XCTAssertEqual(failed.status, .failed)
+        XCTAssertEqual(failed.commitShort, "d955b88")
+    }
+
+    func testBuildStatusUnknownOrWrongTypeIsNilAndKeepsBuild() throws {
+        XCTAssertNil(try buildOf(#","status":"queued""#).status)
+        XCTAssertNil(try buildOf(#","status":7"#).status)
+    }
+
+    func testBuildInvalidCommitIsNilButStatusKept() throws {
+        let b = try buildOf(#","status":"succeeded","commit":"XYZ""#)
+        XCTAssertNil(b.commit)
+        XCTAssertEqual(b.status, .succeeded)
+    }
+
+    func testBuildArtifactDecodesStatusAndCommitTolerantly() throws {
+        let aid = UUID()
+        func art(_ extra: String) throws -> BuildArtifact {
+            let j = #"{"id":"\#(UUID())","attachmentID":"\#(aid)","taskID":"\#(UUID())","buildID":"b1","filename":"a.png","mediaType":"image/png","size":1,"previewURL":"/x"\#(extra)}"#
+            let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601
+            return try d.decode(BuildArtifact.self, from: Data(j.utf8))
+        }
+        XCTAssertNil(try art("").status)
+        XCTAssertEqual(try art(#","status":"failed","commit":"0123456""#).status, .failed)
+        XCTAssertEqual(try art(#","status":"failed","commit":"0123456""#).commit, "0123456")
+        XCTAssertNil(try art(#","status":"???","commit":"nope""#).status)
+        XCTAssertNil(try art(#","status":"???","commit":"nope""#).commit)
+    }
 }
