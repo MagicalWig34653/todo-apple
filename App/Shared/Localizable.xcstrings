@@ -7612,6 +7612,56 @@
           }
         }
       }
+    },
+    "build.status.building": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baut"
+          }
+        }
+      }
+    },
+    "build.status.succeeded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolgreich"
+          }
+        }
+      }
+    },
+    "build.status.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "now.event.build.status_changed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build-Status geändert"
+          }
+        }
+      }
+    },
+    "cc.update.buildStatus": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build-Status geändert"
+          }
+        }
+      }
     }
   }
 }

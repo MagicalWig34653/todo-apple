@@ -390,11 +390,16 @@ private struct BuildRow: View {
     let now: Date
 
     var body: some View {
-        AdaptiveStack(spacing: Space.s, verticalAlignment: .firstTextBaseline) {
-            Text(verbatim: build.label ?? String(localized: "now.build.untitled")).font(.body.weight(.semibold)).lineLimit(2)
-            if let platform = build.platform { Text(verbatim: platform).font(.footnote).foregroundStyle(Color.textSecondary) }
-            if let commit = build.commitShort { Text(verbatim: commit).font(.footnote.monospaced()).foregroundStyle(Color.textSecondary).textSelection(.enabled) }
-            if let at = build.createdAt { Text(verbatim: CommandFormat.relative(at, now: now)).font(.footnote).foregroundStyle(Color.textSecondary) }
+        VStack(alignment: .leading, spacing: Space.xs) {
+            AdaptiveStack(spacing: Space.s, verticalAlignment: .firstTextBaseline) {
+                Text(verbatim: build.label ?? String(localized: "now.build.untitled")).font(.body.weight(.semibold)).lineLimit(2)
+                BuildStatusBadge(status: build.status)
+            }
+            AdaptiveStack(spacing: Space.s, verticalAlignment: .firstTextBaseline) {
+                if let platform = build.platform { Text(verbatim: platform).font(.footnote).foregroundStyle(Color.textSecondary) }
+                if let commit = build.commitShort { Text(verbatim: commit).font(.footnote.monospaced()).foregroundStyle(Color.textSecondary).textSelection(.enabled) }
+                if let at = build.createdAt { Text(verbatim: CommandFormat.relative(at, now: now)).font(.footnote).foregroundStyle(Color.textSecondary) }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -430,6 +435,15 @@ enum OverviewNowSample {
     private static func ago(_ s: TimeInterval) -> Date { now.addingTimeInterval(-s) }
     private static let t1 = UUID(), t2 = UUID(), t3 = UUID(), t4 = UUID()
 
+    /// One project with only builds in the three states (debug screenshots: `TODO_DEBUG_NOW_PREVIEW=builds`).
+    static let buildsOnly = OverviewNow(serverTime: now, projects: [
+        OverviewProject(projectID: UUID(), projectName: "Todolino", lastActivityAt: ago(60), builds: [
+            OverviewBuild(taskID: t1, buildID: "d955b88c0ffee", label: "CI main", platform: "web", createdAt: ago(540), commit: "d955b88c0ffee", status: .failed),
+            OverviewBuild(taskID: t1, buildID: "214", label: "iOS Archiv", platform: "ios", createdAt: ago(300), commit: "a1b2c3d4e5f6", status: .building),
+            OverviewBuild(taskID: t1, buildID: "215", label: "macOS", platform: "macos", createdAt: ago(900), commit: "0f1e2d3c4b5a", status: .succeeded),
+            OverviewBuild(taskID: t1, buildID: "216", label: "Ohne Status", platform: "ios", createdAt: ago(1200))])
+    ])
+
     static let data = OverviewNow(serverTime: now, projects: [
         OverviewProject(
             projectID: UUID(), projectName: "Todolino", lastActivityAt: ago(60),
@@ -441,7 +455,9 @@ enum OverviewNowSample {
             sessions: [
                 OverviewSession(sessionName: "web-passkey", activity: "Führt vitest für auth.test.ts aus", updatedAt: ago(40), ageSeconds: 40, orphaned: false),
                 OverviewSession(sessionName: "backend-oauth", activity: "Migration 0092 prüfen", updatedAt: ago(2820), ageSeconds: 2820, orphaned: true)],
-            builds: [OverviewBuild(taskID: t1, buildID: "d955b88c0ffee", label: "CI main", platform: "web", createdAt: ago(540), commit: "d955b88c0ffee")],
+            builds: [OverviewBuild(taskID: t1, buildID: "d955b88c0ffee", label: "CI main", platform: "web", createdAt: ago(540), commit: "d955b88c0ffee", status: .failed),
+                     OverviewBuild(taskID: t1, buildID: "d955b88c0aaaa", label: "iOS Archiv", platform: "ios", createdAt: ago(300), commit: "a1b2c3d4e5f6", status: .building),
+                     OverviewBuild(taskID: t1, buildID: "d955b88c0bbbb", label: "macOS", platform: "macos", createdAt: ago(900), commit: "0f1e2d3c4b5a", status: .succeeded)],
             openQuestions: [OverviewOpenItem(taskID: t3, taskTitle: "Runner-Bindings", text: "Soll der Runner nach Eigentumswechsel pausieren oder weiterlaufen?", createdAt: ago(720))],
             pendingReviews: [OverviewOpenItem(taskID: t4, taskTitle: "Kalender Stufe A", text: "Schedule-API fertig", createdAt: ago(3600))],
             recentActivity: [

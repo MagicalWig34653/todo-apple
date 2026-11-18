@@ -108,6 +108,7 @@ enum CommandFormat {
         case "review.accepted": Text("cc.update.reviewAccepted")
         case "review.changes_requested": Text("cc.update.reviewChanges")
         case "build.registered", "build.added": Text("cc.update.build")
+        case "build.status_changed": Text("cc.update.buildStatus")
         case "task.claimed": Text("cc.update.claimed")
         case "task.released": Text("cc.update.released")
         case "task.created": Text("cc.update.created")
@@ -270,6 +271,11 @@ struct BuildStrip: View {
                             if let label = b.label ?? b.platform {
                                 Text(verbatim: label).font(.caption2).foregroundStyle(Color.textSecondary).lineLimit(1).frame(width: thumbWidth, alignment: .leading)
                             }
+                            BuildStatusBadge(status: b.status).frame(width: thumbWidth, alignment: .leading)
+                            if let commit = b.commitShort {
+                                Text(verbatim: commit).font(.caption2.monospaced()).foregroundStyle(Color.textSecondary).lineLimit(1)
+                                    .frame(width: thumbWidth, alignment: .leading)
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -292,6 +298,18 @@ struct BuildViewer: View {
         NavigationStack {
             RemoteImage(attachmentID: build.attachmentID, contentMode: .fit)
                 .padding(Space.l)
+                .safeAreaInset(edge: .bottom) {
+                    if build.status != nil || build.commitShort != nil {
+                        AdaptiveStack(spacing: Space.s) {
+                            BuildStatusBadge(status: build.status)
+                            if let commit = build.commitShort {
+                                Text(verbatim: commit).font(.footnote.monospaced()).foregroundStyle(Color.textSecondary).textSelection(.enabled)
+                            }
+                        }
+                        .padding(.horizontal, Space.l).padding(.bottom, Space.s)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
                 .navigationTitle(Text(verbatim: build.label ?? build.filename))
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
