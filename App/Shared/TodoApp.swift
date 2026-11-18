@@ -48,7 +48,7 @@ struct RootView: View {
         #if DEBUG
         // Debug screenshots without a server: `TODO_DEBUG_NOW_PREVIEW=full|empty` shows the "Jetzt" screen with sample data.
         if let variant = ProcessInfo.processInfo.environment["TODO_DEBUG_NOW_PREVIEW"] {
-            OverviewNowPreviewHost(data: variant == "empty" ? OverviewNow(serverTime: OverviewNowSample.now) : OverviewNowSample.data)
+            OverviewNowPreviewHost(data: variant == "empty" ? OverviewNow(serverTime: OverviewNowSample.now) : variant == "builds" ? OverviewNowSample.buildsOnly : OverviewNowSample.data)
         } else { realBody }
         #else
         realBody

@@ -112,6 +112,17 @@ public struct OverviewJob: Decodable, Sendable, Equatable {
     }
 }
 
+/// Build state (contract session-status 1.2.0). Unknown values from newer servers decode to nil, never to an error.
+public enum BuildStatus: String, Codable, Sendable, Equatable, Hashable {
+    case building, succeeded, failed
+
+    /// 7 to 40 lowercase hex characters, else nil.
+    static func validCommit(_ s: String?) -> String? {
+        guard let s, (7...40).contains(s.count), s.allSatisfy({ ("0"..."9").contains($0) || ("a"..."f").contains($0) }) else { return nil }
+        return s
+    }
+}
+
 public struct OverviewBuild: Decodable, Sendable, Equatable, Identifiable {
     public let taskID: UUID
     public let buildID: String
@@ -120,20 +131,20 @@ public struct OverviewBuild: Decodable, Sendable, Equatable, Identifiable {
     public let createdAt: Date?
     /// 7 to 40 lowercase hex characters, else nil.
     public let commit: String?
+    /// nil when absent or unknown: then no badge is shown.
+    public let status: BuildStatus?
     public var id: String { buildID }
 
-    public init(taskID: UUID, buildID: String, label: String? = nil, platform: String? = nil, createdAt: Date? = nil, commit: String? = nil) {
+    public init(taskID: UUID, buildID: String, label: String? = nil, platform: String? = nil, createdAt: Date? = nil, commit: String? = nil,
+                status: BuildStatus? = nil) {
         self.taskID = taskID; self.buildID = buildID; self.label = label; self.platform = platform; self.createdAt = createdAt
-        self.commit = commit.flatMap { Self.isCommit($0) ? $0 : nil }
+        self.commit = BuildStatus.validCommit(commit)
+        self.status = status
     }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: LooseKey.self)
         self.init(taskID: try c.required("taskID"), buildID: try c.required("buildID"), label: c.loose("label"), platform: c.loose("platform"),
-                  createdAt: c.loose("createdAt"), commit: c.loose("commit"))
-    }
-
-    private static func isCommit(_ s: String) -> Bool {
-        (7...40).contains(s.count) && s.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
+                  createdAt: c.loose("createdAt"), commit: c.loose("commit"), status: c.loose("status"))
     }
 
     /// First 7 characters, shown monospaced.
