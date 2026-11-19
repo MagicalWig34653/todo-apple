@@ -14,7 +14,6 @@ final class ReviewVariantsTour: XCTestCase {
             throw XCTSkip("tour variables not set")
         }
         out = dir
-        addTeardownBlock { XCUIDevice.shared.appearance = .light } // the simulator keeps the setting after the run
         prefix = env["TODO_TOUR_PREFIX"] ?? "iphone"
         let looks = (env["TODO_TOUR_LOOKS"] ?? "light-ax,light,dark").split(separator: ",").map(String.init)
 
@@ -30,10 +29,7 @@ final class ReviewVariantsTour: XCTestCase {
 
         for look in looks {
             let dark = look.hasPrefix("dark"), ax = look.hasSuffix("ax")
-            // The launch argument -AppleInterfaceStyle did not change the look in this simulator (the "dark" shots came out light);
-            // the device appearance does, and the shot is only kept when the test could read it back.
-            XCUIDevice.shared.appearance = dark ? .dark : .light
-            XCTAssertEqual(XCUIDevice.shared.appearance, dark ? .dark : .light, "device appearance for \(look)")
+
             func launch(_ select: String, mode: String? = nil) -> XCUIApplication {
                 let app = XCUIApplication()
                 app.launchEnvironment["TODO_DEBUG_SERVER"] = server
@@ -41,6 +37,9 @@ final class ReviewVariantsTour: XCTestCase {
                 app.launchEnvironment["TODO_DEBUG_SELECT"] = select
                 if let mode { app.launchEnvironment["TODO_DEBUG_CC_MODE"] = mode }
                 app.launchArguments += ["-push.primerDismissed", "YES"] // the notification primer would cover the cards
+                // Neither -AppleInterfaceStyle nor XCUIDevice.appearance changed the look in this simulator (the "dark" shots came out
+                // light, caught by looking at them); the app's own appearance setting (UserDefaults) does.
+                app.launchArguments += ["-appearance.colorScheme", dark ? "dark" : "light"]
                 app.launchArguments += ["-UIPreferredContentSizeCategoryName", ax ? "UICTContentSizeCategoryAccessibilityXL" : "UICTContentSizeCategoryL"]
                 app.launch()
                 return app
