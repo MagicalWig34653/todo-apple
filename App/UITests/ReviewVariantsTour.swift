@@ -14,6 +14,7 @@ final class ReviewVariantsTour: XCTestCase {
             throw XCTSkip("tour variables not set")
         }
         out = dir
+        addTeardownBlock { XCUIDevice.shared.appearance = .light } // the simulator keeps the setting after the run
         prefix = env["TODO_TOUR_PREFIX"] ?? "iphone"
         let looks = (env["TODO_TOUR_LOOKS"] ?? "light-ax,light,dark").split(separator: ",").map(String.init)
 
