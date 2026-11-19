@@ -10,17 +10,31 @@ final class LiveReviewVariantsTests: XCTestCase {
     struct VariantInput: Encodable { let id: String; let label: String; let description: String?; let attachmentID: UUID? }
     struct ReviewInput: Encodable { let summary: String; let agentName: String?; let variants: [VariantInput]? }
 
+    /// One person for the whole run: the bootstrap token works once.
+    actor Cache {
+        static let shared = Cache()
+        var made: (APIClient, InMemoryTokenStore, String)?
+        func get(_ make: () async throws -> (APIClient, InMemoryTokenStore, String)) async throws -> (APIClient, InMemoryTokenStore, String) {
+            if let made { return made }
+            let value = try await make()
+            made = value
+            return value
+        }
+    }
+
     private func admin() async throws -> (APIClient, InMemoryTokenStore, String) {
         let env = ProcessInfo.processInfo.environment
         guard let raw = env["TODO_LIVE_BASE_URL"], let url = URL(string: raw) else { throw XCTSkip("TODO_LIVE_BASE_URL not set") }
         let origin = env["TODO_LIVE_RP_ORIGIN"] ?? "http://localhost:25173"
         let token = env["TODO_LIVE_BOOTSTRAP_TOKEN"] ?? "dev-bootstrap-only"
-        let store = InMemoryTokenStore()
-        let client = APIClient(baseURL: url, tokenStore: store)
-        guard try await client.capabilities().bootstrapOpen else { throw XCTSkip("bootstrap already used; start a fresh backend database") }
-        let suffix = String(UUID().uuidString.prefix(6)).lowercased()
-        _ = try await client.registerWithPasskey(token: token, displayName: "Lino \(suffix)", authenticator: VirtualPasskey(origin: origin))
-        return (client, store, suffix)
+        return try await Cache.shared.get {
+            let store = InMemoryTokenStore()
+            let client = APIClient(baseURL: url, tokenStore: store)
+            guard try await client.capabilities().bootstrapOpen else { throw XCTSkip("bootstrap already used; start a fresh backend database") }
+            let suffix = String(UUID().uuidString.prefix(6)).lowercased()
+            _ = try await client.registerWithPasskey(token: token, displayName: "Lino \(suffix)", authenticator: VirtualPasskey(origin: origin))
+            return (client, store, suffix)
+        }
     }
 
     private func image(_ name: String) -> Data {
