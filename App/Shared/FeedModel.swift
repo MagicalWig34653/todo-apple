@@ -12,6 +12,8 @@ final class FeedModel {
     private(set) var failed = false
     private(set) var busy: Set<String> = []
     var errorKey: String?
+    /// Pending reviews that wait for a variant choice: their feed items must lead to the card instead of offering "Annehmen".
+    private(set) var choiceReviewIDs: Set<UUID> = []
     /// Confirmations decided in this view, shown with their outcome until the view goes away.
     private(set) var decided: [(item: FeedConfirmation, result: ActionRequest)] = []
     private(set) var deciding: Set<UUID> = []
@@ -50,6 +52,11 @@ final class FeedModel {
             next.replace(with: page)
             if next != state { state = next }
             unsupported = false; failed = false
+            // The feed items carry no variants; one light list call tells which reviews need a choice (failure = none known).
+            if let pending = try? await client.reviews(state: .pending, limit: 200) {
+                let ids = pending.choiceReviewIDs
+                if ids != choiceReviewIDs { choiceReviewIDs = ids }
+            }
         } catch APIError.notFound {
             unsupported = true
         } catch APIError.unauthorized {
@@ -76,6 +83,7 @@ final class FeedModel {
             state.remove(needsYouID: item.id)
             Haptics.success()
         } catch APIError.conflict { errorKey = "feed.error.alreadyHandled"
+        } catch let error where ReviewVariantError(error) == .variantRequired { errorKey = "review.variants.error.required"
         } catch APIError.forbidden { errorKey = "error.forbidden"
         } catch { errorKey = AppModel.key(for: error) }
         busy.remove(item.id)

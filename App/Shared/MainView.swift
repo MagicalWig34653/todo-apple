@@ -56,6 +56,7 @@ struct MainView: View {
         Group {
             if compact { PhoneTabs() } else { SplitLayout() }
         }
+        .reviewUndoBar(model.path.last == nil)
         .tint(.brand)
         .environment(meta)
         .environment(\.projectActions, ProjectActions(

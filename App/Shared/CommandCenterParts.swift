@@ -205,6 +205,8 @@ struct RemoteImage: View {
     @Environment(AppModel.self) private var app
     let attachmentID: UUID
     var contentMode: ContentMode = .fill
+    /// Called when the preview could not be loaded or decoded (the caller may show its own fallback).
+    var onFailure: (() -> Void)?
     @State private var image: PlatformImage?
     @State private var failed = false
     /// Images this small (placeholder pixels, broken uploads) would be stretched into a flat colour block.
@@ -243,8 +245,8 @@ struct RemoteImage: View {
                 if let decoded = PlatformImage(data: data) {
                     ImageCache.cache.setObject(decoded, forKey: key)
                     image = decoded
-                } else { failed = true }
-            } catch { failed = true }
+                } else { failed = true; onFailure?() }
+            } catch { failed = true; onFailure?() }
         }
     }
 }
@@ -392,10 +394,14 @@ struct ReviewDecisionView: View {
     let requestedBy: String?
     let requestedAt: Date?
     var taskTitle: String?
+    /// Offered variants (card 1D9C8B0C); non-empty: "Annehmen" is replaced by one "Wählen" per variant.
+    var variants: [ReviewVariant] = []
     let busy: Bool
     let onDecision: (ReviewDecision, String?) -> Void
+    var onChoose: (String) -> Void = { _ in }
     @State private var asking = false
     @State private var note = ""
+    @State private var choosingID: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
@@ -404,6 +410,7 @@ struct ReviewDecisionView: View {
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     if let taskTitle { Text(verbatim: taskTitle).font(.caption).foregroundStyle(Color.textSecondary).lineLimit(1) }
                     Text("cc.review.title").font(.subheadline.weight(.semibold))
+                    if !variants.isEmpty { ChoiceNeededBadge() }
                     MarkdownText(summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: Space.s) {
                         if let requestedBy { Text(verbatim: requestedBy) }
@@ -428,16 +435,23 @@ struct ReviewDecisionView: View {
                     .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Color.brand).foregroundStyle(Color.onBrand).controlSize(.large).disabled(busy)
                 let changes = Button { asking = true } label: { Label("cc.review.requestChanges", systemImage: "arrow.uturn.backward") }
                     .buttonStyle(.bordered).controlSize(.large).disabled(busy)
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: Space.s) { accept.lineLimit(1).fixedSize(); changes.lineLimit(1).fixedSize() }
-                    VStack(alignment: .leading, spacing: Space.s) { accept; changes }
+                if variants.isEmpty {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: Space.s) { accept.lineLimit(1).fixedSize(); changes.lineLimit(1).fixedSize() }
+                        VStack(alignment: .leading, spacing: Space.s) { accept; changes }
+                    }
+                } else {
+                    // A review with variants is accepted only by choosing one; "Änderungen anfordern" stays (with a note).
+                    ReviewVariantsView(variants: variants, busy: busy, choosingID: choosingID) { id in choosingID = id; onChoose(id) }
+                    changes
                 }
             }
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.chipPurple.opacity(0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-        .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(Space.s) } }
+        .overlay(alignment: .topTrailing) { if busy && choosingID == nil { ProgressView().controlSize(.small).padding(Space.s) } }
+        .onChange(of: busy) { _, running in if !running { choosingID = nil } }
     }
 }
 
@@ -489,9 +503,9 @@ struct CommandCardView: View {
             }
             if let review = card.pendingReview {
                 ReviewDecisionView(summary: review.summary, requestedBy: review.requestedByLabel, requestedAt: review.createdAt,
-                    busy: cc.busy.contains(card.task.id)) { decision, note in
-                    Task { await cc.decide(taskID: card.task.id, decision, note: note, app) }
-                }
+                    variants: review.variants, busy: cc.busy.contains(card.task.id),
+                    onDecision: { decision, note in Task { await cc.decide(taskID: card.task.id, decision, note: note, app) } },
+                    onChoose: { variantID in Task { await cc.decide(taskID: card.task.id, .accept, note: nil, variantID: variantID, app) } })
             }
             if !card.builds.isEmpty { BuildStrip(builds: card.builds, total: card.buildCount) }
             if !card.subtasks.isEmpty { subtasks }

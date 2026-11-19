@@ -49,6 +49,7 @@ struct CommandCenterView: View {
         .task { await cc.refresh(app) }
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await cc.refresh(app) } } }
         .onChange(of: cc.mode) { _, _ in Task { await cc.refreshIfModeChanged(app) } }
+        .onChange(of: app.reviewUndoGeneration) { _, _ in Task { await cc.refresh(app) } }
         .onChange(of: cc.sort) { _, _ in Task { await cc.refresh(app) } }
         .alert(LocalizedStringKey(cc.errorKey ?? ""), isPresented: Binding(get: { cc.errorKey != nil }, set: { if !$0 { cc.errorKey = nil } })) {
             Button("ok") {}

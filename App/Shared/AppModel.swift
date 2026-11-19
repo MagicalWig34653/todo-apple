@@ -675,6 +675,11 @@ final class AppModel {
     var commandSummary: CommandSummary?
     var attentionCount: Int { (commandSummary?.openQuestions ?? 0) + (commandSummary?.pendingReviews ?? 0) }
 
+    /// The last review decision that can still be taken back (bar at the bottom while the server's undo window lasts).
+    var reviewUndo: ReviewUndoOffer?
+    /// Counts finished undos so open lists and card details reload.
+    var reviewUndoGeneration = 0
+
     /// Lage-Ampel of the watcher (bar on "Für dich" and in the sidebar).
     let systemStatus = SystemStatusModel()
 
@@ -834,6 +839,15 @@ final class AppModel {
             await logout(preservingLocalData: true); errorKey = "error.sessionExpired"
         default:
             noticeKey = Self.key(for: error)
+        }
+    }
+
+    /// Texts for the 422 codes of a decision with a variant.
+    static func key(for error: ReviewVariantError) -> String {
+        switch error {
+        case .variantRequired: "review.variants.error.required"
+        case .unknownVariant: "review.variants.error.unknown"
+        case .unexpectedVariant: "review.variants.error.unexpected"
         }
     }
 

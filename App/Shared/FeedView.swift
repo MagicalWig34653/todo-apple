@@ -157,7 +157,7 @@ struct FeedView: View {
                 }
             }
             ForEach(needsYouItems) { item in
-                NeedsYouCard(item: item, busy: model.busy.contains(item.id)) { action, input in
+                NeedsYouCard(item: item, needsChoice: item.reviewID.map(model.choiceReviewIDs.contains) ?? false, busy: model.busy.contains(item.id)) { action, input in
                     Task { await model.perform(item, action, input: input, app) }
                 } open: { openTask(item.taskID, item.projectID, item.taskTitle) }
             }
@@ -297,6 +297,8 @@ private struct ActionStyle: ViewModifier {
 
 private struct NeedsYouCard: View {
     let item: FeedNeedsYou
+    /// A review with variants: "Annehmen" is left out, a button leads to the card where the variant is chosen.
+    var needsChoice = false
     let busy: Bool
     let act: (FeedAction, String?) -> Void
     let open: () -> Void
@@ -334,6 +336,7 @@ private struct NeedsYouCard: View {
                     Image(systemName: symbol).font(.subheadline).foregroundStyle(tint).scaledSquare(24, relativeTo: .subheadline).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Space.xxs) {
                         Text(kindLabel).font(.caption.weight(.semibold)).foregroundStyle(tint)
+                        if needsChoice { ChoiceNeededBadge() }
                         titleText.font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading).lineLimit(5).fixedSize(horizontal: false, vertical: true)
                         if let detail = item.detail { MarkdownText(detail).font(.footnote).foregroundStyle(Color.textSecondary).multilineTextAlignment(.leading).lineLimit(3) }
                         Text(verbatim: [item.projectName, item.kind == "question" || item.kind == "review" ? item.taskTitle : nil, due].compactMap { $0 }.joined(separator: " · "))
@@ -345,7 +348,7 @@ private struct NeedsYouCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint(Text("feed.openTask"))
-            if !item.actions.isEmpty {
+            if !visibleActions.isEmpty || needsChoice {
                 if item.kind == "question", item.actions.count == 1, item.actions[0].requiresInput {
                     HStack(alignment: .bottom, spacing: Space.s) {
                         TextField(accessible: "cc.question.placeholder", text: $text, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(1...5)
@@ -355,8 +358,12 @@ private struct NeedsYouCard: View {
                     }
                 } else {
                     FlowLayout(spacing: Space.s) {
-                        ForEach(item.actions) { action in
-                            let primary = item.kind != "question" && action.id == item.actions.first?.id
+                        if needsChoice {
+                            Button(action: open) { Label("review.variants.openChoice", systemImage: "hand.tap.fill") }
+                                .modifier(ActionStyle(primary: true)).disabled(busy)
+                        }
+                        ForEach(visibleActions) { action in
+                            let primary = !needsChoice && item.kind != "question" && action.id == visibleActions.first?.id
                             Button { if action.requiresInput { input = action } else { act(action, nil) } } label: {
                                 Text(verbatim: action.label)
                             }
@@ -376,6 +383,8 @@ private struct NeedsYouCard: View {
             Button("cancel", role: .cancel) { text = ""; input = nil }
         }
     }
+
+    private var visibleActions: [FeedAction] { needsChoice ? item.actions.filter { $0.key != "accept" } : item.actions }
 
     private var due: String? {
         guard let d = item.dueAt else { return nil }
@@ -527,6 +536,21 @@ private struct FeedPreviewCards: View {
         .pageMargins().padding(.vertical, Space.l).readableWidth().background(Color.canvas)
     }
 }
+
+private struct FeedChoicePreview: View {
+    var body: some View {
+        ScrollView {
+            if let item = FeedPreviewData.needsYou {
+                NeedsYouCard(item: item, needsChoice: true, busy: false, act: { _, _ in }, open: {}).pageMargins().padding(.vertical, Space.l)
+            }
+        }
+        .background(Color.canvas)
+    }
+}
+
+#Preview("Feed Wahl nötig, Light") { FeedChoicePreview() }
+#Preview("Feed Wahl nötig, Dark") { FeedChoicePreview().preferredColorScheme(.dark) }
+#Preview("Feed Wahl nötig, accessibility5") { FeedChoicePreview().dynamicTypeSize(.accessibility5) }
 
 #Preview("Feed Karten, Light") { ScrollView { FeedPreviewCards() } }
 #Preview("Feed Karten, Dark") { ScrollView { FeedPreviewCards() }.preferredColorScheme(.dark) }

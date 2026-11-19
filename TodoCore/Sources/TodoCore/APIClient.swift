@@ -166,7 +166,7 @@ public struct APIClient: Sendable {
     private struct EmptyBody: Encodable {}
     private struct ErrorBody: Decodable { let reason: String? }
 
-    private static let decoder: JSONDecoder = {
+    static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let raw = try decoder.singleValueContainer().decode(String.self)

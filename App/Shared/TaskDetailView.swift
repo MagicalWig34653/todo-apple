@@ -92,10 +92,15 @@ final class TaskDetailModel {
         await app.refreshCommandSummary()
     }
 
-    func decide(_ decision: ReviewDecision, note: String?, _ app: AppModel) async {
+    func decide(_ decision: ReviewDecision, note: String?, variantID: String? = nil, _ app: AppModel) async {
         guard let client = app.client, !agentBusy else { return }
         agentBusy = true; defer { agentBusy = false }
-        do { _ = try await client.decideReview(taskID: task.id, decision: decision, note: note); Haptics.success() }
+        do {
+            let review = try await client.decideReview(taskID: task.id, decision: decision, note: note, variantID: variantID)
+            app.offerReviewUndo(for: review, message: AppModel.decisionMessage(for: review, decision: decision))
+            Haptics.success()
+        }
+        catch let error where ReviewVariantError(error) != nil { app.noticeKey = AppModel.key(for: ReviewVariantError(error)!) }
         catch { await app.handle(error) }
         await loadSubtasks(app)
         await app.reload()
@@ -297,10 +302,13 @@ struct TaskDetailView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.l) {
                 header
-                if management, let context = model.context, AgentContextCard.hasContent(context) {
+                // Classic projects keep the short detail, except for a review with variants (the default for new projects is
+                // classic; the choice must be reachable from the card and the chosen variant stays visible afterwards).
+                if let context = model.context, AgentContextCard.hasContent(context), management || context.review.map({ !$0.variants.isEmpty }) == true {
                     AgentContextCard(context: context, busy: model.agentBusy,
                                      onAnswer: { q, text in Task { await model.answer(q, with: text, app) } },
-                                     onDecide: { d, note in Task { await model.decide(d, note: note, app) } })
+                                     onDecide: { d, note in Task { await model.decide(d, note: note, app) } },
+                                     onChoose: { variantID in Task { await model.decide(.accept, note: nil, variantID: variantID, app) } })
                 }
                 // Classic projects keep the short to-do detail; criteria still show once a card has some.
                 if model.loaded, management || !model.criteria.isEmpty {
@@ -329,6 +337,7 @@ struct TaskDetailView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color.canvas)
+        .reviewUndoBar()
         .safeAreaInset(edge: .bottom, spacing: 0) { commentComposer }
         .navigationTitle("")
         #if os(iOS)
@@ -355,6 +364,7 @@ struct TaskDetailView: View {
             let merged = model.initialText(title: title, description: text, initialTitle: initialTitle, initialDescription: initialDescription)
             title = merged.title; text = merged.description
         }
+        .onChange(of: app.reviewUndoGeneration) { _, _ in Task { await model.loadSubtasks(app) } }
         .onDisappear { saveText() }
     }
 
