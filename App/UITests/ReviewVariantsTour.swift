@@ -3,7 +3,7 @@ import XCTest
 /// Local helper, not part of the regular suite (card 1D9C8B0C, review with variants): launches the real app against a seeded
 /// backend (`LiveReviewVariantsTests.testSeedVariantReviews`) and writes PNGs of the real screens, including real taps on
 /// "Wählen" and the undo bar. Needs `TODO_UITEST_SERVER`, `TODO_UITEST_TOKEN`, `TODO_TOUR_OUT` (directory), optional
-/// `TODO_TOUR_PREFIX` (default "iphone") and `TODO_TOUR_LOOKS` (default `light,dark,light-ax`).
+/// `TODO_TOUR_PREFIX` (default "iphone") and `TODO_TOUR_LOOKS` (default `light-ax,light,dark`: the looks that choose come last, a chosen review leaves the pending lists).
 final class ReviewVariantsTour: XCTestCase {
     private var out = ""
     private var prefix = "iphone"
@@ -15,7 +15,7 @@ final class ReviewVariantsTour: XCTestCase {
         }
         out = dir
         prefix = env["TODO_TOUR_PREFIX"] ?? "iphone"
-        let looks = (env["TODO_TOUR_LOOKS"] ?? "light,dark,light-ax").split(separator: ",").map(String.init)
+        let looks = (env["TODO_TOUR_LOOKS"] ?? "light-ax,light,dark").split(separator: ",").map(String.init)
 
         // The very first launch after an install answered 401 to its first requests (session expired screen); a throw-away
         // launch absorbs that so the shots show the real screens.
@@ -68,7 +68,7 @@ final class ReviewVariantsTour: XCTestCase {
 
             // 4. A real tap on "Wählen": the review is accepted with that variant, the undo bar names the choice and the time.
             let (task, button) = dark ? ("Anbieter Dunkel", "Wählen: Variante B, Wetterdienst A") : ("Anbieter Hell", "Wählen: Variante B, Wetterdienst A")
-            guard look == "light" || look == "dark" else { continue }
+            guard (look == "light" || look == "dark"), env["TODO_TOUR_CHOOSE"] != "0" else { continue }
             app = launch("task:\(task)")
             let choose = reveal(app, button)
             XCTAssertTrue(choose.isHittable, "choose button before tapping")
@@ -79,7 +79,8 @@ final class ReviewVariantsTour: XCTestCase {
             XCTAssertTrue(app.buttons["Rückgängig"].exists, "undo button")
             Thread.sleep(forTimeInterval: 2)
             shot("4-nach-wahl-text-\(look)")
-            for _ in 0..<6 { app.windows.firstMatch.swipeDown(velocity: .fast) }
+            var up = 0
+            while !app.staticTexts["Agent"].firstMatch.isHittable && up < 12 { drag(app, up: false); up += 1 }
             Thread.sleep(forTimeInterval: 1)
             shot("4b-nach-wahl-ergebnis-\(look)")
             app.terminate()
@@ -92,7 +93,8 @@ final class ReviewVariantsTour: XCTestCase {
                 pictureChoose.tap()
                 XCTAssertTrue(app.otherElements["review.undo.bar"].waitForExistence(timeout: 20))
                 Thread.sleep(forTimeInterval: 3)
-                for _ in 0..<8 { app.windows.firstMatch.swipeDown(velocity: .fast) }
+                var back = 0
+                while !app.staticTexts["Agent"].firstMatch.isHittable && back < 12 { drag(app, up: false); back += 1 }
                 Thread.sleep(forTimeInterval: 2)
                 shot("5-nach-wahl-bild-ergebnis-\(look)")
                 app.terminate()
@@ -105,8 +107,15 @@ final class ReviewVariantsTour: XCTestCase {
         let button = app.buttons[label]
         guard button.waitForExistence(timeout: 30) else { return button }
         var swipes = 0
-        while !button.isHittable && swipes < 40 { app.windows.firstMatch.swipeUp(velocity: .fast); swipes += 1 }
+        while !button.isHittable && swipes < 60 { drag(app, up: true); swipes += 1 }
         return button
+    }
+
+    /// One deterministic drag over the middle of the screen (swipe gestures did not scroll the large-text detail).
+    private func drag(_ app: XCUIApplication, up: Bool) {
+        let from = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.75 : 0.35))
+        let to = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: up ? 0.35 : 0.75))
+        from.press(forDuration: 0.05, thenDragTo: to)
     }
 
     private func shot(_ name: String) {
