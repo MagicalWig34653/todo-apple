@@ -97,7 +97,7 @@ public struct QuestionBrief: Codable, Sendable, Equatable, Identifiable, Hashabl
     public let createdAt: Date?
 }
 
-public struct ReviewBrief: Codable, Sendable, Equatable, Identifiable, Hashable {
+public struct ReviewBrief: Codable, Sendable, Equatable, Identifiable, Hashable, ReviewVariantSource {
     public let id: UUID
     public let summary: String
     public let requestedByType: String
@@ -105,6 +105,34 @@ public struct ReviewBrief: Codable, Sendable, Equatable, Identifiable, Hashable 
     public let reviewerID: UUID?
     public let agentJobID: UUID?
     public let createdAt: Date?
+    /// Offered variants (command-center 1.8.0); empty for a plain review. Malformed entries are dropped, fewer than two mean none.
+    public let variants: [ReviewVariant]
+
+    /// A card only carries its pending review.
+    public var state: String { "pending" }
+    public var chosenVariantID: String? { nil }
+
+    private enum CodingKeys: String, CodingKey { case id, summary, requestedByType, requestedByLabel, reviewerID, agentJobID, createdAt, variants }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        summary = try c.decode(String.self, forKey: .summary)
+        requestedByType = try c.decode(String.self, forKey: .requestedByType)
+        requestedByLabel = try c.decodeIfPresent(String.self, forKey: .requestedByLabel)
+        reviewerID = try c.decodeIfPresent(UUID.self, forKey: .reviewerID)
+        agentJobID = try c.decodeIfPresent(UUID.self, forKey: .agentJobID)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        variants = LenientVariants.decode(from: c, forKey: .variants)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id); try c.encode(summary, forKey: .summary); try c.encode(requestedByType, forKey: .requestedByType)
+        try c.encodeIfPresent(requestedByLabel, forKey: .requestedByLabel); try c.encodeIfPresent(reviewerID, forKey: .reviewerID)
+        try c.encodeIfPresent(agentJobID, forKey: .agentJobID); try c.encodeIfPresent(createdAt, forKey: .createdAt)
+        if !variants.isEmpty { try c.encode(variants, forKey: .variants) }
+    }
 }
 
 public struct SubtaskBrief: Codable, Sendable, Equatable, Identifiable, Hashable {
@@ -345,7 +373,7 @@ public struct Question: Codable, Sendable, Equatable, Identifiable, Hashable {
     public var askerDisplay: String? { askedByLabel ?? askedByName }
 }
 
-public struct Review: Codable, Sendable, Equatable, Identifiable, Hashable {
+public struct Review: Codable, Sendable, Equatable, Identifiable, Hashable, ReviewVariantSource {
     public let id: UUID
     public let taskID: UUID
     public let taskTitle: String?
@@ -364,8 +392,58 @@ public struct Review: Codable, Sendable, Equatable, Identifiable, Hashable {
     public let agentJobID: UUID?
     public let createdAt: Date?
     public let version: Int
+    /// End of the undo window after a person's decision (5 minutes, `ReviewUndo`); nil when not undoable.
+    public let undoUntil: Date?
+    /// Offered variants (command-center 1.8.0); empty for a plain review. Malformed entries are dropped, fewer than two mean none.
+    public let variants: [ReviewVariant]
+    /// The variant picked on acceptance; nil otherwise (and again after an undo).
+    public let chosenVariantID: String?
 
     public var isPending: Bool { state == "pending" }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, taskID, taskTitle, projectID, projectName, state, requestedByType, requestedByID, requestedByLabel, reviewerID, summary
+        case decidedBy, decidedAt, decisionNote, agentJobID, createdAt, version, undoUntil, variants, chosenVariantID
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        taskID = try c.decode(UUID.self, forKey: .taskID)
+        taskTitle = try c.decodeIfPresent(String.self, forKey: .taskTitle)
+        projectID = try c.decodeIfPresent(UUID.self, forKey: .projectID)
+        projectName = try c.decodeIfPresent(String.self, forKey: .projectName)
+        state = try c.decode(String.self, forKey: .state)
+        requestedByType = try c.decode(String.self, forKey: .requestedByType)
+        requestedByID = try c.decodeIfPresent(UUID.self, forKey: .requestedByID)
+        requestedByLabel = try c.decodeIfPresent(String.self, forKey: .requestedByLabel)
+        reviewerID = try c.decodeIfPresent(UUID.self, forKey: .reviewerID)
+        summary = try c.decode(String.self, forKey: .summary)
+        decidedBy = try c.decodeIfPresent(UUID.self, forKey: .decidedBy)
+        decidedAt = try c.decodeIfPresent(Date.self, forKey: .decidedAt)
+        decisionNote = try c.decodeIfPresent(String.self, forKey: .decisionNote)
+        agentJobID = try c.decodeIfPresent(UUID.self, forKey: .agentJobID)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        version = try c.decode(Int.self, forKey: .version)
+        undoUntil = (try? c.decodeIfPresent(Date.self, forKey: .undoUntil)) ?? nil
+        variants = LenientVariants.decode(from: c, forKey: .variants)
+        chosenVariantID = (try? c.decodeIfPresent(String.self, forKey: .chosenVariantID)) ?? nil
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id); try c.encode(taskID, forKey: .taskID)
+        try c.encodeIfPresent(taskTitle, forKey: .taskTitle); try c.encodeIfPresent(projectID, forKey: .projectID)
+        try c.encodeIfPresent(projectName, forKey: .projectName); try c.encode(state, forKey: .state)
+        try c.encode(requestedByType, forKey: .requestedByType); try c.encodeIfPresent(requestedByID, forKey: .requestedByID)
+        try c.encodeIfPresent(requestedByLabel, forKey: .requestedByLabel); try c.encodeIfPresent(reviewerID, forKey: .reviewerID)
+        try c.encode(summary, forKey: .summary); try c.encodeIfPresent(decidedBy, forKey: .decidedBy)
+        try c.encodeIfPresent(decidedAt, forKey: .decidedAt); try c.encodeIfPresent(decisionNote, forKey: .decisionNote)
+        try c.encodeIfPresent(agentJobID, forKey: .agentJobID); try c.encodeIfPresent(createdAt, forKey: .createdAt)
+        try c.encode(version, forKey: .version); try c.encodeIfPresent(undoUntil, forKey: .undoUntil)
+        if !variants.isEmpty { try c.encode(variants, forKey: .variants) }
+        try c.encodeIfPresent(chosenVariantID, forKey: .chosenVariantID)
+    }
 }
 
 public struct ProgressNote: Codable, Sendable, Equatable, Identifiable {
@@ -430,7 +508,7 @@ public enum ReviewState: String, Sendable { case pending, accepted, changesReque
 public enum ReviewDecision: String, Sendable { case accept, requestChanges = "request_changes" }
 
 struct AnswerBody: Encodable { let answer: String }
-struct ReviewDecisionBody: Encodable { let decision: String; let note: String? }
+struct ReviewDecisionBody: Encodable { let decision: String; let note: String?; let variantID: String? }
 struct AgentBriefBody: Encodable { let text: String; let version: Int }
 
 extension APIClient {
@@ -465,10 +543,20 @@ extension APIClient {
     }
 
     /// Accepts or sends back the pending review of a task. 409 `no_pending_review`.
-    public func decideReview(taskID: UUID, decision: ReviewDecision, note: String? = nil) async throws -> Review {
+    /// `variantID`: the chosen variant, required when accepting a review with variants (422 `variant_required`, `unknown_variant`;
+    /// 422 `unexpected_variant` on a review without variants or with `request_changes`, see `ReviewVariantError`).
+    public func decideReview(taskID: UUID, decision: ReviewDecision, note: String? = nil, variantID: String? = nil) async throws -> Review {
         let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let variant = variantID?.trimmingCharacters(in: .whitespacesAndNewlines)
         return try await send("POST", "v1/tasks/\(taskID.uuidString.lowercased())/review/decision",
-            body: ReviewDecisionBody(decision: decision.rawValue, note: (trimmed?.isEmpty ?? true) ? nil : trimmed))
+            body: ReviewDecisionBody(decision: decision.rawValue, note: (trimmed?.isEmpty ?? true) ? nil : trimmed,
+                                     variantID: (variant?.isEmpty ?? true) ? nil : variant))
+    }
+
+    /// Takes back the person's last review decision within `ReviewUndo.window`; the review is pending again with all variants open.
+    /// 409 `nothing_to_undo`, `not_undoable`, `undo_window_expired`, `already_acted_on`.
+    public func undoReviewDecision(taskID: UUID) async throws -> Review {
+        try await send("POST", "v1/tasks/\(taskID.uuidString.lowercased())/review/undo")
     }
 
     public func taskContext(_ id: UUID) async throws -> TaskContext {
