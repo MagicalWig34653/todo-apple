@@ -130,7 +130,7 @@ enum DebugLaunch {
     /// `ImageRenderer` and quits. The app runs with activation policy `.prohibited` (see `AppDelegate`), so no window
     /// appears and nothing is activated. `TODO_DEBUG_RENDER_MODE=hosting` renders an `NSHostingView` in an off-screen
     /// window (never ordered front) instead, for views whose content loads in `.task`.
-    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil }
+    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil }
 
     /// `TODO_DEBUG_NOW_RENDER=<dir>`: the "Jetzt" screen with sample data, light and dark, off-screen (no server needed).
     static func renderNowSamples(dir: String) async {
@@ -154,7 +154,42 @@ enum DebugLaunch {
         exit(0)
     }
 
+    /// `TODO_DEBUG_VARIANTS_RENDER=<dir>`: the review-with-variants screen with sample data (picture variants stay on the loading
+    /// placeholder, there is no server), off-screen: Mac width light and dark, narrow phone width at accessibility5 (Dynamic Type
+    /// set on the view, not a device), text-only variants. No window is shown, nothing is activated.
+    static func renderVariantsSamples(dir: String) async {
+        let url = URL(fileURLWithPath: dir)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let shots: [(name: String, width: CGFloat, height: CGFloat, dark: Bool, ax: Bool, textOnly: Bool)] = [
+            ("mac-varianten-bild-hell", 900, 1000, false, false, false),
+            ("mac-varianten-bild-dunkel", 900, 1000, true, false, false),
+            ("mac-varianten-text-hell", 900, 700, false, false, true),
+            ("schmal-accessibility5-varianten-text-hell", 390, 2400, false, true, true),
+            ("schmal-accessibility5-varianten-text-dunkel", 390, 2400, true, true, true),
+        ]
+        for shot in shots {
+            let variants = shot.textOnly ? VariantPreviewData.textOnly : VariantPreviewData.withPictures
+            var root = AnyView(ReviewWithVariantsPreview(variants: variants).environment(\.colorScheme, shot.dark ? .dark : .light)
+                .preferredColorScheme(shot.dark ? .dark : .light))
+            if shot.ax { root = AnyView(root.dynamicTypeSize(.accessibility5)) }
+            let host = NSHostingView(rootView: root)
+            host.frame = CGRect(origin: .zero, size: CGSize(width: shot.width, height: shot.height))
+            let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: shot.dark ? .darkAqua : .aqua)
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .seconds(2))
+            host.layoutSubtreeIfNeeded()
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { exit(2) }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: url.appendingPathComponent("\(shot.name).png"))
+            window.contentView = nil
+        }
+        exit(0)
+    }
+
     static func renderIfRequested(model: AppModel) async {
+        if let dir = env["TODO_DEBUG_VARIANTS_RENDER"] { await renderVariantsSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_NOW_RENDER"] { await renderNowSamples(dir: dir); return }
         guard let spec = env["TODO_DEBUG_RENDER"] else { return }
         let parts = spec.components(separatedBy: ":")

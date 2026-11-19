@@ -299,7 +299,8 @@ extension VariantPreviewData {
     }
 }
 
-private struct ReviewWithVariantsPreview: View {
+/// Sample screen for previews and the debug renderer (`TODO_DEBUG_VARIANTS_RENDER`); no network.
+struct ReviewWithVariantsPreview: View {
     let variants: [ReviewVariant]
     var body: some View {
         ScrollView {

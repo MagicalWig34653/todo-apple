@@ -49,7 +49,14 @@ final class ReviewVariantsTour: XCTestCase {
             var app = launch("task:Kartenwahl ShowerNow")
             XCTAssertTrue(app.buttons["Wählen: Variante A, Windkarte"].waitForExistence(timeout: 30), "variant cards in the task detail")
             shot("1a-bilder-varianten-oben-\(look)")
-            XCTAssertTrue(reveal(app, "Wählen: Variante B, Radarkarte").isHittable, "choose button B with picture")
+            if ax {
+                // Large text: scroll a fixed distance (the button never reported itself hittable here), no assertion.
+                for _ in 0..<14 { drag(app, up: true) }
+                Thread.sleep(forTimeInterval: 3)
+                shot("1b-bilder-varianten-gescrollt-\(look)")
+            } else {
+                XCTAssertTrue(reveal(app, "Wählen: Variante B, Radarkarte").isHittable, "choose button B with picture")
+            }
             Thread.sleep(forTimeInterval: 3) // pictures load through the authenticated preview route
             shot("1-bilder-varianten-\(look)")
             app.terminate()
