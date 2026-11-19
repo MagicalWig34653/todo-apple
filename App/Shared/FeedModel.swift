@@ -76,6 +76,7 @@ final class FeedModel {
             state.remove(needsYouID: item.id)
             Haptics.success()
         } catch APIError.conflict { errorKey = "feed.error.alreadyHandled"
+        } catch let error where ReviewVariantError(error) == .variantRequired { errorKey = "review.variants.error.required"
         } catch APIError.forbidden { errorKey = "error.forbidden"
         } catch { errorKey = AppModel.key(for: error) }
         busy.remove(item.id)

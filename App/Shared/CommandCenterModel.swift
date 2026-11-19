@@ -116,16 +116,20 @@ final class CommandCenterModel {
         await refresh(app)
     }
 
-    func decide(taskID: UUID, _ decision: ReviewDecision, note: String?, _ app: AppModel) async {
+    /// `variantID`: the chosen variant when accepting a review with variants (one tap, no extra dialog; the undo bar is the safety net).
+    func decide(taskID: UUID, _ decision: ReviewDecision, note: String?, variantID: String? = nil, _ app: AppModel) async {
         guard let client = app.client, !busy.contains(taskID) else { return }
         busy.insert(taskID); defer { busy.remove(taskID) }
         do {
-            _ = try await client.decideReview(taskID: taskID, decision: decision, note: note)
+            let review = try await client.decideReview(taskID: taskID, decision: decision, note: note, variantID: variantID)
+            app.offerReviewUndo(for: review, message: AppModel.decisionMessage(for: review, decision: decision))
             Haptics.success()
         } catch APIError.conflict(let reason) where reason == "no_pending_review" {
             errorKey = "cc.error.noPendingReview"
         } catch APIError.forbidden {
             errorKey = "cc.error.forbiddenReview"
+        } catch let error where ReviewVariantError(error) != nil {
+            errorKey = AppModel.key(for: ReviewVariantError(error)!)
         } catch {
             errorKey = AppModel.key(for: error)
         }

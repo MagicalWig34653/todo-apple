@@ -40,6 +40,8 @@ struct AgentContextCard: View {
     let busy: Bool
     let onAnswer: (Question, String) -> Void
     let onDecide: (ReviewDecision, String?) -> Void
+    /// Chosen variant of a review with variants (accepts the review with it).
+    var onChoose: (String) -> Void = { _ in }
 
     static func hasContent(_ c: TaskContext) -> Bool {
         c.workflow.claimedLabel != nil || c.workflow.blockedReason?.isEmpty == false || !c.progressNotes.isEmpty
@@ -65,7 +67,7 @@ struct AgentContextCard: View {
             if let review = context.review {
                 if review.isPending {
                     ReviewDecisionView(summary: review.summary, requestedBy: review.requestedByLabel, requestedAt: review.createdAt,
-                                       busy: busy, onDecision: onDecide)
+                                       variants: review.variants, busy: busy, onDecision: onDecide, onChoose: onChoose)
                 } else {
                     reviewResult(review)
                 }
@@ -129,6 +131,10 @@ struct AgentContextCard: View {
             }
             .font(.caption).foregroundStyle(Color.textSecondary)
             MarkdownText(review.summary).font(.subheadline).lineLimit(8).fixedSize(horizontal: false, vertical: true)
+            if review.state == "accepted", let chosen = review.chosenVariant, let text = review.chosenText {
+                Text(verbatim: text).font(.subheadline.weight(.semibold))
+                ChosenVariantView(review: review, chosen: chosen)
+            }
             if let note = review.decisionNote, !note.isEmpty {
                 MarkdownText(note).font(.subheadline)
                     .padding(.leading, Space.s)

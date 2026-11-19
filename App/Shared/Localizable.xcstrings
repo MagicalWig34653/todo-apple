@@ -7662,6 +7662,226 @@
           }
         }
       }
+    },
+    "review.variants.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle eine Variante"
+          }
+        }
+      }
+    },
+    "review.variants.badge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wahl nötig"
+          }
+        }
+      }
+    },
+    "review.variants.hint %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Tipp auf „Wählen“ nimmt das Review mit dieser Variante an. Danach bleiben %lld Minuten zum Rückgängigmachen."
+          }
+        }
+      }
+    },
+    "review.variants.tag %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variante %@"
+          }
+        }
+      }
+    },
+    "review.variants.choose": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen"
+          }
+        }
+      }
+    },
+    "review.variants.choose.a11y %@ %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen: Variante %@, %@"
+          }
+        }
+      }
+    },
+    "review.variants.saving": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gespeichert …"
+          }
+        }
+      }
+    },
+    "review.variants.noPreview %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Vorschau nicht verfügbar"
+          }
+        }
+      }
+    },
+    "review.variants.others": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht gewählt:"
+          }
+        }
+      }
+    },
+    "review.variants.other %@ %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@"
+          }
+        }
+      }
+    },
+    "review.variants.imageA11y %@ %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild zu Variante %@: %@"
+          }
+        }
+      }
+    },
+    "review.variants.error.required": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Review braucht eine Variantenwahl. Öffne die Karte und tippe auf „Wählen“."
+          }
+        }
+      }
+    },
+    "review.variants.error.unknown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Variante gibt es nicht mehr. Die Ansicht wird neu geladen, bitte wähle noch einmal."
+          }
+        }
+      }
+    },
+    "review.variants.error.unexpected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Review bietet keine Varianten (mehr). Die Ansicht wird neu geladen."
+          }
+        }
+      }
+    },
+    "review.undo.button": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rückgängig"
+          }
+        }
+      }
+    },
+    "review.undo.left %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch %@"
+          }
+        }
+      }
+    },
+    "review.undo.hint %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nimmt die Entscheidung zurück. Noch bis zu %lld Minuten möglich."
+          }
+        }
+      }
+    },
+    "review.undo.accepted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review angenommen"
+          }
+        }
+      }
+    },
+    "review.undo.changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen angefordert"
+          }
+        }
+      }
+    },
+    "review.undo.error.expired": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Frist zum Rückgängigmachen ist abgelaufen."
+          }
+        }
+      }
+    },
+    "review.undo.error.actedOn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seit der Entscheidung hat sich an der Aufgabe etwas geändert, deshalb lässt sie sich nicht mehr zurücknehmen."
+          }
+        }
+      }
+    },
+    "review.undo.error.notUndoable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Entscheidung lässt sich nicht zurücknehmen."
+          }
+        }
+      }
     }
   }
 }
