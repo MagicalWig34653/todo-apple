@@ -337,6 +337,7 @@ struct TaskDetailView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color.canvas)
+        .reviewUndoBar()
         .safeAreaInset(edge: .bottom, spacing: 0) { commentComposer }
         .navigationTitle("")
         #if os(iOS)

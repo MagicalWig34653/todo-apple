@@ -224,7 +224,7 @@ struct ReviewUndoBar: View {
                         undoing = true
                         Task { await app.undoReviewDecision(offer); undoing = false }
                     } label: {
-                        Label("review.undo.button", systemImage: "arrow.uturn.backward").tapTarget()
+                        Label("review.undo.button", systemImage: "arrow.uturn.backward")
                     }
                     .buttonStyle(.bordered).controlSize(.large).disabled(undoing)
                     .accessibilityHint(Text("review.undo.hint \(Int((left / 60).rounded(.up)))"))

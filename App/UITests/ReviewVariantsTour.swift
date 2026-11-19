@@ -17,6 +17,16 @@ final class ReviewVariantsTour: XCTestCase {
         prefix = env["TODO_TOUR_PREFIX"] ?? "iphone"
         let looks = (env["TODO_TOUR_LOOKS"] ?? "light,dark,light-ax").split(separator: ",").map(String.init)
 
+        // The very first launch after an install answered 401 to its first requests (session expired screen); a throw-away
+        // launch absorbs that so the shots show the real screens.
+        let warm = XCUIApplication()
+        warm.launchEnvironment["TODO_DEBUG_SERVER"] = server
+        warm.launchEnvironment["TODO_DEBUG_TOKEN"] = token
+        warm.launchEnvironment["TODO_DEBUG_SELECT"] = "feed"
+        warm.launch()
+        Thread.sleep(forTimeInterval: 8)
+        warm.terminate()
+
         for look in looks {
             let dark = look.hasPrefix("dark"), ax = look.hasSuffix("ax")
             func launch(_ select: String, mode: String? = nil) -> XCUIApplication {
@@ -69,6 +79,9 @@ final class ReviewVariantsTour: XCTestCase {
             XCTAssertTrue(app.buttons["Rückgängig"].exists, "undo button")
             Thread.sleep(forTimeInterval: 2)
             shot("4-nach-wahl-text-\(look)")
+            for _ in 0..<6 { app.windows.firstMatch.swipeDown(velocity: .fast) }
+            Thread.sleep(forTimeInterval: 1)
+            shot("4b-nach-wahl-ergebnis-\(look)")
             app.terminate()
 
             // 5. Same with a picture variant.
@@ -79,7 +92,9 @@ final class ReviewVariantsTour: XCTestCase {
                 pictureChoose.tap()
                 XCTAssertTrue(app.otherElements["review.undo.bar"].waitForExistence(timeout: 20))
                 Thread.sleep(forTimeInterval: 3)
-                shot("5-nach-wahl-bild-\(look)")
+                for _ in 0..<8 { app.windows.firstMatch.swipeDown(velocity: .fast) }
+                Thread.sleep(forTimeInterval: 2)
+                shot("5-nach-wahl-bild-ergebnis-\(look)")
                 app.terminate()
             }
         }
@@ -90,7 +105,7 @@ final class ReviewVariantsTour: XCTestCase {
         let button = app.buttons[label]
         guard button.waitForExistence(timeout: 30) else { return button }
         var swipes = 0
-        while !button.isHittable && swipes < 10 { app.windows.firstMatch.swipeUp(); swipes += 1 }
+        while !button.isHittable && swipes < 40 { app.windows.firstMatch.swipeUp(velocity: .fast); swipes += 1 }
         return button
     }
 

@@ -56,7 +56,7 @@ struct MainView: View {
         Group {
             if compact { PhoneTabs() } else { SplitLayout() }
         }
-        .reviewUndoBar(!(detailAsSheet && model.path.last != nil))
+        .reviewUndoBar(model.path.last == nil)
         .tint(.brand)
         .environment(meta)
         .environment(\.projectActions, ProjectActions(
@@ -75,7 +75,6 @@ struct MainView: View {
         // Compact width: task detail as a sheet. Regular width (iPad, Mac): inspector column in `SplitLayout`.
         .sheet(item: Binding(get: { detailAsSheet ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
-                .reviewUndoBar()
                 .environment(model).environment(meta)
                 // Sheets do not inherit the root tint; without this, bordered buttons in the detail turned system blue.
                 .tint(.brand)
