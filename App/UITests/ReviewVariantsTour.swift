@@ -29,6 +29,10 @@ final class ReviewVariantsTour: XCTestCase {
 
         for look in looks {
             let dark = look.hasPrefix("dark"), ax = look.hasSuffix("ax")
+            // The launch argument -AppleInterfaceStyle did not change the look in this simulator (the "dark" shots came out light);
+            // the device appearance does, and the shot is only kept when the test could read it back.
+            XCUIDevice.shared.appearance = dark ? .dark : .light
+            XCTAssertEqual(XCUIDevice.shared.appearance, dark ? .dark : .light, "device appearance for \(look)")
             func launch(_ select: String, mode: String? = nil) -> XCUIApplication {
                 let app = XCUIApplication()
                 app.launchEnvironment["TODO_DEBUG_SERVER"] = server
@@ -36,7 +40,6 @@ final class ReviewVariantsTour: XCTestCase {
                 app.launchEnvironment["TODO_DEBUG_SELECT"] = select
                 if let mode { app.launchEnvironment["TODO_DEBUG_CC_MODE"] = mode }
                 app.launchArguments += ["-push.primerDismissed", "YES"] // the notification primer would cover the cards
-                app.launchArguments += ["-AppleInterfaceStyle", dark ? "Dark" : "Light"]
                 app.launchArguments += ["-UIPreferredContentSizeCategoryName", ax ? "UICTContentSizeCategoryAccessibilityXL" : "UICTContentSizeCategoryL"]
                 app.launch()
                 return app
@@ -107,7 +110,10 @@ final class ReviewVariantsTour: XCTestCase {
         let button = app.buttons[label]
         guard button.waitForExistence(timeout: 30) else { return button }
         var swipes = 0
-        while !button.isHittable && swipes < 60 { drag(app, up: true); swipes += 1 }
+        while !button.isHittable && swipes < 60 {
+            if swipes % 4 == 3 { app.scrollViews.firstMatch.swipeUp() } else { drag(app, up: true) }
+            swipes += 1
+        }
         return button
     }
 
