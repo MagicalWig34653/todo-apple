@@ -302,7 +302,9 @@ struct TaskDetailView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.l) {
                 header
-                if management, let context = model.context, AgentContextCard.hasContent(context) {
+                // Classic projects keep the short detail, except for a review that waits for a variant choice (default for new
+                // projects is classic, and the choice must be reachable from the card).
+                if let context = model.context, AgentContextCard.hasContent(context), management || context.review?.needsChoice == true {
                     AgentContextCard(context: context, busy: model.agentBusy,
                                      onAnswer: { q, text in Task { await model.answer(q, with: text, app) } },
                                      onDecide: { d, note in Task { await model.decide(d, note: note, app) } },

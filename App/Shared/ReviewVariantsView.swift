@@ -9,10 +9,15 @@ import TodoCore
 /// "Wahl nötig": state as symbol and text, never only colour.
 struct ChoiceNeededBadge: View {
     var body: some View {
-        Label("review.variants.badge", systemImage: "hand.tap.fill")
-            .font(.caption2.weight(.semibold)).foregroundStyle(Color.chipPurple)
-            .padding(.horizontal, Space.s).padding(.vertical, Space.xxs)
-            .background(Color.chipPurple.opacity(0.10), in: Capsule())
+        HStack(spacing: Space.xs) {
+            Image(systemName: "hand.tap.fill").accessibilityHidden(true)
+            Text("review.variants.badge")
+        }
+        .font(.caption2.weight(.semibold)).foregroundStyle(Color.chipPurple)
+        .padding(.horizontal, Space.s).padding(.vertical, Space.xxs)
+        .background(Color.chipPurple.opacity(0.10), in: Capsule())
+        .fixedSize()
+        .accessibilityElement(children: .combine)
     }
 }
 
