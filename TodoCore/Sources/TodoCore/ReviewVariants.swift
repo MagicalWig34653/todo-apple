@@ -87,6 +87,11 @@ public extension ReviewVariantSource {
     var chosenText: String? { chosenVariant.map { ReviewVariantText.chosen(name: $0.name, label: $0.label) } }
 }
 
+public extension Sequence where Element == Review {
+    /// Ids of the reviews that wait for a variant choice (the feed items do not carry variants, so the app marks them from this).
+    var choiceReviewIDs: Set<UUID> { Set(filter(\.needsChoice).map(\.id)) }
+}
+
 public enum ReviewVariantText {
     /// Same wording as the chat entry the server writes on acceptance.
     public static func chosen(name: String, label: String) -> String { "Variante \(name) gewählt: \(label)" }

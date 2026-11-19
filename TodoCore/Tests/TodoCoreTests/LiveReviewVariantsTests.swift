@@ -73,6 +73,11 @@ final class LiveReviewVariantsTests: XCTestCase {
         XCTAssertTrue(review.needsChoice)
         XCTAssertEqual(review.variants.first?.attachmentID, variants.first?.attachmentID)
 
+        // The card detail (task context) carries them too, and the decided review keeps the choice there.
+        let context = try await a.taskContext(t.id)
+        XCTAssertEqual(context.review?.variants.map(\.id), ["a", "b", "c"])
+        XCTAssertTrue(context.review?.needsChoice ?? false)
+
         // The card of the command center carries the variants.
         let cc = try await a.commandCenter(CommandCenterOptions(view: .list))
         let card = try XCTUnwrap(cc.items?.first { $0.task.id == t.id })

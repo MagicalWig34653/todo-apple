@@ -114,6 +114,24 @@ final class ReviewVariantsTests: XCTestCase {
         XCTAssertFalse(try decode(reviewJSON(state: "withdrawn", extra: twoVariants)).needsChoice)
     }
 
+    /// Shape of a real `GET /v1/tasks/{id}/context` answer of the 1.8.0 server (no `taskTitle`, no `claimedLabel`, ids upper case).
+    func testTaskContextWithVariantsDecodes() async throws {
+        let task = #"{"boardPosition":0,"projectID":"\#(pid)","title":"Wetterdaten-Anbieter","version":2,"id":"\#(tid)","description":"","status":"in_review"}"#
+        let review = #"{"requestedByID":"\#(UUID())","createdAt":"2026-11-19T15:13:18Z","requestedByLabel":"Claude","id":"\#(rid)","taskID":"\#(tid)","requestedByType":"Person","version":1,"state":"pending","summary":"Zwei Anbieter","variants":[{"id":"a","label":"Open-Meteo","description":"Kostenlos"},{"id":"b","label":"Wetterdienst A"}]}"#
+        reply(#"{"builds":[],"task":\#(task),"projectID":"\#(pid)","workflow":{"taskID":"\#(tid)","kind":"task","isFeature":false,"orphaned":false},"progressNotes":[],"criteria":[],"progress":{"percent":0,"subtasksTotal":0,"subtasksDone":0,"criteriaDone":0,"source":"none","criteriaTotal":0},"subtasks":[],"questions":[],"review":\#(review),"comments":[]}"#)
+        let context = try await client.taskContext(tid)
+        XCTAssertEqual(context.review?.variants.map(\.id), ["a", "b"])
+        XCTAssertTrue(context.review?.needsChoice ?? false)
+    }
+
+    func testChoiceReviewIDsPicksOnlyPendingChoices() throws {
+        let withChoice = try decode(reviewJSON(extra: twoVariants))
+        let plain = try decode(reviewJSON().replacingOccurrences(of: rid.uuidString, with: UUID().uuidString))
+        let decided = try decode(reviewJSON(state: "accepted", extra: twoVariants).replacingOccurrences(of: rid.uuidString, with: UUID().uuidString))
+        XCTAssertEqual([withChoice, plain, decided].choiceReviewIDs, [withChoice.id])
+        XCTAssertTrue([Review]().choiceReviewIDs.isEmpty)
+    }
+
     func testPreviewStateHasNoSlotWithoutAttachment() {
         let with = ReviewVariant(id: "a", label: "A", description: nil, attachmentID: UUID())
         let without = ReviewVariant(id: "b", label: "B", description: nil, attachmentID: nil)
