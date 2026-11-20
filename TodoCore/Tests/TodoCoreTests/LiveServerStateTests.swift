@@ -205,3 +205,60 @@ extension LiveEtappe2Tests {
         try JSONSerialization.data(withJSONObject: ["token": token]).write(to: URL(fileURLWithPath: out))
     }
 }
+
+extension LiveEtappe2Tests {
+    /// The hour picked as local time is stored as a UTC hour and survives a fresh client (new process state, same account).
+    func testLiveBriefHourPersistsAsLocalTimeSelection() async throws {
+        let f = try await fixture(); let a = f.admin
+        let start: PushPrefs
+        do { start = try await a.pushPrefs() }
+        catch { if APIClient.isPushUnavailable(error) { throw XCTSkip("server without push endpoints") }; throw error }
+        try XCTSkipUnless(start.supportsBriefSettings, "server before contract 1.1.0")
+
+        let zone = try XCTUnwrap(TimeZone(identifier: "Asia/Kolkata"))
+        let now = Date()
+        let wanted = 7 * 60 + 30 // 07:30 local
+        let utcHour = try XCTUnwrap(DailyBriefHour.utcHour(localMinutes: wanted, now: now, timeZone: zone))
+        XCTAssertEqual(utcHour, 2)
+        let saved = try await a.updatePushPrefs(PushPrefsUpdate(categories: [.dailyBrief: true], dailyBriefHour: utcHour))
+        XCTAssertEqual(saved.dailyBriefHour, 2)
+
+        // A fresh client with only the stored session: no state from the writing client.
+        let fresh = APIClient(baseURL: a.baseURL, tokenStore: f.adminStore)
+        let loaded = try await fresh.pushPrefs()
+        XCTAssertEqual(loaded.dailyBriefHour, 2)
+        XCTAssertTrue(loaded.categories.dailyBrief)
+        XCTAssertEqual(DailyBriefHour.localMinutes(utcHour: try XCTUnwrap(loaded.dailyBriefHour), now: now, timeZone: zone), wanted, "shows 07:30 again")
+
+        // Plain REST, as the PWA and other clients read it.
+        var request = URLRequest(url: a.baseURL.appending(path: "v1/me/push-prefs"))
+        request.setValue("Bearer \(try XCTUnwrap(try f.adminStore.load()))", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["dailyBriefHour"] as? Int, 2)
+        XCTAssertEqual((json["categories"] as? [String: Bool])?["daily_brief"], true)
+
+        _ = try await a.updatePushPrefs(PushPrefsUpdate(categories: [.dailyBrief: false], dailyBriefHour: start.dailyBriefHour))
+    }
+}
+
+extension LiveWelle3Tests {
+    /// Leaves three pending confirmation requests of one account for the push navigation UI test and writes
+    /// `{"token":...,"requestIDs":[...]}` to `TODO_LIVE_SEED_OUT` (skipped without it).
+    func testSeedConfirmationRequests() async throws {
+        guard let out = ProcessInfo.processInfo.environment["TODO_LIVE_SEED_OUT"] else { throw XCTSkip("TODO_LIVE_SEED_OUT not set") }
+        let f = try await LiveEtappe2Tests().fixture()
+        let a = f.admin
+        let p = try await a.createProject(name: "Bestätigung \(f.suffix)")
+        var ids: [String] = []
+        let mcp = try await LiveMCPConnection.connect(a, name: "Test-Agent", projects: [p.id])
+        for title in ["Alte Notizen", "Doppelte Aufgabe", "Entwurf"] {
+            let t = try await a.createTask(projectID: p.id, title: title)
+            ids.append(try await mcp.requestConfirmation("delete_task", ["taskID": t.id.uuidString]).uuidString)
+        }
+        let token = try XCTUnwrap(try f.adminStore.load())
+        try JSONSerialization.data(withJSONObject: ["token": token, "requestIDs": ids]).write(to: URL(fileURLWithPath: out))
+    }
+}
+

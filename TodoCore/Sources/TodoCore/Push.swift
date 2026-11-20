@@ -182,6 +182,12 @@ public enum DailyBriefHour {
         return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
     }
 
+    /// The UTC hour that falls on `localMinutes` (minutes since local midnight), nil if no whole UTC hour does
+    /// (e.g. 07:30 in Berlin). This is what the picker stores when somebody chooses a local time.
+    public static func utcHour(localMinutes: Int, now: Date = Date(), timeZone: TimeZone = .current) -> Int? {
+        (0...23).first { Self.localMinutes(utcHour: $0, now: now, timeZone: timeZone) == localMinutes }
+    }
+
     /// All 24 UTC hours, ordered by local time of day.
     public static func options(now: Date = Date(), timeZone: TimeZone = .current) -> [Option] {
         (0...23).map { Option(utcHour: $0, localMinutes: localMinutes(utcHour: $0, now: now, timeZone: timeZone)) }

@@ -157,6 +157,21 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(DailyBriefHour.localMinutes(utcHour: 8, now: date("2026-11-20T12:00:00Z"), timeZone: zone("America/New_York")), 3 * 60)
     }
 
+    func testDailyBriefLocalTimeToUTCHourAndBack() {
+        let now = date("2026-11-20T12:00:00Z")
+        // Winter, Berlin = UTC+1: 07:00 local = 6 UTC.
+        XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: 7 * 60, now: now, timeZone: zone("Europe/Berlin")), 6)
+        XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: 0, now: now, timeZone: zone("Europe/Berlin")), 23)
+        XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: 7 * 60 + 30, now: now, timeZone: zone("Asia/Kolkata")), 2)
+        XCTAssertNil(DailyBriefHour.utcHour(localMinutes: 7 * 60 + 30, now: now, timeZone: zone("Europe/Berlin")), "no whole UTC hour lands on :30 there")
+        XCTAssertNil(DailyBriefHour.utcHour(localMinutes: 7 * 60 + 15, now: now, timeZone: zone("Europe/Berlin")))
+        for tz in ["Europe/Berlin", "Asia/Kolkata", "America/New_York", "Pacific/Auckland"] {
+            for option in DailyBriefHour.options(now: now, timeZone: zone(tz)) {
+                XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: option.localMinutes, now: now, timeZone: zone(tz)), option.utcHour, tz)
+            }
+        }
+    }
+
     func testDailyBriefHourDefaultAndClamp() {
         XCTAssertEqual(DailyBriefHour.defaultUTCHour, 8)
         XCTAssertEqual(DailyBriefHour.effective(nil), 8)
