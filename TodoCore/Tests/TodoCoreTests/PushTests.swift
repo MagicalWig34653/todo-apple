@@ -72,6 +72,118 @@ final class PushTests: XCTestCase {
         XCTAssertFalse(u.categories[.agentQuestions])
     }
 
+    // MARK: confirmations / daily brief prefs (contract push.yaml 1.1.0)
+
+    func testPrefsDecodeNewKeysFromServer() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":false,"daily_brief":true},"showContent":false,"badge":true,"dailyBriefHour":7}"#)
+        let p = try await client.pushPrefs()
+        XCTAssertFalse(p.categories.confirmations)
+        XCTAssertTrue(p.categories.dailyBrief)
+        XCTAssertFalse(p.categories[.confirmations])
+        XCTAssertTrue(p.categories[.dailyBrief])
+        XCTAssertEqual(p.dailyBriefHour, 7)
+    }
+
+    func testPrefsFromOlderServerKeepDefaults() async throws {
+        // Server before contract 1.1.0: none of the new keys exist.
+        reply(#"{"categories":{"reminders":false,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":true},"showContent":true,"badge":false}"#)
+        let p = try await client.pushPrefs()
+        XCTAssertFalse(p.categories.reminders); XCTAssertTrue(p.categories.comments)
+        XCTAssertTrue(p.categories.confirmations, "default on")
+        XCTAssertFalse(p.categories.dailyBrief, "default off")
+        XCTAssertNil(p.dailyBriefHour)
+        XCTAssertEqual(PushPrefs().categories.confirmations, true)
+        XCTAssertEqual(PushPrefs().categories.dailyBrief, false)
+        XCTAssertNil(PushPrefs().dailyBriefHour)
+    }
+
+    func testPrefsIgnoreUnknownKeysAndNullHour() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":true,"daily_brief":false,"future_category":true},"showContent":false,"badge":true,"dailyBriefHour":null,"somethingNew":{"a":1}}"#)
+        let p = try await client.pushPrefs()
+        XCTAssertNil(p.dailyBriefHour)
+        XCTAssertTrue(p.categories.confirmations); XCTAssertFalse(p.categories.dailyBrief)
+    }
+
+    func testPrefsUpdateSendsOnlySetFields() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":true,"daily_brief":true},"showContent":false,"badge":true,"dailyBriefHour":6}"#)
+        let u = try await client.updatePushPrefs(PushPrefsUpdate(categories: [.dailyBrief: true], dailyBriefHour: 6))
+        let b = body(last)
+        XCTAssertEqual((b["categories"] as? [String: Bool]), ["daily_brief": true], "only the changed category, JSON key daily_brief")
+        XCTAssertEqual(b["dailyBriefHour"] as? Int, 6)
+        XCTAssertNil(b["showContent"]); XCTAssertNil(b["badge"])
+        XCTAssertTrue(u.categories.dailyBrief); XCTAssertEqual(u.dailyBriefHour, 6)
+
+        _ = try await client.updatePushPrefs(PushPrefsUpdate(categories: [.confirmations: false]))
+        let c = body(last)
+        XCTAssertEqual((c["categories"] as? [String: Bool]), ["confirmations": false])
+        XCTAssertNil(c["dailyBriefHour"], "unset hour is not sent")
+
+        _ = try await client.updatePushPrefs(PushPrefsUpdate(badge: false))
+        let d = body(last)
+        XCTAssertNil(d["categories"]); XCTAssertNil(d["dailyBriefHour"])
+    }
+
+    func testBriefSettingsSupportIsDetectedFromServerAnswer() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false},"showContent":false,"badge":true}"#)
+        let old = try await client.pushPrefs()
+        XCTAssertFalse(old.supportsBriefSettings, "server before 1.1.0: confirmation/brief switches stay hidden")
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":true,"daily_brief":false},"showContent":false,"badge":true,"dailyBriefHour":8}"#)
+        let current = try await client.pushPrefs()
+        XCTAssertTrue(current.supportsBriefSettings)
+        XCTAssertFalse(PushPrefs().supportsBriefSettings)
+    }
+
+    // MARK: daily brief hour (UTC on the server, local time in the UI)
+
+    private func zone(_ id: String) -> TimeZone { TimeZone(identifier: id)! }
+    private func date(_ iso: String) -> Date { ISO8601DateFormatter().date(from: iso)! }
+
+    func testDailyBriefOptionsCoverAllUTCHoursSortedByLocalTime() {
+        let options = DailyBriefHour.options(now: date("2026-11-20T12:00:00Z"), timeZone: zone("Europe/Berlin"))
+        XCTAssertEqual(options.count, 24)
+        XCTAssertEqual(Set(options.map(\.utcHour)), Set(0...23))
+        XCTAssertEqual(options.map(\.localMinutes), options.map(\.localMinutes).sorted())
+        // Winter: Berlin = UTC+1.
+        XCTAssertEqual(options.first { $0.utcHour == 8 }?.localMinutes, 9 * 60)
+        XCTAssertEqual(options.first { $0.utcHour == 23 }?.localMinutes, 0)
+        XCTAssertEqual(options.first?.utcHour, 23)
+    }
+
+    func testDailyBriefOptionsFollowDaylightSavingAndHalfHourZones() {
+        let summer = DailyBriefHour.options(now: date("2026-07-20T12:00:00Z"), timeZone: zone("Europe/Berlin"))
+        XCTAssertEqual(summer.first { $0.utcHour == 8 }?.localMinutes, 10 * 60, "UTC+2 in summer")
+        let india = DailyBriefHour.options(now: date("2026-11-20T12:00:00Z"), timeZone: zone("Asia/Kolkata"))
+        XCTAssertEqual(india.first { $0.utcHour == 8 }?.localMinutes, 13 * 60 + 30)
+        XCTAssertEqual(DailyBriefHour.localMinutes(utcHour: 8, now: date("2026-11-20T12:00:00Z"), timeZone: zone("America/New_York")), 3 * 60)
+    }
+
+    func testDailyBriefLocalTimeToUTCHourAndBack() {
+        let now = date("2026-11-20T12:00:00Z")
+        // Winter, Berlin = UTC+1: 07:00 local = 6 UTC.
+        XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: 7 * 60, now: now, timeZone: zone("Europe/Berlin")), 6)
+        XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: 0, now: now, timeZone: zone("Europe/Berlin")), 23)
+        XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: 7 * 60 + 30, now: now, timeZone: zone("Asia/Kolkata")), 2)
+        XCTAssertNil(DailyBriefHour.utcHour(localMinutes: 7 * 60 + 30, now: now, timeZone: zone("Europe/Berlin")), "no whole UTC hour lands on :30 there")
+        XCTAssertNil(DailyBriefHour.utcHour(localMinutes: 7 * 60 + 15, now: now, timeZone: zone("Europe/Berlin")))
+        for tz in ["Europe/Berlin", "Asia/Kolkata", "America/New_York", "Pacific/Auckland"] {
+            for option in DailyBriefHour.options(now: now, timeZone: zone(tz)) {
+                XCTAssertEqual(DailyBriefHour.utcHour(localMinutes: option.localMinutes, now: now, timeZone: zone(tz)), option.utcHour, tz)
+            }
+        }
+    }
+
+    func testDailyBriefHourDefaultAndClamp() {
+        XCTAssertEqual(DailyBriefHour.defaultUTCHour, 8)
+        XCTAssertEqual(DailyBriefHour.effective(nil), 8)
+        XCTAssertEqual(DailyBriefHour.effective(5), 5)
+        XCTAssertEqual(DailyBriefHour.effective(99), 8, "out-of-range server value falls back to the default")
+    }
+
+    func testCategoryRawValuesMatchContract() {
+        XCTAssertEqual(PushCategory.confirmations.rawValue, "confirmations")
+        XCTAssertEqual(PushCategory.dailyBrief.rawValue, "daily_brief")
+    }
+
     func testOlderServerAnswers404() async {
         reply(404, #"{"reason":"not_found"}"#)
         do { _ = try await client.pushPrefs(); XCTFail("expected error") }
@@ -122,6 +234,63 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(payload.badge, 2)
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
                        .open(.task(taskID: tid, projectID: pid)))
+    }
+
+    /// Real backend forms (`deliverConfirmation`, `deliverDailyBrief`): no taskID/projectID, sorted keys.
+    func testBackendActionRequestPayloadOpensConfirmationInForYou() throws {
+        let json = #"{"aps":{"alert":{"body":"Ein Agent wartet auf deine Bestätigung.","title":"Bestätigung nötig"},"badge":1,"category":"TODO_CONFIRMATION","mutable-content":1,"sound":"default"},"kind":"action_request","subjectID":"\#(sid.uuidString)"}"#
+        let userInfo = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [AnyHashable: Any])
+        let payload = PushPayload(userInfo: userInfo)
+        XCTAssertEqual(payload.kind, .actionRequest)
+        XCTAssertEqual(payload.subjectID, sid)
+        XCTAssertNil(payload.taskID); XCTAssertNil(payload.projectID)
+        XCTAssertEqual(payload.category, PushIdentifiers.confirmation)
+        XCTAssertEqual(payload.category, "TODO_CONFIRMATION")
+        XCTAssertEqual(payload.badge, 1)
+        XCTAssertEqual(payload.link, .forYou(requestID: sid))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
+                       .open(.forYou(requestID: sid)))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.actionDone, payload: payload), .none)
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDismiss, payload: payload), .none)
+    }
+
+    func testBackendDailyBriefPayloadOpensCommandCenter() throws {
+        let json = #"{"aps":{"alert":{"body":"3 offen, 1 fällig, 2 Rückfragen","title":"Tagesbericht"},"badge":2,"category":"TODO_DAILY_BRIEF","mutable-content":1,"sound":"default"},"kind":"daily_brief"}"#
+        let userInfo = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [AnyHashable: Any])
+        let payload = PushPayload(userInfo: userInfo)
+        XCTAssertEqual(payload.kind, .dailyBrief)
+        XCTAssertNil(payload.taskID); XCTAssertNil(payload.projectID); XCTAssertNil(payload.subjectID)
+        XCTAssertEqual(payload.category, PushIdentifiers.dailyBrief)
+        XCTAssertEqual(payload.category, "TODO_DAILY_BRIEF")
+        XCTAssertEqual(payload.link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
+                       .open(.commandCenter(taskID: nil, projectID: nil)))
+    }
+
+    func testActionRequestWithoutOrWithBrokenSubjectOpensForYouOnly() {
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request")).link, .forYou(requestID: nil))
+        XCTAssertEqual(PushPayload(userInfo: ["kind": "action_request", "subjectID": "not-a-uuid", "aps": ["category": "TODO_CONFIRMATION"]]).link,
+                       .forYou(requestID: nil), "an unusable id never falls back to the command center")
+        // A task or project id on the payload (not sent by the backend today) does not change the destination.
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request", task: tid, project: pid, subject: sid)).link, .forYou(requestID: sid))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: PushPayload(userInfo: info(kind: "action_request"))),
+                       .open(.forYou(requestID: nil)))
+    }
+
+    func testOtherKindsKeepTheirDestinations() {
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "question", task: tid, project: pid)).link, .commandCenter(taskID: tid, projectID: pid))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "review", subject: sid)).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief")).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief", subject: sid)).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertNil(PushPayload(userInfo: info(kind: "test")).link)
+    }
+
+    func testNewKindsNeverNeedIDsAndUnknownKindsStayNil() {
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request", subject: sid)).link, .forYou(requestID: sid))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief")).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertNil(PushPayload(userInfo: info(kind: "action_request_v2")).link)
+        XCTAssertNil(PushPayload(userInfo: info(kind: "weekly_brief")).kind)
+        XCTAssertNil(PushPayload(userInfo: info(kind: "test")).link, "test still opens nothing")
     }
 
     func testPayloadIsTolerant() {

@@ -28,7 +28,10 @@ enum NotificationCategorySetup {
             actions: [action(PushIdentifiers.actionOpen, "push.action.open", foreground: true)],
             intentIdentifiers: [], options: [])
         let comment = UNNotificationCategory(identifier: PushIdentifiers.comment, actions: [], intentIdentifiers: [], options: [])
-        UNUserNotificationCenter.current().setNotificationCategories([reminder, question, review, comment])
+        // Confirmation requests and the daily brief have no actions: a tap opens the command center.
+        let confirmation = UNNotificationCategory(identifier: PushIdentifiers.confirmation, actions: [], intentIdentifiers: [], options: [])
+        let dailyBrief = UNNotificationCategory(identifier: PushIdentifiers.dailyBrief, actions: [], intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([reminder, question, review, comment, confirmation, dailyBrief])
     }
 }
 

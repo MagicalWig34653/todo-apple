@@ -169,6 +169,11 @@ final class PushCoordinator {
         await update(PushPrefsUpdate(categories: [category: enabled]), client: client)
     }
 
+    /// `utcHour` is what the server stores; the UI converts from the picked local time (`DailyBriefHour`).
+    func setDailyBriefHour(_ utcHour: Int, client: APIClient?) async {
+        await update(PushPrefsUpdate(dailyBriefHour: utcHour), client: client)
+    }
+
     func setShowContent(_ on: Bool, client: APIClient?) async { await update(PushPrefsUpdate(showContent: on), client: client) }
     func setBadge(_ on: Bool, client: APIClient?) async {
         await update(PushPrefsUpdate(badge: on), client: client)
@@ -183,6 +188,7 @@ final class PushCoordinator {
             for (key, value) in change.categories ?? [:] { if let c = PushCategory(rawValue: key) { p.categories[c] = value } }
             if let v = change.showContent { p.showContent = v }
             if let v = change.badge { p.badge = v }
+            if let v = change.dailyBriefHour { p.dailyBriefHour = v }
             prefs = p
         }
         do { prefs = try await client.updatePushPrefs(change); prefsErrorKey = nil }

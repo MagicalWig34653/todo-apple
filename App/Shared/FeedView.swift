@@ -13,6 +13,8 @@ struct FeedView: View {
     var showsSystemStatus = false
     @State private var model = FeedModel()
     @State private var shown: FeedImage?
+    /// Card brought up by a push notification (outline); stays until the person decides or leaves the screen.
+    @State private var highlightedConfirmation: UUID?
 
     /// Today's rows shown inline; the rest is one tap away in "Planen".
     private static let todayLimit = 5
@@ -40,6 +42,7 @@ struct FeedView: View {
 
     var body: some View {
         let today = showsAgentOverview ? todayTasks : []
+        ScrollViewReader { proxy in
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.m) {
                 if showsSystemStatus { SystemStatusBar() }
@@ -64,6 +67,13 @@ struct FeedView: View {
             .readableWidth()
         }
         .background(Color.canvas)
+        .onChange(of: model.confirmationCards.map(\.item.id)) { _, _ in resolveConfirmationFocus(proxy, refreshed: false) }
+        .onChange(of: app.confirmationFocus) { _, focus in
+            // Already on screen (foreground tap): refresh first, the request may be new.
+            guard focus != nil else { return }
+            Task { await reload(); resolveConfirmationFocus(proxy, refreshed: true) }
+        }
+        .task(id: model.state.loaded) { resolveConfirmationFocus(proxy, refreshed: false) }
         // Start tab on iPhone: capture from here too, like the PWA's global "+" (it was the only main tab without it).
         .quickAdd()
         .navigationTitle("view.feed")
@@ -77,7 +87,7 @@ struct FeedView: View {
             }
         }
         .refreshable { await reload() }
-        .task { await reload() }
+        .task { await reload(); resolveConfirmationFocus(proxy, refreshed: true) }
         .task { if showsSystemStatus { await app.systemStatus.poll(app) } }
         .onChange(of: scenePhase) { _, phase in if phase == .active, showsAgentOverview { Task { await app.refreshCommandSummary() } } }
         .sheet(item: $shown) { image in
@@ -95,6 +105,24 @@ struct FeedView: View {
         }
         .alert(LocalizedStringKey(model.errorKey ?? ""), isPresented: Binding(get: { model.errorKey != nil }, set: { if !$0 { model.errorKey = nil } })) {
             Button("ok") {}
+        }
+        } // ScrollViewReader
+    }
+
+    /// A tapped `action_request` push names its request (`AppModel.confirmationFocus`): scroll to the card and outline it.
+    /// If the feed does not list the request (decided elsewhere, expired, unknown id) nothing else happens: "Für dich"
+    /// simply stays open. `refreshed` marks the call after a reload; before that a missing card may just not be loaded yet.
+    private func resolveConfirmationFocus(_ proxy: ScrollViewProxy, refreshed: Bool) {
+        guard let id = app.confirmationFocus else { return }
+        if model.confirmationCards.contains(where: { $0.item.id == id && $0.result == nil }) {
+            app.confirmationFocus = nil
+            highlightedConfirmation = id
+            Task {
+                try? await Task.sleep(for: .milliseconds(150)) // the card is laid out after the feed state changed
+                withAnimation { proxy.scrollTo(id, anchor: .top) }
+            }
+        } else if refreshed, model.state.loaded, !model.loading {
+            app.confirmationFocus = nil
         }
     }
 
@@ -140,9 +168,12 @@ struct FeedView: View {
         VStack(alignment: .leading, spacing: Space.s) {
             Text("confirm.section").font(Font.sectionTitle).foregroundStyle(Color.textSecondary).accessibilityAddTraits(.isHeader)
             ForEach(model.confirmationCards, id: \.item.id) { card in
-                ConfirmationCard(item: card.item, outcome: card.result, busy: model.deciding.contains(card.item.id)) { confirm in
+                ConfirmationCard(item: card.item, outcome: card.result, busy: model.deciding.contains(card.item.id),
+                                 highlighted: highlightedConfirmation == card.item.id && card.result == nil) { confirm in
+                    if highlightedConfirmation == card.item.id { highlightedConfirmation = nil }
                     Task { await model.decide(card.item, confirm: confirm, app) }
                 }
+                .id(card.item.id)
             }
         }
     }

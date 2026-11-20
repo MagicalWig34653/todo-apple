@@ -50,6 +50,10 @@ public enum PushCategory: String, Codable, Sendable, CaseIterable {
     case agentReviews = "agent_reviews"
     case assignments
     case comments
+    /// Agent confirmation requests (`action_request`); additive in contract 1.1.0, default on.
+    case confirmations
+    /// Opt-in daily brief (`daily_brief`); additive in contract 1.1.0, default off.
+    case dailyBrief = "daily_brief"
 }
 
 public struct PushCategories: Codable, Sendable, Equatable {
@@ -58,17 +62,34 @@ public struct PushCategories: Codable, Sendable, Equatable {
     public var agentReviews: Bool
     public var assignments: Bool
     public var comments: Bool
+    public var confirmations: Bool
+    public var dailyBrief: Bool
 
     enum CodingKeys: String, CodingKey {
-        case reminders, assignments, comments
+        case reminders, assignments, comments, confirmations
         case agentQuestions = "agent_questions"
         case agentReviews = "agent_reviews"
+        case dailyBrief = "daily_brief"
     }
 
-    /// Server defaults (ADR 0021).
-    public init(reminders: Bool = true, agentQuestions: Bool = true, agentReviews: Bool = true, assignments: Bool = false, comments: Bool = false) {
+    /// Server defaults (ADR 0021, contract 1.1.0).
+    public init(reminders: Bool = true, agentQuestions: Bool = true, agentReviews: Bool = true, assignments: Bool = false, comments: Bool = false,
+                confirmations: Bool = true, dailyBrief: Bool = false) {
         self.reminders = reminders; self.agentQuestions = agentQuestions; self.agentReviews = agentReviews
         self.assignments = assignments; self.comments = comments
+        self.confirmations = confirmations; self.dailyBrief = dailyBrief
+    }
+
+    /// Servers before contract 1.1.0 do not send `confirmations` and `daily_brief`; those keep their defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        reminders = try c.decode(Bool.self, forKey: .reminders)
+        agentQuestions = try c.decode(Bool.self, forKey: .agentQuestions)
+        agentReviews = try c.decode(Bool.self, forKey: .agentReviews)
+        assignments = try c.decode(Bool.self, forKey: .assignments)
+        comments = try c.decode(Bool.self, forKey: .comments)
+        confirmations = try c.decodeIfPresent(Bool.self, forKey: .confirmations) ?? true
+        dailyBrief = try c.decodeIfPresent(Bool.self, forKey: .dailyBrief) ?? false
     }
 
     public subscript(category: PushCategory) -> Bool {
@@ -79,6 +100,8 @@ public struct PushCategories: Codable, Sendable, Equatable {
             case .agentReviews: agentReviews
             case .assignments: assignments
             case .comments: comments
+            case .confirmations: confirmations
+            case .dailyBrief: dailyBrief
             }
         }
         set {
@@ -88,6 +111,8 @@ public struct PushCategories: Codable, Sendable, Equatable {
             case .agentReviews: agentReviews = newValue
             case .assignments: assignments = newValue
             case .comments: comments = newValue
+            case .confirmations: confirmations = newValue
+            case .dailyBrief: dailyBrief = newValue
             }
         }
     }
@@ -98,9 +123,75 @@ public struct PushPrefs: Codable, Sendable, Equatable {
     /// false (server default): generic texts without task titles on the lock screen.
     public var showContent: Bool
     public var badge: Bool
+    /// UTC hour (0...23) from which the daily brief is sent. nil: the server did not report one (older server);
+    /// the server then uses 8.
+    public var dailyBriefHour: Int?
 
-    public init(categories: PushCategories = .init(), showContent: Bool = false, badge: Bool = true) {
-        self.categories = categories; self.showContent = showContent; self.badge = badge
+    /// True if the server reported the confirmation/daily-brief settings (contract 1.1.0 or newer). Older servers
+    /// answer without them; the UI then hides the two switches instead of showing ones that do nothing.
+    public var supportsBriefSettings: Bool
+
+    public init(categories: PushCategories = .init(), showContent: Bool = false, badge: Bool = true, dailyBriefHour: Int? = nil,
+                supportsBriefSettings: Bool = false) {
+        self.categories = categories; self.showContent = showContent; self.badge = badge; self.dailyBriefHour = dailyBriefHour
+        self.supportsBriefSettings = supportsBriefSettings
+    }
+
+    enum CodingKeys: String, CodingKey { case categories, showContent, badge, dailyBriefHour }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        categories = try c.decode(PushCategories.self, forKey: .categories)
+        showContent = try c.decode(Bool.self, forKey: .showContent)
+        badge = try c.decode(Bool.self, forKey: .badge)
+        dailyBriefHour = try c.decodeIfPresent(Int.self, forKey: .dailyBriefHour)
+        let raw = try c.decodeIfPresent([String: Bool].self, forKey: .categories)
+        supportsBriefSettings = c.contains(.dailyBriefHour) || raw?["daily_brief"] != nil || raw?["confirmations"] != nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(categories, forKey: .categories); try c.encode(showContent, forKey: .showContent)
+        try c.encode(badge, forKey: .badge); try c.encodeIfPresent(dailyBriefHour, forKey: .dailyBriefHour)
+    }
+}
+
+/// The daily brief hour is a UTC hour on the server; people pick a local time.
+public enum DailyBriefHour {
+    public static let defaultUTCHour = 8
+
+    /// Server value, or the default if it is missing or outside 0...23.
+    public static func effective(_ utcHour: Int?) -> Int {
+        guard let utcHour, (0...23).contains(utcHour) else { return defaultUTCHour }
+        return utcHour
+    }
+
+    public struct Option: Equatable, Sendable, Identifiable {
+        public let utcHour: Int
+        /// Local time of day in minutes (whole hours of UTC can land on :30 or :45 in some zones).
+        public let localMinutes: Int
+        public var id: Int { utcHour }
+    }
+
+    /// Minutes since local midnight at which `utcHour` falls (today's offset, so daylight saving is respected).
+    public static func localMinutes(utcHour: Int, now: Date, timeZone: TimeZone) -> Int {
+        var utc = Calendar(identifier: .gregorian); utc.timeZone = TimeZone(secondsFromGMT: 0)!
+        let instant = utc.date(bySettingHour: utcHour, minute: 0, second: 0, of: now) ?? now
+        var local = Calendar(identifier: .gregorian); local.timeZone = timeZone
+        let parts = local.dateComponents([.hour, .minute], from: instant)
+        return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
+    /// The UTC hour that falls on `localMinutes` (minutes since local midnight), nil if no whole UTC hour does
+    /// (e.g. 07:30 in Berlin). This is what the picker stores when somebody chooses a local time.
+    public static func utcHour(localMinutes: Int, now: Date = Date(), timeZone: TimeZone = .current) -> Int? {
+        (0...23).first { Self.localMinutes(utcHour: $0, now: now, timeZone: timeZone) == localMinutes }
+    }
+
+    /// All 24 UTC hours, ordered by local time of day.
+    public static func options(now: Date = Date(), timeZone: TimeZone = .current) -> [Option] {
+        (0...23).map { Option(utcHour: $0, localMinutes: localMinutes(utcHour: $0, now: now, timeZone: timeZone)) }
+            .sorted { $0.localMinutes < $1.localMinutes }
     }
 }
 
@@ -109,10 +200,12 @@ public struct PushPrefsUpdate: Encodable, Sendable, Equatable {
     public var categories: [String: Bool]?
     public var showContent: Bool?
     public var badge: Bool?
+    /// UTC hour 0...23; the server rejects other values with `invalid_daily_brief_hour`.
+    public var dailyBriefHour: Int?
 
-    public init(categories: [PushCategory: Bool]? = nil, showContent: Bool? = nil, badge: Bool? = nil) {
+    public init(categories: [PushCategory: Bool]? = nil, showContent: Bool? = nil, badge: Bool? = nil, dailyBriefHour: Int? = nil) {
         self.categories = categories.map { Dictionary(uniqueKeysWithValues: $0.map { ($0.key.rawValue, $0.value) }) }
-        self.showContent = showContent; self.badge = badge
+        self.showContent = showContent; self.badge = badge; self.dailyBriefHour = dailyBriefHour
     }
 }
 
@@ -151,14 +244,23 @@ extension APIClient {
 /// What a notification wants to open. Pure value so payload mapping is testable without UserNotifications.
 public enum PushLink: Equatable, Sendable {
     case task(taskID: UUID, projectID: UUID?)
-    /// Question or review: the command center with that task's card.
+    /// Question, review or daily brief: the command center, with that task's card if there is one.
     case commandCenter(taskID: UUID?, projectID: UUID?)
     case project(UUID)
+    /// "Für dich" (the feed with the confirmation cards). `requestID` is the confirmation request to bring up; nil or an
+    /// id the feed does not list any more shows just "Für dich".
+    case forYou(requestID: UUID?)
 }
 
 /// The top-level `userInfo` fields the server sends plus `aps.category`, `aps.badge`, `aps.thread-id`.
 public struct PushPayload: Equatable, Sendable {
-    public enum Kind: String, Sendable { case reminder, question, review, comment, test }
+    public enum Kind: String, Sendable {
+        case reminder, question, review, comment, test
+        /// Agent confirmation request: `subjectID` is the request, no task or project.
+        case actionRequest = "action_request"
+        /// Daily brief: no identifiers.
+        case dailyBrief = "daily_brief"
+    }
 
     public let kind: Kind?
     public let taskID: UUID?
@@ -188,7 +290,9 @@ public struct PushPayload: Equatable, Sendable {
         case .reminder, .comment:
             if let taskID { return .task(taskID: taskID, projectID: projectID) }
             return projectID.map(PushLink.project)
-        case .question, .review:
+        case .actionRequest:
+            return .forYou(requestID: subjectID)
+        case .question, .review, .dailyBrief:
             if taskID != nil || projectID != nil { return .commandCenter(taskID: taskID, projectID: projectID) }
             return .commandCenter(taskID: nil, projectID: nil)
         case .test, nil:
@@ -203,6 +307,8 @@ public enum PushIdentifiers {
     public static let question = "TODO_QUESTION"
     public static let review = "TODO_REVIEW"
     public static let comment = "TODO_COMMENT"
+    public static let confirmation = "TODO_CONFIRMATION"
+    public static let dailyBrief = "TODO_DAILY_BRIEF"
     public static let actionDone = "TODO_DONE"
     public static let actionSnooze = "TODO_SNOOZE"
     public static let actionAnswer = "TODO_ANSWER"
