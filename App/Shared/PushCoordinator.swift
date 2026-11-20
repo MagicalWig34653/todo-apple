@@ -183,6 +183,7 @@ final class PushCoordinator {
             for (key, value) in change.categories ?? [:] { if let c = PushCategory(rawValue: key) { p.categories[c] = value } }
             if let v = change.showContent { p.showContent = v }
             if let v = change.badge { p.badge = v }
+            if let v = change.dailyBriefHour { p.dailyBriefHour = v }
             prefs = p
         }
         do { prefs = try await client.updatePushPrefs(change); prefsErrorKey = nil }
