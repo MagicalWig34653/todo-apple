@@ -70,12 +70,40 @@ struct NotificationSettingsSections: View {
             Toggle("push.cat.questions", isOn: binding(.agentQuestions))
             Toggle("push.cat.reviews", isOn: binding(.agentReviews))
             Toggle("push.cat.comments", isOn: binding(.comments))
+            if push.prefs?.supportsBriefSettings == true {
+                Toggle("push.cat.confirmations", isOn: binding(.confirmations))
+                    .accessibilityIdentifier("push.cat.confirmations")
+                Toggle("push.cat.dailyBrief", isOn: binding(.dailyBrief))
+                    .accessibilityIdentifier("push.cat.dailyBrief")
+                if push.prefs?.categories.dailyBrief == true { dailyBriefTime }
+            }
         } header: { Text("push.categories") } footer: {
             VStack(alignment: .leading, spacing: Space.xs) {
                 Text("push.categories.footer")
+                if push.prefs?.supportsBriefSettings == true, push.prefs?.categories.dailyBrief == true {
+                    Text("push.dailyBrief.footer")
+                }
                 if let key = push.prefsErrorKey { Text(LocalizedStringKey(key)).foregroundStyle(Color.dueOverdue) }
             }
         }
+    }
+
+    /// The server stores a UTC hour; the picker shows local times and saves the matching UTC hour.
+    private var dailyBriefTime: some View {
+        Picker("push.dailyBrief.time", selection: Binding(
+            get: { DailyBriefHour.effective(push.prefs?.dailyBriefHour) },
+            set: { hour in Task { await push.setDailyBriefHour(hour, client: app.client) } })) {
+            ForEach(DailyBriefHour.options()) { option in
+                Text(Self.clock(minutes: option.localMinutes)).tag(option.utcHour)
+            }
+        }
+        .accessibilityIdentifier("push.dailyBrief.time")
+    }
+
+    private static func clock(minutes: Int) -> String {
+        let base = Calendar.current.startOfDay(for: Date())
+        let date = Calendar.current.date(byAdding: .minute, value: minutes, to: base) ?? base
+        return date.formatted(date: .omitted, time: .shortened)
     }
 
     private var contentSection: some View {

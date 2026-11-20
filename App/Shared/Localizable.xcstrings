@@ -4452,6 +4452,46 @@
         }
       }
     },
+    "push.cat.confirmations": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestätigungen"
+          }
+        }
+      }
+    },
+    "push.cat.dailyBrief": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tagesbericht"
+          }
+        }
+      }
+    },
+    "push.dailyBrief.time": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uhrzeit"
+          }
+        }
+      }
+    },
+    "push.dailyBrief.footer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Tagesbericht kommt einmal täglich zur gewählten Uhrzeit (Ortszeit) und enthält nur Zahlen, nie Titel. Bei Zeitumstellung verschiebt er sich um eine Stunde."
+          }
+        }
+      }
+    },
     "push.cat.questions": {
       "localizations": {
         "de": {
