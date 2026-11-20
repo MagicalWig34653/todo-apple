@@ -204,6 +204,8 @@ public enum ScheduleError: Error, Equatable, Sendable {
     case invalidLimit
     /// 429 `rate_limited`.
     case rateLimited
+    /// Offline and the sync queue cannot carry this change (a `null` duration); needs the server.
+    case notAvailableOffline
     case other(APIError)
 
     public init(_ error: APIError) {

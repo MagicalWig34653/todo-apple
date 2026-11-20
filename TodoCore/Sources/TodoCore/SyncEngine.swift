@@ -244,7 +244,13 @@ public actor SyncEngine {
             let m = q.mutation
             switch m.type {
             case .taskPlanning:
-                o.planning[m.id] = m.planningData
+                var d = m.planningData
+                // A plain edit (1.4.0 wire) does not carry duration and all-day: the server keeps them, so does the view.
+                if m.plannedAllDay == nil, d.plannedAt != nil, let known = state.planning[m.id] {
+                    d.plannedMinutes = known.plannedMinutes; d.plannedAllDay = known.plannedAllDay
+                }
+                if let known = state.planning[m.id] { d.autoStart = known.autoStart; d.autoStartedAt = known.autoStartedAt }
+                o.planning[m.id] = d
             case .labelCreate:
                 created[m.id] = TaskLabel(id: m.id, name: m.name ?? "")
             case .labelRename:
@@ -379,7 +385,32 @@ public actor SyncEngine {
     /// Replaces the whole planning of the task. A queued, not yet sent planning of the same task is superseded.
     @discardableResult
     public func setPlanning(_ taskID: UUID, _ data: PlanningData) throws -> SyncSnapshot {
-        try enqueue(.planning(taskID: taskID, data))
+        // A queued calendar edit of the same card is superseded: its duration and all-day must not get lost with it.
+        if let queued = state.queue.last(where: { $0.status == .pending && $0.mutation.id == taskID && $0.mutation.isScheduleEdit }) {
+            var merged = data
+            merged.plannedMinutes = queued.mutation.plannedMinutes
+            merged.plannedAllDay = queued.mutation.plannedAllDay ?? false
+            return try enqueue(.schedule(taskID: taskID, merged))
+        }
+        return try enqueue(.planning(taskID: taskID, data))
+    }
+
+    /// Queues a calendar move, resize, all-day or unschedule while the server is not reachable (contract sync 1.5.0: `task.planning`
+    /// is a full replacement, so it is built from the card's current planning, including earlier queued edits, and carries
+    /// duration and all-day). `dueAt` is never changed. A conflict on replay stops the entry for the user to decide.
+    /// Throws `ScheduleError.notFound` for an unknown card and `.notAvailableOffline` for a `null` duration.
+    @discardableResult
+    public func setSchedule(_ taskID: UUID, _ patch: SchedulePatch) throws -> SyncSnapshot {
+        guard state.tasks[taskID] != nil else { throw ScheduleError.notFound }
+        if patch.plannedMinutes == .clear { throw ScheduleError.notAvailableOffline }
+        let current = metaOverlay().planning[taskID] ?? state.planning[taskID] ?? PlanningData()
+        var entry = ScheduleEntry(
+            taskID: taskID, projectID: state.tasks[taskID]?.projectID ?? taskID, title: "", plannedAt: current.plannedAt,
+            plannedMinutes: current.plannedMinutes, plannedAllDay: current.plannedAllDay)
+        entry = patch.applied(to: entry)
+        var next = current
+        next.plannedAt = entry.plannedAt; next.plannedMinutes = entry.plannedMinutes; next.plannedAllDay = entry.plannedAllDay
+        return try enqueue(.schedule(taskID: taskID, next))
     }
 
     @discardableResult
@@ -612,8 +643,10 @@ public actor SyncEngine {
 
     /// Mutation types whose 409 is retried once on the refreshed version before the user is asked: they replace a
     /// whole value (planning, label name), so the newest local edit simply wins, like the former REST write.
-    private static func retriesConflict(_ type: SyncMutationType) -> Bool {
-        type == .taskPlanning || type == .labelRename || type == .labelDelete
+    private static func retriesConflict(_ m: SyncMutation) -> Bool {
+        let type = m.type
+        if m.isScheduleEdit { return false }  // a calendar move must not overwrite the other person's move unasked
+        return type == .taskPlanning || type == .labelRename || type == .labelDelete
     }
 
     /// Older servers answer the 1.4.0 types with `400 unknown_mutation_type` (or an unreasoned 400/422).
@@ -661,7 +694,7 @@ public actor SyncEngine {
                 case _ where m.type.isPlanningSync && Self.isUnknownType(error) && planningSyncSupport != .supported:
                     planningSyncSupport = .unsupported
                     try parkUnsupported(&report)
-                case .versionConflict where Self.retriesConflict(m.type) && (next.autoRetries ?? 0) < 1:
+                case .versionConflict where Self.retriesConflict(m) && (next.autoRetries ?? 0) < 1:
                     // The pull that follows delivers the newer version; then the same edit is sent again.
                     try transact { s in
                         guard let i = s.queue.firstIndex(where: { $0.id == next.id }) else { return }
