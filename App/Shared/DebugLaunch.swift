@@ -235,7 +235,7 @@ enum DebugLaunch {
     }
     #endif
 
-    /// `TODO_DEBUG_SELECT`: feed | projects | today | upcoming | inbox | search | teams | project:<name> | task:<title>
+    /// `TODO_DEBUG_SELECT`: feed | projects | today | upcoming | calendar | inbox | search | teams | project:<name> | task:<title>
     static func navigate(model: AppModel) async {
         guard let target = env["TODO_DEBUG_SELECT"] else { return }
         for _ in 0..<50 where model.phase != .signedIn { try? await Task.sleep(for: .milliseconds(100)) }
@@ -262,6 +262,7 @@ enum DebugLaunch {
         case "brain": model.selection = .brain
         case "commandcenter": model.selection = .commandCenter
         case "now": model.selection = .now
+        case "calendar": model.selection = .calendar
         default:
             if target.hasPrefix("cc:"), let p = model.projects.first(where: { $0.name == String(target.dropFirst(3)) }) {
                 model.selection = .projectCommandCenter(p.id)

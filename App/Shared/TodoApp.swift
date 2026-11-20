@@ -49,6 +49,9 @@ struct RootView: View {
         // Debug screenshots without a server: `TODO_DEBUG_NOW_PREVIEW=full|empty` shows the "Jetzt" screen with sample data.
         if let variant = ProcessInfo.processInfo.environment["TODO_DEBUG_NOW_PREVIEW"] {
             OverviewNowPreviewHost(data: variant == "empty" ? OverviewNow(serverTime: OverviewNowSample.now) : variant == "builds" ? OverviewNowSample.buildsOnly : OverviewNowSample.data)
+        } else if ProcessInfo.processInfo.environment["TODO_DEBUG_CALENDAR_PREVIEW"] != nil {
+            // Same idea for the calendar: sample data, no server (card 8CECAD24, phase 1).
+            CalendarPreviewHost()
         } else { realBody }
         #else
         realBody
@@ -96,6 +99,7 @@ struct AppCommands: Commands {
             Button("view.upcoming") { model.selection = .upcoming }.keyboardShortcut("3")
             Button("view.commandCenter") { model.selection = .commandCenter }.keyboardShortcut("4")
             Button("view.now") { model.selection = .now }.keyboardShortcut("7")
+            Button("view.calendar") { model.selection = .calendar }.keyboardShortcut("8")
             Button("view.labels") { model.selection = .labels }.keyboardShortcut("5")
             Divider()
             Button("view.teams") { model.selection = .teams }.keyboardShortcut("6")

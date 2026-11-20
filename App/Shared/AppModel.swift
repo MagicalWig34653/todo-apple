@@ -8,6 +8,8 @@ enum SidebarItem: Hashable {
     case brain
     /// "Jetzt": what runs, waits and reports in all projects right now.
     case now
+    /// Calendar (card 8CECAD24): planned start, duration and all-day of cards; entry under "Planen".
+    case calendar
     /// Project overview (root of the iPhone "Projekte" tab).
     case projects
     case project(UUID)

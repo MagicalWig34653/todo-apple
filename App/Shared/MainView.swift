@@ -196,7 +196,7 @@ enum PhoneRouting {
         case .feed, .commandCenter, .brain: .forYou
         case .now: .now
         case .projects, .project, .projectCommandCenter: .projects
-        case .today, .upcoming, .inbox, .labels, .label: .plan
+        case .today, .upcoming, .inbox, .labels, .label, .calendar: .plan
         case .search: .search
         case .teams, .account, .runner, .activity: nil
         }
@@ -319,6 +319,10 @@ struct PlanView: View {
             .background(Color.canvas)
         }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink(value: SidebarItem.calendar) { Label("view.calendar", systemImage: "calendar.badge.clock") }
+                    .accessibilityIdentifier("plan.calendar")
+            }
             ToolbarItem(placement: .primaryAction) {
                 NavigationLink(value: SidebarItem.labels) { Label("view.labels", systemImage: "tag") }
                     .accessibilityIdentifier("plan.labels")
