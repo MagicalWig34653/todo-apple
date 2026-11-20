@@ -238,9 +238,12 @@ extension APIClient {
 /// What a notification wants to open. Pure value so payload mapping is testable without UserNotifications.
 public enum PushLink: Equatable, Sendable {
     case task(taskID: UUID, projectID: UUID?)
-    /// Question, review, confirmation request or daily brief: the command center, with that task's card if there is one.
+    /// Question, review or daily brief: the command center, with that task's card if there is one.
     case commandCenter(taskID: UUID?, projectID: UUID?)
     case project(UUID)
+    /// "Für dich" (the feed with the confirmation cards). `requestID` is the confirmation request to bring up; nil or an
+    /// id the feed does not list any more shows just "Für dich".
+    case forYou(requestID: UUID?)
 }
 
 /// The top-level `userInfo` fields the server sends plus `aps.category`, `aps.badge`, `aps.thread-id`.
@@ -281,7 +284,9 @@ public struct PushPayload: Equatable, Sendable {
         case .reminder, .comment:
             if let taskID { return .task(taskID: taskID, projectID: projectID) }
             return projectID.map(PushLink.project)
-        case .question, .review, .actionRequest, .dailyBrief:
+        case .actionRequest:
+            return .forYou(requestID: subjectID)
+        case .question, .review, .dailyBrief:
             if taskID != nil || projectID != nil { return .commandCenter(taskID: taskID, projectID: projectID) }
             return .commandCenter(taskID: nil, projectID: nil)
         case .test, nil:

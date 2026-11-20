@@ -9,6 +9,8 @@ struct ConfirmationCard: View {
     /// Set once decided; the card then shows only the outcome.
     let outcome: ActionRequest?
     let busy: Bool
+    /// Brought up by a tapped push notification: a brand outline and its own accessibility identifier.
+    var highlighted = false
     let decide: (Bool) -> Void
     @State private var step = Step.ask
     @State private var typed = ""
@@ -67,8 +69,13 @@ struct ConfirmationCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
         .overlay(alignment: .topTrailing) { if busy { ProgressView().controlSize(.small).padding(Space.s) } }
+        .overlay {
+            if highlighted {
+                RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.brand, lineWidth: 2).allowsHitTesting(false)
+            }
+        }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("confirm.card")
+        .accessibilityIdentifier(highlighted ? "confirm.card.highlighted" : "confirm.card")
     }
 
     private var secondStep: some View {

@@ -57,6 +57,9 @@ final class AppModel {
     var newProjectRequests = 0
     /// Detail navigation path (task details pushed on the detail stack).
     var path: [TodoTask] = []
+    /// Confirmation request a tapped push notification wants to bring up in "Für dich"; the feed scrolls to its card and
+    /// clears this once the request was found, or after a refresh without it (`FeedView.resolveConfirmationFocus`).
+    var confirmationFocus: UUID?
     var today: [PlanningTask] = []
     var upcoming: [PlanningTask] = []
     var teams: [Team] = []

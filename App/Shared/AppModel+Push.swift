@@ -41,6 +41,11 @@ extension AppModel {
             path = taskID.flatMap { placeholder($0, projectID) }.map { [$0] } ?? []
         case .project(let id):
             if projects.contains(where: { $0.id == id }) { selection = .project(id) }
+        case .forYou(let requestID):
+            // "Für dich" is the entry whatever happens next; the feed looks for the request after its refresh.
+            path = []
+            confirmationFocus = requestID
+            selection = .feed
         }
     }
 
