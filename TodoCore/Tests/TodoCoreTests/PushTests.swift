@@ -72,6 +72,62 @@ final class PushTests: XCTestCase {
         XCTAssertFalse(u.categories[.agentQuestions])
     }
 
+    // MARK: confirmations / daily brief prefs (contract push.yaml 1.1.0)
+
+    func testPrefsDecodeNewKeysFromServer() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":false,"daily_brief":true},"showContent":false,"badge":true,"dailyBriefHour":7}"#)
+        let p = try await client.pushPrefs()
+        XCTAssertFalse(p.categories.confirmations)
+        XCTAssertTrue(p.categories.dailyBrief)
+        XCTAssertFalse(p.categories[.confirmations])
+        XCTAssertTrue(p.categories[.dailyBrief])
+        XCTAssertEqual(p.dailyBriefHour, 7)
+    }
+
+    func testPrefsFromOlderServerKeepDefaults() async throws {
+        // Server before contract 1.1.0: none of the new keys exist.
+        reply(#"{"categories":{"reminders":false,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":true},"showContent":true,"badge":false}"#)
+        let p = try await client.pushPrefs()
+        XCTAssertFalse(p.categories.reminders); XCTAssertTrue(p.categories.comments)
+        XCTAssertTrue(p.categories.confirmations, "default on")
+        XCTAssertFalse(p.categories.dailyBrief, "default off")
+        XCTAssertNil(p.dailyBriefHour)
+        XCTAssertEqual(PushPrefs().categories.confirmations, true)
+        XCTAssertEqual(PushPrefs().categories.dailyBrief, false)
+        XCTAssertNil(PushPrefs().dailyBriefHour)
+    }
+
+    func testPrefsIgnoreUnknownKeysAndNullHour() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":true,"daily_brief":false,"future_category":true},"showContent":false,"badge":true,"dailyBriefHour":null,"somethingNew":{"a":1}}"#)
+        let p = try await client.pushPrefs()
+        XCTAssertNil(p.dailyBriefHour)
+        XCTAssertTrue(p.categories.confirmations); XCTAssertFalse(p.categories.dailyBrief)
+    }
+
+    func testPrefsUpdateSendsOnlySetFields() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":true,"daily_brief":true},"showContent":false,"badge":true,"dailyBriefHour":6}"#)
+        let u = try await client.updatePushPrefs(PushPrefsUpdate(categories: [.dailyBrief: true], dailyBriefHour: 6))
+        let b = body(last)
+        XCTAssertEqual((b["categories"] as? [String: Bool]), ["daily_brief": true], "only the changed category, JSON key daily_brief")
+        XCTAssertEqual(b["dailyBriefHour"] as? Int, 6)
+        XCTAssertNil(b["showContent"]); XCTAssertNil(b["badge"])
+        XCTAssertTrue(u.categories.dailyBrief); XCTAssertEqual(u.dailyBriefHour, 6)
+
+        _ = try await client.updatePushPrefs(PushPrefsUpdate(categories: [.confirmations: false]))
+        let c = body(last)
+        XCTAssertEqual((c["categories"] as? [String: Bool]), ["confirmations": false])
+        XCTAssertNil(c["dailyBriefHour"], "unset hour is not sent")
+
+        _ = try await client.updatePushPrefs(PushPrefsUpdate(badge: false))
+        let d = body(last)
+        XCTAssertNil(d["categories"]); XCTAssertNil(d["dailyBriefHour"])
+    }
+
+    func testCategoryRawValuesMatchContract() {
+        XCTAssertEqual(PushCategory.confirmations.rawValue, "confirmations")
+        XCTAssertEqual(PushCategory.dailyBrief.rawValue, "daily_brief")
+    }
+
     func testOlderServerAnswers404() async {
         reply(404, #"{"reason":"not_found"}"#)
         do { _ = try await client.pushPrefs(); XCTFail("expected error") }
@@ -122,6 +178,45 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(payload.badge, 2)
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
                        .open(.task(taskID: tid, projectID: pid)))
+    }
+
+    /// Real backend forms (`deliverConfirmation`, `deliverDailyBrief`): no taskID/projectID, sorted keys.
+    func testBackendActionRequestPayloadOpensCommandCenter() throws {
+        let json = #"{"aps":{"alert":{"body":"Ein Agent wartet auf deine Bestätigung.","title":"Bestätigung nötig"},"badge":1,"category":"TODO_CONFIRMATION","mutable-content":1,"sound":"default"},"kind":"action_request","subjectID":"\#(sid.uuidString)"}"#
+        let userInfo = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [AnyHashable: Any])
+        let payload = PushPayload(userInfo: userInfo)
+        XCTAssertEqual(payload.kind, .actionRequest)
+        XCTAssertEqual(payload.subjectID, sid)
+        XCTAssertNil(payload.taskID); XCTAssertNil(payload.projectID)
+        XCTAssertEqual(payload.category, PushIdentifiers.confirmation)
+        XCTAssertEqual(payload.category, "TODO_CONFIRMATION")
+        XCTAssertEqual(payload.badge, 1)
+        XCTAssertEqual(payload.link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
+                       .open(.commandCenter(taskID: nil, projectID: nil)))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.actionDone, payload: payload), .none)
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDismiss, payload: payload), .none)
+    }
+
+    func testBackendDailyBriefPayloadOpensCommandCenter() throws {
+        let json = #"{"aps":{"alert":{"body":"3 offen, 1 fällig, 2 Rückfragen","title":"Tagesbericht"},"badge":2,"category":"TODO_DAILY_BRIEF","mutable-content":1,"sound":"default"},"kind":"daily_brief"}"#
+        let userInfo = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [AnyHashable: Any])
+        let payload = PushPayload(userInfo: userInfo)
+        XCTAssertEqual(payload.kind, .dailyBrief)
+        XCTAssertNil(payload.taskID); XCTAssertNil(payload.projectID); XCTAssertNil(payload.subjectID)
+        XCTAssertEqual(payload.category, PushIdentifiers.dailyBrief)
+        XCTAssertEqual(payload.category, "TODO_DAILY_BRIEF")
+        XCTAssertEqual(payload.link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
+                       .open(.commandCenter(taskID: nil, projectID: nil)))
+    }
+
+    func testNewKindsNeverNeedIDsAndUnknownKindsStayNil() {
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request", subject: sid)).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief")).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertNil(PushPayload(userInfo: info(kind: "action_request_v2")).link)
+        XCTAssertNil(PushPayload(userInfo: info(kind: "weekly_brief")).kind)
+        XCTAssertNil(PushPayload(userInfo: info(kind: "test")).link, "test still opens nothing")
     }
 
     func testPayloadIsTolerant() {
