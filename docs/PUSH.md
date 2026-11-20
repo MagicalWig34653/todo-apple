@@ -29,7 +29,9 @@ Umgesetzt über `APS_ENVIRONMENT` in `App/Config/Base.xcconfig` (Debug `developm
 
 ## Einstellungen
 
-Kategorien Erinnerungen, Rückfragen, Reviews, Kommentare (Zuweisungen gibt es serverseitig noch ohne Auslöser, daher nicht in der Oberfläche), "Inhalt anzeigen" (Standard aus: generische Texte ohne Aufgabentitel), "Zähler am App-Symbol". Werte gelten pro Konto, nicht pro Gerät. Systemstatus mit Link in die Systemeinstellungen bei "Nicht erlaubt".
+Kategorien Erinnerungen, Rückfragen, Reviews, Kommentare, Bestätigungen, Tagesbericht (Zuweisungen gibt es serverseitig noch ohne Auslöser, daher nicht in der Oberfläche), "Inhalt anzeigen" (Standard aus: generische Texte ohne Aufgabentitel), "Zähler am App-Symbol". Werte gelten pro Konto, nicht pro Gerät. Systemstatus mit Link in die Systemeinstellungen bei "Nicht erlaubt".
+
+**Bestätigungen und Tagesbericht (Vorschau, Brief freigegeben, noch nicht final).** In derselben Gruppe wie die anderen Kategorien (`NotificationSettingsSections`): "Bestätigungen" (Standard an) und "Tagesbericht" (Standard aus). Nur bei aktivem Tagesbericht erscheint darunter die Auswahl "Uhrzeit" (24 Einträge, nach Ortszeit sortiert, Bezeichnung als Ortszeit im Format des Geräts). Der Server speichert eine UTC-Stunde (`dailyBriefHour`); die Auswahl rechnet mit dem heutigen Offset (`DailyBriefHour.options`), speichert also immer eine ganze UTC-Stunde. Folgen: In Zeitzonen mit halben Stunden erscheinen Einträge wie 13:30; bei Zeitumstellung verschiebt sich die Ortszeit um eine Stunde (die Fußzeile sagt das). Ohne gespeicherten Wert gilt 8 Uhr UTC. Aktualisierung optimistisch wie bei den übrigen Schaltern, bei Fehler Rückfall und derselbe Fehlertext. Ältere Server (Antwort ohne `confirmations`, `daily_brief` und `dailyBriefHour`, `PushPrefs.supportsBriefSettings == false`) blenden beide Schalter und die Uhrzeit aus. Bezeichner für UI-Tests: `push.cat.confirmations`, `push.cat.dailyBrief`, `push.dailyBrief.time`. Bilder: `docs/screenshots/push-einstellungen-apple/`, Aufnahme über `App/UITests/PushSettingsTour.swift`.
 
 ## Bestätigungen und Tagesbericht (Vertrag push.yaml 1.1.0)
 
