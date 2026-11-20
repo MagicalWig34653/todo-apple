@@ -438,3 +438,25 @@ final class ScheduleEditingTests: XCTestCase {
         XCTAssertEqual(Mirror(reflecting: p).children.compactMap(\.label).sorted(), ["plannedAllDay", "plannedAt", "plannedMinutes"])
     }
 }
+
+/// Cards written offline wait in the sync queue; the calendar shows a clock on them until the queue has been sent
+/// (found in the app tour against a real backend: the mark and the hint stayed after the replay).
+final class PendingScheduleWritesTests: XCTestCase {
+    func testAddedCardIsPendingUntilTheQueueIsSent() {
+        var pending = PendingScheduleWrites()
+        let a = UUID(), b = UUID()
+        pending.add(a); pending.add(b)
+        XCTAssertTrue(pending.contains(a)); XCTAssertTrue(pending.contains(b))
+        XCTAssertTrue(pending.queueSent(), "there was something waiting")
+        XCTAssertFalse(pending.contains(a)); XCTAssertFalse(pending.contains(b))
+        XCTAssertFalse(pending.queueSent(), "nothing left to settle the second time")
+    }
+
+    func testAnOnlineWriteRemovesOnlyItsOwnCard() {
+        var pending = PendingScheduleWrites()
+        let a = UUID(), b = UUID()
+        pending.add(a); pending.add(b)
+        pending.remove(a)
+        XCTAssertFalse(pending.contains(a)); XCTAssertTrue(pending.contains(b))
+    }
+}

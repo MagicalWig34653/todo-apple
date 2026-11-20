@@ -50,7 +50,7 @@ struct CalendarScreen: View {
         .task(id: model.window.from) { model.hasRecurrence = { [meta] in meta.planning(for: $0)?.recurrence != nil }; await model.load(app) }
         .refreshable { await model.load(app) }
         // After a reconnect the queue has sent the offline edits: show what the server made of them.
-        .onChange(of: app.unsentChanges) { old, new in if old > 0, new == 0 { Task { await model.load(app, quiet: true) } } }
+        .onChange(of: app.unsentChanges) { old, new in if old > 0, new == 0 { model.queueSent(); Task { await model.load(app, quiet: true) } } }
         .sheet(isPresented: Binding(get: { model.selection != nil }, set: { if !$0 { model.selection = nil } })) {
             if let id = model.selection { CalendarDetailSheet(model: model, id: id).environment(app).environment(meta).tint(.brand) }
         }

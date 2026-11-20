@@ -38,7 +38,7 @@ final class CalendarModel {
     /// Cards with a write in flight: a second write would carry a stale version.
     private(set) var busy: Set<UUID> = []
     /// Writes waiting in the sync queue (shown with a clock until the server has them).
-    private(set) var queued: Set<UUID> = []
+    private(set) var queued = PendingScheduleWrites()
     /// Project names and colors by id (live: from `AppModel`, sample: from the seed).
     private(set) var projectNames: [UUID: String]
     var projectColor: (UUID) -> Color = { Color.project($0) }
@@ -86,6 +86,12 @@ final class CalendarModel {
     func entry(_ id: UUID) -> ScheduleEntry? { entries.first { $0.id == id } ?? unscheduled.first { $0.id == id } }
 
     func dismissNotice() { notice = nil }
+
+    /// The sync queue has been sent (reconnect): the clock marks and the "saved offline" hint are done. Other hints stay.
+    func queueSent() {
+        queued.queueSent()
+        if notice?.kind == .savedOffline { notice = nil }
+    }
 
     // MARK: Navigation
 
@@ -212,7 +218,7 @@ final class CalendarModel {
             rollback(before, .notAvailableOffline)
             return
         }
-        queued.insert(before.id)
+        queued.add(before.id)
         notice = CalendarNotice(kind: .savedOffline)
     }
 

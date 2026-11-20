@@ -310,3 +310,22 @@ public enum ScheduleEditing {
         return patch.isEmpty ? .noChange : .patch(patch)
     }
 }
+
+/// Cards whose schedule write waits in the sync queue (offline). The calendar shows a clock on them; once the queue has been
+/// sent (the replay is done, the server has the plan) everything is settled at once.
+public struct PendingScheduleWrites: Equatable, Sendable {
+    public private(set) var ids: Set<UUID> = []
+
+    public init() {}
+
+    public func contains(_ id: UUID) -> Bool { ids.contains(id) }
+    public mutating func add(_ id: UUID) { ids.insert(id) }
+    public mutating func remove(_ id: UUID) { ids.remove(id) }
+
+    /// The queue is empty again. Returns whether anything was waiting.
+    @discardableResult
+    public mutating func queueSent() -> Bool {
+        defer { ids.removeAll() }
+        return !ids.isEmpty
+    }
+}
