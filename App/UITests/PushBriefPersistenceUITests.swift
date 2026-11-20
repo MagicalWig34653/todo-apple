@@ -55,6 +55,13 @@ final class PushBriefPersistenceUITests: XCTestCase {
 
             let brief = app.switches["push.cat.dailyBrief"]
             XCTAssertTrue(brief.waitForExistence(timeout: 30) || scroll(app, until: brief), "daily brief switch")
+            // Bring the switch into the upper part so the picker row below it is on screen too.
+            let height = app.windows.firstMatch.frame.height
+            for _ in 0..<20 where brief.frame.maxY > height * 0.45 {
+                let window = app.windows.firstMatch
+                window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+                    .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+            }
             XCTAssertEqual(brief.value as? String, "1", "switch is on after a fresh start")
             let time = app.descendants(matching: .any)["push.dailyBrief.time"]
             XCTAssertTrue(time.waitForExistence(timeout: 15), "time picker")

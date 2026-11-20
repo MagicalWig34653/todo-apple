@@ -9,6 +9,7 @@ final class PushNavigationUITests: XCTestCase {
     private struct Confirmation { let id: String; let summary: String }
     private var server = "", token = "", out: String?
     private var confirmations: [Confirmation] = []
+    nonisolated(unsafe) private static var warmedUp = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -18,6 +19,16 @@ final class PushNavigationUITests: XCTestCase {
         }
         self.server = server; self.token = token; out = env["TODO_TOUR_OUT"]
         confirmations = try fetchConfirmations()
+        if !Self.warmedUp {
+            // The first launch after an install may answer 401 to its first requests; a throw-away launch absorbs that.
+            Self.warmedUp = true
+            let warm = XCUIApplication()
+            warm.launchEnvironment["TODO_DEBUG_SERVER"] = server
+            warm.launchEnvironment["TODO_DEBUG_TOKEN"] = token
+            warm.launch()
+            Thread.sleep(forTimeInterval: 8)
+            warm.terminate()
+        }
         try XCTSkipIf(confirmations.count < 2, "needs two pending confirmation requests")
     }
 
