@@ -130,7 +130,7 @@ enum DebugLaunch {
     /// `ImageRenderer` and quits. The app runs with activation policy `.prohibited` (see `AppDelegate`), so no window
     /// appears and nothing is activated. `TODO_DEBUG_RENDER_MODE=hosting` renders an `NSHostingView` in an off-screen
     /// window (never ordered front) instead, for views whose content loads in `.task`.
-    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil }
+    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil || env["TODO_DEBUG_CALENDAR_RENDER"] != nil }
 
     /// `TODO_DEBUG_NOW_RENDER=<dir>`: the "Jetzt" screen with sample data, light and dark, off-screen (no server needed).
     static func renderNowSamples(dir: String) async {
@@ -188,7 +188,41 @@ enum DebugLaunch {
         exit(0)
     }
 
+    /// `TODO_DEBUG_CALENDAR_RENDER=<dir>`: the calendar with sample data in a Mac-sized window, light and dark, off-screen
+    /// (never shown, nothing activated): week grid with side panel, detail sheet content, and the grid after a drag to another slot.
+    static func renderCalendarSamples(dir: String) async {
+        let url = URL(fileURLWithPath: dir)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let shots: [(name: String, size: CGSize, dark: Bool, failure: String?)] = [
+            ("mac-wochenraster-hell", CGSize(width: 1280, height: 820), false, nil),
+            ("mac-wochenraster-dunkel", CGSize(width: 1280, height: 820), true, nil),
+            ("mac-rollback-hinweis-hell", CGSize(width: 1280, height: 820), false, "conflict"),
+        ]
+        for shot in shots {
+            let model = CalendarSeed.model(failure: shot.failure)
+            if shot.failure != nil, let first = model.entries.first(where: { $0.canDrag && $0.plannedAt != nil && !$0.plannedAllDay }) {
+                // The failed write: optimistic move, rollback, hint (the same path as a 409 from the server).
+                await model.submit(first, SchedulePatch(plannedAt: .set((first.plannedAt ?? Date()).addingTimeInterval(7200))), app: AppModel())
+            }
+            let root = CalendarMacRenderRoot(model: model).environment(\.colorScheme, shot.dark ? .dark : .light).preferredColorScheme(shot.dark ? .dark : .light)
+            let host = NSHostingView(rootView: root)
+            host.frame = CGRect(origin: .zero, size: shot.size)
+            let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: shot.dark ? .darkAqua : .aqua)
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .seconds(2))
+            host.layoutSubtreeIfNeeded()
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { exit(2) }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: url.appendingPathComponent("\(shot.name).png"))
+            window.contentView = nil
+        }
+        exit(0)
+    }
+
     static func renderIfRequested(model: AppModel) async {
+        if let dir = env["TODO_DEBUG_CALENDAR_RENDER"] { await renderCalendarSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_VARIANTS_RENDER"] { await renderVariantsSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_NOW_RENDER"] { await renderNowSamples(dir: dir); return }
         guard let spec = env["TODO_DEBUG_RENDER"] else { return }

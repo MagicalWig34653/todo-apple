@@ -29,8 +29,10 @@ struct CalendarDayList: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            // At accessibility sizes the week title gives way to the controls: the cards must stay reachable above the fold.
+            // Accessibility sizes: the full week title wraps and the controls sit below it; everything scrolls with the page.
             if typeSize.isAccessibilitySize {
+                Text(verbatim: CalendarFormat.weekTitle(model.window, calendar: model.calendar))
+                    .font(.sectionTitle).foregroundStyle(Color.textSecondary)
                 CalendarWeekControls(model: model)
             } else {
                 HStack(spacing: Space.s) {
@@ -90,16 +92,23 @@ struct CalendarDayList: View {
             VStack(spacing: Space.s) {
                 ForEach(rows) { row in
                     switch row {
-                    case .planned(let e):
-                        CalendarEntryCard(entry: e, marks: CalendarMark.marks(for: e, conflicts: model.marks(for: e), calendar: model.calendar),
-                                          projectName: model.projectName(e.projectID), projectColor: model.projectColor(e.projectID))
-                    case .dueOnly(let e):
-                        CalendarEntryCard(entry: e, marks: CalendarMark.marks(for: e, conflicts: model.marks(for: e), calendar: model.calendar).filter { !$0.isDue },
-                                          projectName: model.projectName(e.projectID), projectColor: model.projectColor(e.projectID))
+                    case .planned(let e): card(e, marks: model.cardMarks(e))
+                    case .dueOnly(let e): card(e, marks: model.cardMarks(e).filter { !$0.isDue })
                     }
                 }
             }
         }
+    }
+
+    /// Tap opens the detail (full title, start, duration, due date); long press offers "Start und Dauer" and "Entplanen".
+    private func card(_ e: ScheduleEntry, marks: [CalendarMark]) -> some View {
+        Button { model.openDetail(e.id) } label: {
+            CalendarEntryCard(entry: e, marks: marks, projectName: model.projectName(e.projectID), projectColor: model.projectColor(e.projectID))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("calendar.card.\(e.title)")
+        .calendarMenu(model, e)
     }
 
     // MARK: "Ohne Termin"
@@ -202,6 +211,12 @@ struct CalendarUnscheduledSheet: View {
     let model: CalendarModel
     @Environment(\.dismiss) private var dismiss
 
+    /// Closes the sheet first: two sheets of one screen cannot swap in the same frame.
+    private func open(_ id: UUID) {
+        dismiss()
+        Task { try? await Task.sleep(for: .milliseconds(450)); model.openDetail(id) }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -211,7 +226,12 @@ struct CalendarUnscheduledSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     ForEach(model.unscheduled) { e in
-                        UnscheduledCard(entry: e, projectName: model.projectName(e.projectID), projectColor: model.projectColor(e.projectID))
+                        Button { open(e.id) } label: {
+                            UnscheduledCard(entry: e, projectName: model.projectName(e.projectID), projectColor: model.projectColor(e.projectID))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(.isButton)
+                        .calendarMenu(model, e)
                     }
                 }
                 .pageMargins().padding(.vertical, Space.s)

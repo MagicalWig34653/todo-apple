@@ -482,6 +482,13 @@ final class AppModel {
         catch { await handle(error); return false }
     }
 
+    /// Calendar write while the server cannot be reached (card 8CECAD24): goes into the sync queue as `task.planning` with
+    /// duration and all-day (contract 1.5.0) and is sent on reconnect; a conflict on replay shows the usual sync dialog.
+    /// False if it cannot be queued (REST fallback, server before 1.4.0, unknown card, `null` duration).
+    func queueSchedule(taskID: UUID, _ patch: SchedulePatch) async -> Bool {
+        await queueMeta { try await $0.setSchedule(taskID, patch) }
+    }
+
     func setLabel(_ label: TaskLabel, on taskID: UUID, enabled: Bool) async {
         if await queueMeta({ e in try await e.setLabel(await e.resolvedLabelID(label), on: taskID, enabled: enabled) }) { return }
         if let outbox, !usesREST {

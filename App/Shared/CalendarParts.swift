@@ -62,7 +62,7 @@ enum CalendarFormat {
 enum CalendarMark: Hashable {
     /// `showsDay`: the due date is not on the card's own day, so the weekday is part of the text.
     case due(Date, showsDay: Bool), afterDue, prerequisiteLater, prerequisiteOpen, repositoryOverlap
-    case autoStart, autoStarted, done, readOnly
+    case autoStart, autoStarted, done, readOnly, pending
 
     var symbol: String {
         switch self {
@@ -75,6 +75,7 @@ enum CalendarMark: Hashable {
         case .autoStarted: "bolt.badge.checkmark.fill"
         case .done: "checkmark.circle.fill"
         case .readOnly: "lock.fill"
+        case .pending: "clock.arrow.circlepath"
         }
     }
 
@@ -89,6 +90,7 @@ enum CalendarMark: Hashable {
         case .autoStarted: String(localized: "calendar.autoStarted")
         case .done: String(localized: "calendar.done")
         case .readOnly: String(localized: "calendar.readOnly")
+        case .pending: String(localized: "calendar.pending")
         }
     }
 
@@ -98,6 +100,7 @@ enum CalendarMark: Hashable {
         case .prerequisiteLater, .prerequisiteOpen, .repositoryOverlap: .dueTomorrow
         case .autoStart: .chipPurple
         case .autoStarted: .chipTeal
+        case .pending: .brand
         case .due, .done, .readOnly: .textSecondary
         }
     }
@@ -112,8 +115,9 @@ enum CalendarMark: Hashable {
     }
 
     /// The marks of a card in a fixed order: due, conflicts, auto-start, state.
-    static func marks(for entry: ScheduleEntry, conflicts: [ScheduleConflict], calendar: Calendar = .current) -> [CalendarMark] {
+    static func marks(for entry: ScheduleEntry, conflicts: [ScheduleConflict], calendar: Calendar = .current, pending: Bool = false) -> [CalendarMark] {
         var marks: [CalendarMark] = []
+        if pending { marks.append(.pending) }
         if let due = entry.dueAt {
             let sameDay = entry.start.map { calendar.isDate(due, inSameDayAs: $0) } ?? true
             marks.append(.due(due, showsDay: !sameDay))

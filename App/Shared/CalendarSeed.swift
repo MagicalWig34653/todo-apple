@@ -12,14 +12,24 @@ enum CalendarSeed {
 
     static let projectNames: [UUID: String] = [apple: "Todolino Apple", backend: "Todolino Backend", home: "Umzug", privacy: "Datenschutz"]
 
-    @MainActor static func model(reference: Date = AppClock.now, calendar: Calendar = .current) -> CalendarModel {
+    /// `failure`: `conflict`, `done`, `readOnly`, `recurrence`, `failed` (the next write of the sample fails like that, for screenshots of the rollback hint).
+    @MainActor static func model(reference: Date = AppClock.now, calendar: Calendar = .current, failure: String? = nil) -> CalendarModel {
         let day = calendar.startOfDay(for: reference)
         let window = CalendarWindow.week(containing: day, calendar: calendar)
         var entries = busyDay(day, calendar: calendar)
         for (index, other) in window.days.enumerated() where !calendar.isDate(other, inSameDayAs: day) {
             entries += quietDay(other, index: index, calendar: calendar)
         }
-        return CalendarModel(entries: entries, unscheduled: unscheduled(day, calendar: calendar), projectNames: projectNames, selectedDay: day, calendar: calendar)
+        let model = CalendarModel(entries: entries, unscheduled: unscheduled(day, calendar: calendar), projectNames: projectNames, selectedDay: day, calendar: calendar)
+        switch failure {
+        case "conflict": model.sampleFailure = .versionConflict
+        case "done": model.sampleFailure = .taskDone
+        case "readOnly": model.sampleFailure = .readOnly
+        case "recurrence": model.sampleFailure = .recurrenceRequiresDate
+        case "failed": model.sampleFailure = .other(.invalidResponse)
+        default: break
+        }
+        return model
     }
 
     private static func at(_ day: Date, _ hour: Int, _ minute: Int = 0, calendar: Calendar) -> Date {
@@ -78,9 +88,20 @@ enum CalendarSeed {
 /// Root of the server-free preview (`TODO_DEBUG_CALENDAR_PREVIEW=1`), used for screenshots by the UI tour.
 struct CalendarPreviewHost: View {
     @State private var app = AppModel()
+    @State private var meta = TaskMeta()
     var body: some View {
-        NavigationStack { CalendarScreen(model: CalendarSeed.model()) }
-            .environment(app).tint(.brand)
+        NavigationStack { CalendarScreen(model: CalendarSeed.model(failure: ProcessInfo.processInfo.environment["TODO_DEBUG_CALENDAR_FAIL"])) }
+            .environment(app).environment(meta).tint(.brand)
+    }
+}
+
+/// Mac render root: the calendar screen with the environment the app gives it (no server).
+struct CalendarMacRenderRoot: View {
+    let model: CalendarModel
+    @State private var app = AppModel()
+    @State private var meta = TaskMeta()
+    var body: some View {
+        NavigationStack { CalendarScreen(model: model) }.environment(app).environment(meta).tint(.brand)
     }
 }
 #endif

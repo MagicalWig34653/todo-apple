@@ -105,6 +105,7 @@ struct CalendarWeekView: View {
             ForEach(model.window.days, id: \.self) { day in
                 CalendarDayHeader(day: day, isToday: model.calendar.isDate(day, inSameDayAs: model.today))
                     .frame(maxWidth: .infinity)
+                    .modifier(CalendarDropZone(model: model) { _ in .allDay(day: day) })
             }
         }
         .padding(.bottom, Space.xs)
@@ -117,12 +118,15 @@ struct CalendarWeekView: View {
             ForEach(model.window.days, id: \.self) { day in
                 VStack(spacing: Space.xxs) {
                     ForEach(model.content(for: day).allDay) { e in
-                        CalendarAllDayChip(entry: e, marks: CalendarMark.marks(for: e, conflicts: model.marks(for: e), calendar: model.calendar),
-                                           color: model.projectColor(e.projectID))
+                        CalendarAllDayChip(entry: e, marks: model.cardMarks(e), color: model.projectColor(e.projectID))
+                            .onTapGesture { model.openDetail(e.id) }
+                            .calendarDraggable(e)
+                            .calendarMenu(model, e)
                     }
                 }
                 .padding(Space.xxs)
                 .frame(maxWidth: .infinity, minHeight: Space.xl, alignment: .top)
+                .modifier(CalendarDropZone(model: model) { _ in .allDay(day: day) })
             }
         }
         .padding(.bottom, Space.xs)
@@ -209,8 +213,10 @@ struct CalendarDayColumn: View {
     var body: some View {
         DayBlocksLayout(hourHeight: hourHeight) {
             ForEach(content.timed) { placed in
-                CalendarBlock(placed: placed, marks: CalendarMark.marks(for: placed.entry, conflicts: model.marks(for: placed.entry), calendar: model.calendar),
-                              color: model.projectColor(placed.entry.projectID))
+                CalendarBlock(placed: placed, marks: model.cardMarks(placed.entry), color: model.projectColor(placed.entry.projectID))
+                    .onTapGesture { model.openDetail(placed.entry.id) }
+                    .calendarDraggable(placed.entry)
+                    .calendarMenu(model, placed.entry)
                     .daySlot(.block(start: placed.startMinute, end: placed.endMinute, column: placed.column, columns: placed.columnCount))
             }
             ForEach(content.due) { e in
@@ -222,6 +228,9 @@ struct CalendarDayColumn: View {
         }
         .frame(height: hourHeight * CGFloat(CalendarMetrics.hoursPerDay))
         .background { CalendarGridLines(hourHeight: hourHeight) }
+        .modifier(CalendarDropZone(model: model) { point in
+            .slot(day: content.day, minute: Int((point.y / hourHeight * 60).rounded(.down)))
+        })
         .overlay(alignment: .leading) { Rectangle().fill(Color.hairline).frame(width: 0.5) }
     }
 
@@ -325,15 +334,42 @@ struct CalendarSidePanel: View {
                     }
                     ForEach(model.unscheduled) { e in
                         UnscheduledCard(entry: e, projectName: model.projectName(e.projectID), projectColor: model.projectColor(e.projectID))
+                            .onTapGesture { model.openDetail(e.id) }
+                            .accessibilityAddTraits(.isButton)
+                            .calendarDraggable(e)
+                            .calendarMenu(model, e)
                     }
                 }
             }
             .scrollIndicators(.hidden)
         }
+        .modifier(CalendarDropZone(model: model) { _ in .unscheduled })
         .padding(Space.m)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Color.canvasRaised)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("calendar.sidePanel")
+    }
+}
+
+// MARK: Drop zone (grid column, day header, all-day row, sidebar)
+
+/// Accepts a dragged calendar card; the target comes from the drop position. The decision (snap to 15 minutes, all-day,
+/// refusals) and the write are the model's; a highlight shows the zone under the pointer.
+struct CalendarDropZone: ViewModifier {
+    let model: CalendarModel
+    let target: (CGPoint) -> DropTarget
+    @Environment(AppModel.self) private var app
+    @State private var targeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay { if targeted { Color.brand.opacity(0.10).allowsHitTesting(false) } }
+            .dropDestination(for: CalendarDrag.self) { items, location in
+                guard let item = items.first else { return false }
+                let destination = target(location)
+                Task { await model.drop(item.calendarTaskID, onto: destination, app: app) }
+                return true
+            } isTargeted: { targeted = $0 }
     }
 }

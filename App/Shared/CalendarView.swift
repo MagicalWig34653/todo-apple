@@ -7,6 +7,7 @@ import TodoCore
 /// Dragging, writing and offline come in phase 2 (docs/CALENDAR.md).
 struct CalendarScreen: View {
     @Environment(AppModel.self) private var app
+    @Environment(TaskMeta.self) private var meta
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     /// Seeded once with the live model or a sample model; the screen owns it afterwards.
@@ -41,10 +42,18 @@ struct CalendarScreen: View {
             }
         }
         .background(Color.canvas)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if model.notice != nil { CalendarNoticeBanner(model: model).padding(.vertical, Space.xs).frame(maxWidth: .infinity).background(Color.canvas) }
+        }
         .toolbarTitleDisplayMode(.inline)
         .navigationTitle("view.calendar")
-        .task(id: model.window.from) { await model.load(app) }
+        .task(id: model.window.from) { model.hasRecurrence = { [meta] in meta.planning(for: $0)?.recurrence != nil }; await model.load(app) }
         .refreshable { await model.load(app) }
+        // After a reconnect the queue has sent the offline edits: show what the server made of them.
+        .onChange(of: app.unsentChanges) { old, new in if old > 0, new == 0 { Task { await model.load(app, quiet: true) } } }
+        .sheet(isPresented: Binding(get: { model.selection != nil }, set: { if !$0 { model.selection = nil } })) {
+            if let id = model.selection { CalendarDetailSheet(model: model, id: id).environment(app).environment(meta).tint(.brand) }
+        }
     }
 }
 
@@ -53,8 +62,9 @@ struct CalendarScreen: View {
 #if DEBUG
 private struct CalendarPreviewFrame<Content: View>: View {
     @State private var app = AppModel()
+    @State private var meta = TaskMeta()
     @ViewBuilder var content: () -> Content
-    var body: some View { NavigationStack { content() }.environment(app).tint(.brand) }
+    var body: some View { NavigationStack { content() }.environment(app).environment(meta).tint(.brand) }
 }
 
 #Preview("Calendar light") { CalendarPreviewFrame { CalendarScreen(model: CalendarSeed.model()) }.preferredColorScheme(.light) }
@@ -89,7 +99,7 @@ private struct CalendarCardGallery: View {
         ScrollView {
             VStack(spacing: Space.s) {
                 ForEach(model.selectedContent.timed.prefix(4)) { placed in
-                    CalendarEntryCard(entry: placed.entry, marks: CalendarMark.marks(for: placed.entry, conflicts: model.marks(for: placed.entry)),
+                    CalendarEntryCard(entry: placed.entry, marks: model.cardMarks(placed.entry),
                                       projectName: model.projectName(placed.entry.projectID), projectColor: model.projectColor(placed.entry.projectID))
                 }
                 if let e = model.unscheduled.last {
