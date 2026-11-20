@@ -123,6 +123,47 @@ final class PushTests: XCTestCase {
         XCTAssertNil(d["categories"]); XCTAssertNil(d["dailyBriefHour"])
     }
 
+    func testBriefSettingsSupportIsDetectedFromServerAnswer() async throws {
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false},"showContent":false,"badge":true}"#)
+        let old = try await client.pushPrefs()
+        XCTAssertFalse(old.supportsBriefSettings, "server before 1.1.0: confirmation/brief switches stay hidden")
+        reply(#"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false,"confirmations":true,"daily_brief":false},"showContent":false,"badge":true,"dailyBriefHour":8}"#)
+        let current = try await client.pushPrefs()
+        XCTAssertTrue(current.supportsBriefSettings)
+        XCTAssertFalse(PushPrefs().supportsBriefSettings)
+    }
+
+    // MARK: daily brief hour (UTC on the server, local time in the UI)
+
+    private func zone(_ id: String) -> TimeZone { TimeZone(identifier: id)! }
+    private func date(_ iso: String) -> Date { ISO8601DateFormatter().date(from: iso)! }
+
+    func testDailyBriefOptionsCoverAllUTCHoursSortedByLocalTime() {
+        let options = DailyBriefHour.options(now: date("2026-11-20T12:00:00Z"), timeZone: zone("Europe/Berlin"))
+        XCTAssertEqual(options.count, 24)
+        XCTAssertEqual(Set(options.map(\.utcHour)), Set(0...23))
+        XCTAssertEqual(options.map(\.localMinutes), options.map(\.localMinutes).sorted())
+        // Winter: Berlin = UTC+1.
+        XCTAssertEqual(options.first { $0.utcHour == 8 }?.localMinutes, 9 * 60)
+        XCTAssertEqual(options.first { $0.utcHour == 23 }?.localMinutes, 0)
+        XCTAssertEqual(options.first?.utcHour, 23)
+    }
+
+    func testDailyBriefOptionsFollowDaylightSavingAndHalfHourZones() {
+        let summer = DailyBriefHour.options(now: date("2026-07-20T12:00:00Z"), timeZone: zone("Europe/Berlin"))
+        XCTAssertEqual(summer.first { $0.utcHour == 8 }?.localMinutes, 10 * 60, "UTC+2 in summer")
+        let india = DailyBriefHour.options(now: date("2026-11-20T12:00:00Z"), timeZone: zone("Asia/Kolkata"))
+        XCTAssertEqual(india.first { $0.utcHour == 8 }?.localMinutes, 13 * 60 + 30)
+        XCTAssertEqual(DailyBriefHour.localMinutes(utcHour: 8, now: date("2026-11-20T12:00:00Z"), timeZone: zone("America/New_York")), 3 * 60)
+    }
+
+    func testDailyBriefHourDefaultAndClamp() {
+        XCTAssertEqual(DailyBriefHour.defaultUTCHour, 8)
+        XCTAssertEqual(DailyBriefHour.effective(nil), 8)
+        XCTAssertEqual(DailyBriefHour.effective(5), 5)
+        XCTAssertEqual(DailyBriefHour.effective(99), 8, "out-of-range server value falls back to the default")
+    }
+
     func testCategoryRawValuesMatchContract() {
         XCTAssertEqual(PushCategory.confirmations.rawValue, "confirmations")
         XCTAssertEqual(PushCategory.dailyBrief.rawValue, "daily_brief")
