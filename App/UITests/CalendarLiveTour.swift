@@ -34,13 +34,15 @@ final class CalendarLiveTour: XCTestCase {
         try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "\(out)/live-vorher.png"))
         let before = b.frame.minY
         let from = b.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
-        from.press(forDuration: 1.0, thenDragTo: from.withOffset(CGVector(dx: 0, dy: 156)), withVelocity: .slow, thenHoldForDuration: 1.0)
+        from.press(forDuration: 0.5, thenDragTo: from.withOffset(CGVector(dx: 0, dy: 156)), withVelocity: .slow, thenHoldForDuration: 1.0)
         Thread.sleep(forTimeInterval: 4)
         let moved = block(app, "Termin B")
         XCTAssertTrue(moved.waitForExistence(timeout: 10))
         let after = moved.frame.minY
-        XCTAssertGreaterThan(after, before + 100, "the block moved down")
         try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "\(out)/live-nachher.png"))
+        let notice = app.descendants(matching: .any)["calendar.notice"]
+        XCTAssertFalse(notice.exists, "hint: \(notice.label)")
+        XCTAssertGreaterThan(after, before + 100, "the block moved down (frame \(b.frame) -> \(moved.frame))")
         app.terminate()
 
         // Fresh start: the plan comes from the server, the block stays where it was dropped.
