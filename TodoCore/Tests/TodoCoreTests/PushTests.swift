@@ -222,7 +222,7 @@ final class PushTests: XCTestCase {
     }
 
     /// Real backend forms (`deliverConfirmation`, `deliverDailyBrief`): no taskID/projectID, sorted keys.
-    func testBackendActionRequestPayloadOpensCommandCenter() throws {
+    func testBackendActionRequestPayloadOpensConfirmationInForYou() throws {
         let json = #"{"aps":{"alert":{"body":"Ein Agent wartet auf deine Bestätigung.","title":"Bestätigung nötig"},"badge":1,"category":"TODO_CONFIRMATION","mutable-content":1,"sound":"default"},"kind":"action_request","subjectID":"\#(sid.uuidString)"}"#
         let userInfo = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [AnyHashable: Any])
         let payload = PushPayload(userInfo: userInfo)
@@ -232,9 +232,9 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(payload.category, PushIdentifiers.confirmation)
         XCTAssertEqual(payload.category, "TODO_CONFIRMATION")
         XCTAssertEqual(payload.badge, 1)
-        XCTAssertEqual(payload.link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(payload.link, .forYou(requestID: sid))
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: payload),
-                       .open(.commandCenter(taskID: nil, projectID: nil)))
+                       .open(.forYou(requestID: sid)))
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.actionDone, payload: payload), .none)
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDismiss, payload: payload), .none)
     }
@@ -252,8 +252,26 @@ final class PushTests: XCTestCase {
                        .open(.commandCenter(taskID: nil, projectID: nil)))
     }
 
+    func testActionRequestWithoutOrWithBrokenSubjectOpensForYouOnly() {
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request")).link, .forYou(requestID: nil))
+        XCTAssertEqual(PushPayload(userInfo: ["kind": "action_request", "subjectID": "not-a-uuid", "aps": ["category": "TODO_CONFIRMATION"]]).link,
+                       .forYou(requestID: nil), "an unusable id never falls back to the command center")
+        // A task or project id on the payload (not sent by the backend today) does not change the destination.
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request", task: tid, project: pid, subject: sid)).link, .forYou(requestID: sid))
+        XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: PushPayload(userInfo: info(kind: "action_request"))),
+                       .open(.forYou(requestID: nil)))
+    }
+
+    func testOtherKindsKeepTheirDestinations() {
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "question", task: tid, project: pid)).link, .commandCenter(taskID: tid, projectID: pid))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "review", subject: sid)).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief")).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief", subject: sid)).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertNil(PushPayload(userInfo: info(kind: "test")).link)
+    }
+
     func testNewKindsNeverNeedIDsAndUnknownKindsStayNil() {
-        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request", subject: sid)).link, .commandCenter(taskID: nil, projectID: nil))
+        XCTAssertEqual(PushPayload(userInfo: info(kind: "action_request", subject: sid)).link, .forYou(requestID: sid))
         XCTAssertEqual(PushPayload(userInfo: info(kind: "daily_brief")).link, .commandCenter(taskID: nil, projectID: nil))
         XCTAssertNil(PushPayload(userInfo: info(kind: "action_request_v2")).link)
         XCTAssertNil(PushPayload(userInfo: info(kind: "weekly_brief")).kind)
