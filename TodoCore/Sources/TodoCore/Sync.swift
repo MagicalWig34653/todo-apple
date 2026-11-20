@@ -110,6 +110,10 @@ public struct SyncMutation: Codable, Sendable, Equatable {
     public var priority: Int?
     public var recurrence: RecurrenceRule?
     public var reminders: [Date]?
+    /// task.planning (contract 1.5.0): adopted by the server only if sent (absent keeps the stored value). Plain planning
+    /// edits leave both nil; calendar edits (`schedule`) always send both.
+    public var plannedMinutes: Int?
+    public var plannedAllDay: Bool?
     /// task.label_add / task.label_remove (`id` is the task).
     public var labelID: UUID?
 
@@ -118,7 +122,8 @@ public struct SyncMutation: Codable, Sendable, Equatable {
         parentID: UUID? = nil, moveToRoot: Bool? = nil, projectID: UUID? = nil, title: String? = nil,
         description: String? = nil, status: String? = nil, color: String? = nil, isDone: Bool? = nil,
         index: Int? = nil, moveTo: String? = nil, columnID: UUID? = nil, dueAt: Date? = nil, plannedAt: Date? = nil,
-        priority: Int? = nil, recurrence: RecurrenceRule? = nil, reminders: [Date]? = nil, labelID: UUID? = nil
+        priority: Int? = nil, recurrence: RecurrenceRule? = nil, reminders: [Date]? = nil, labelID: UUID? = nil,
+        plannedMinutes: Int? = nil, plannedAllDay: Bool? = nil
     ) {
         self.mutationID = mutationID
         self.type = type
@@ -142,6 +147,8 @@ public struct SyncMutation: Codable, Sendable, Equatable {
         self.recurrence = recurrence
         self.reminders = reminders
         self.labelID = labelID
+        self.plannedMinutes = plannedMinutes
+        self.plannedAllDay = plannedAllDay
     }
 
     /// `task.planning` carrying the whole planning of the task.
@@ -151,9 +158,22 @@ public struct SyncMutation: Codable, Sendable, Equatable {
             priority: data.priority, recurrence: data.recurrence, reminders: data.reminders)
     }
 
-    /// The planning a `task.planning` mutation sets.
+    /// `task.planning` of a calendar edit (contract 1.5.0): the whole planning plus duration and all-day, both always sent.
+    /// Without a start the server clears both anyway (a `null` duration cannot be expressed here and is never needed).
+    public static func schedule(taskID: UUID, _ data: PlanningData, mutationID: UUID = UUID()) -> SyncMutation {
+        SyncMutation(
+            mutationID: mutationID, type: .taskPlanning, id: taskID, dueAt: data.dueAt, plannedAt: data.plannedAt,
+            priority: data.priority, recurrence: data.recurrence, reminders: data.reminders,
+            plannedMinutes: data.plannedAt == nil ? nil : data.plannedMinutes, plannedAllDay: data.plannedAt == nil ? false : data.plannedAllDay)
+    }
+
+    /// A calendar edit (sends `plannedAllDay`); it is not retried silently on a version conflict.
+    public var isScheduleEdit: Bool { type == .taskPlanning && plannedAllDay != nil }
+
+    /// The planning a `task.planning` mutation sets. Duration and all-day only if the mutation carries them.
     public var planningData: PlanningData {
-        PlanningData(dueAt: dueAt, plannedAt: plannedAt, priority: priority ?? 0, recurrence: recurrence, reminders: reminders ?? [])
+        PlanningData(dueAt: dueAt, plannedAt: plannedAt, priority: priority ?? 0, recurrence: recurrence, reminders: reminders ?? [],
+                     plannedMinutes: plannedMinutes, plannedAllDay: plannedAllDay ?? false)
     }
 }
 

@@ -33,6 +33,10 @@ final class LiveHub {
     /// Account signed in (idempotent per account). The loop only runs while `setForeground(true)`.
     func begin(_ model: AppModel) {
         guard let client = model.client, let id = model.user?.id else { return }
+        #if DEBUG
+        // Local tours: `TODO_DEBUG_LIVE_OFF=1` keeps the app deliberately stale (a second client's change must not refresh it).
+        if ProcessInfo.processInfo.environment["TODO_DEBUG_LIVE_OFF"] == "1" { return }
+        #endif
         if accountID == id, live != nil { return }
         end()
         accountID = id

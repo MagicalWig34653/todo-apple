@@ -8,6 +8,8 @@ enum SidebarItem: Hashable {
     case brain
     /// "Jetzt": what runs, waits and reports in all projects right now.
     case now
+    /// Calendar (card 8CECAD24): planned start, duration and all-day of cards; entry under "Planen".
+    case calendar
     /// Project overview (root of the iPhone "Projekte" tab).
     case projects
     case project(UUID)
@@ -478,6 +480,13 @@ final class AppModel {
         guard let client else { return false }
         do { apply(try await client.setPlanning(taskID: taskID, data).task); await reloadAgenda(); metaRevision += 1; return true }
         catch { await handle(error); return false }
+    }
+
+    /// Calendar write while the server cannot be reached (card 8CECAD24): goes into the sync queue as `task.planning` with
+    /// duration and all-day (contract 1.5.0) and is sent on reconnect; a conflict on replay shows the usual sync dialog.
+    /// False if it cannot be queued (REST fallback, server before 1.4.0, unknown card, `null` duration).
+    func queueSchedule(taskID: UUID, _ patch: SchedulePatch) async -> Bool {
+        await queueMeta { try await $0.setSchedule(taskID, patch) }
     }
 
     func setLabel(_ label: TaskLabel, on taskID: UUID, enabled: Bool) async {

@@ -63,6 +63,7 @@ struct SidebarList: View {
                 Section(isExpanded: $planExpanded) {
                     row(.today, "view.today", "sun.max.fill", .tileGreen, count: model.today.count + meta.overdue.count)
                     row(.upcoming, "view.upcoming", "calendar", .tileOrange)
+                    row(.calendar, "view.calendar", "calendar.badge.clock", .tilePurple)
                     row(.inbox, "view.inbox", "tray.fill", .tileBlue, count: inboxCount)
                     row(.labels, "view.labels", "tag.fill", .tileTeal)
                 } header: { Text("view.plan") }
@@ -331,6 +332,7 @@ struct SidebarScreen: View {
         case .brain: BrainView()
         case .commandCenter: CommandCenterView(projectID: nil)
         case .now: OverviewNowView()
+        case .calendar: CalendarScreen()
         case .projectCommandCenter(let id): CommandCenterView(projectID: id).id(id)
         case .project(let id): ProjectView(projectID: id).id(id)
         }

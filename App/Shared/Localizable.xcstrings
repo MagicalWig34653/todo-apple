@@ -7932,6 +7932,672 @@
           }
         }
       }
+    },
+    "view.calendar": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalender"
+          }
+        }
+      }
+    },
+    "calendar.unscheduled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Termin"
+          }
+        }
+      }
+    },
+    "calendar.unscheduledCount %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Karte ohne Termin"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Karten ohne Termin"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "calendar.unscheduled.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles eingeplant"
+          }
+        }
+      }
+    },
+    "calendar.unscheduled.emptyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karten ohne geplanten Start erscheinen hier."
+          }
+        }
+      }
+    },
+    "calendar.allDay": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ganztägig"
+          }
+        }
+      }
+    },
+    "calendar.due %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frist %@"
+          }
+        }
+      }
+    },
+    "calendar.dueShort": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frist"
+          }
+        }
+      }
+    },
+    "calendar.conflict.afterDue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endet nach der Frist"
+          }
+        }
+      }
+    },
+    "calendar.conflict.prerequisiteLater": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorgänger liegt später"
+          }
+        }
+      }
+    },
+    "calendar.conflict.prerequisiteOpen": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorgänger noch offen"
+          }
+        }
+      }
+    },
+    "calendar.conflict.repositoryOverlap": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bindung überschneidet sich"
+          }
+        }
+      }
+    },
+    "calendar.autoStart": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-Start"
+          }
+        }
+      }
+    },
+    "calendar.autoStarted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch gestartet"
+          }
+        }
+      }
+    },
+    "calendar.done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erledigt"
+          }
+        }
+      }
+    },
+    "calendar.readOnly": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur lesen"
+          }
+        }
+      }
+    },
+    "calendar.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nichts geplant"
+          }
+        }
+      }
+    },
+    "calendar.emptyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An diesem Tag gibt es keine Karten mit Termin oder Frist."
+          }
+        }
+      }
+    },
+    "calendar.week %lld %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KW %lld · %@"
+          }
+        }
+      }
+    },
+    "calendar.timeRange %@ %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bis %@ Uhr"
+          }
+        }
+      }
+    },
+    "calendar.cardCount %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Karte"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Karten"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "calendar.conflictCount %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Konflikt"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Konflikte"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "calendar.previousWeek": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorherige Woche"
+          }
+        }
+      }
+    },
+    "calendar.nextWeek": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächste Woche"
+          }
+        }
+      }
+    },
+    "calendar.today": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heute"
+          }
+        }
+      }
+    },
+    "calendar.sampleNote": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau mit Beispieldaten. Änderungen bleiben nur auf diesem Bildschirm."
+          }
+        }
+      }
+    },
+    "calendar.loadFailed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Kalender konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "calendar.retry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut laden"
+          }
+        }
+      }
+    },
+    "calendar.action.details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        }
+      }
+    },
+    "calendar.action.edit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start und Dauer …"
+          }
+        }
+      }
+    },
+    "calendar.action.unschedule": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entplanen"
+          }
+        }
+      }
+    },
+    "calendar.detail.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karte"
+          }
+        }
+      }
+    },
+    "calendar.detail.gone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karte nicht mehr im Plan"
+          }
+        }
+      }
+    },
+    "calendar.detail.project": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt"
+          }
+        }
+      }
+    },
+    "calendar.detail.start": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "calendar.detail.duration": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer"
+          }
+        }
+      }
+    },
+    "calendar.detail.due": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frist"
+          }
+        }
+      }
+    },
+    "calendar.detail.none": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "keine"
+          }
+        }
+      }
+    },
+    "calendar.detail.unscheduled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Termin"
+          }
+        }
+      }
+    },
+    "calendar.detail.autoStart": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-Start"
+          }
+        }
+      }
+    },
+    "calendar.detail.autoStartOn": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaubt"
+          }
+        }
+      }
+    },
+    "calendar.detail.autoStartOff": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus"
+          }
+        }
+      }
+    },
+    "calendar.detail.autoStarted %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übergeben um %@"
+          }
+        }
+      }
+    },
+    "calendar.detail.dueHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Frist ändert der Kalender nie, auch nicht beim Ziehen. Auto-Start wird hier nur angezeigt."
+          }
+        }
+      }
+    },
+    "calendar.detail.doneHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erledigte Karten lassen sich nicht verschieben."
+          }
+        }
+      }
+    },
+    "calendar.detail.readOnlyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du darfst diese Karte nur lesen. Zum Verschieben brauchst du die Rolle „Bearbeiten“."
+          }
+        }
+      }
+    },
+    "calendar.editor.allDay": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ganztägig"
+          }
+        }
+      }
+    },
+    "calendar.editor.start": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "calendar.editor.duration": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer"
+          }
+        }
+      }
+    },
+    "calendar.editor.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Start rastet auf 15 Minuten ein. Ohne Dauer zeigt der Kalender 30 Minuten."
+          }
+        }
+      }
+    },
+    "calendar.pending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gesendet"
+          }
+        }
+      }
+    },
+    "calendar.notice.versionConflict": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Karte wurde inzwischen geändert. Dein Verschieben ist zurückgenommen, der Kalender zeigt den aktuellen Stand."
+          }
+        }
+      }
+    },
+    "calendar.notice.taskDone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erledigte Karten lassen sich nicht verschieben."
+          }
+        }
+      }
+    },
+    "calendar.notice.readOnly": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diese Karte hast du nur Leserechte."
+          }
+        }
+      }
+    },
+    "calendar.notice.recurrence": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Wiederholung ohne Frist braucht einen Starttermin. Lege zuerst eine Frist fest."
+          }
+        }
+      }
+    },
+    "calendar.notice.invalidMinutes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Dauer muss zwischen 5 Minuten und 24 Stunden liegen."
+          }
+        }
+      }
+    },
+    "calendar.notice.allDayNeedsStart": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ganztägig braucht einen Starttag."
+          }
+        }
+      }
+    },
+    "calendar.notice.notFound": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Karte gibt es nicht mehr, oder du darfst sie nicht sehen. Der Kalender wurde neu geladen."
+          }
+        }
+      }
+    },
+    "calendar.notice.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Verschieben hat nicht geklappt. Die Karte ist wieder an ihrem alten Platz."
+          }
+        }
+      }
+    },
+    "calendar.notice.savedOffline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Verbindung gespeichert. Die Änderung wird gesendet, sobald der Server wieder erreichbar ist."
+          }
+        }
+      }
+    },
+    "calendar.notice.offlineUnavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Verbindung lässt sich das nicht speichern. Die Karte ist wieder an ihrem alten Platz."
+          }
+        }
+      }
+    },
+    "calendar.notice.busy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Karte wird noch gespeichert. Versuche es gleich noch einmal."
+          }
+        }
+      }
+    },
+    "calendar.notice.unauthorized": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Sitzung ist abgelaufen."
+          }
+        }
+      }
     }
   }
 }
