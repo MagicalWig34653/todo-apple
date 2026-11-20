@@ -279,3 +279,34 @@ public enum ScheduleWriteRoute: Equatable, Sendable {
         return expressible || queueCarriesScheduleFields ? .queue : .unavailableOffline
     }
 }
+
+// MARK: Editor "Start und Dauer"
+
+public enum ScheduleEditResult: Equatable, Sendable {
+    case patch(SchedulePatch)
+    case noChange
+    /// Duration outside 5 to 1440 minutes (`invalid_planned_minutes` on the server).
+    case invalidMinutes
+}
+
+/// The form of the editor (iPhone sheet, detail on iPad and Mac, an alternative to dragging) as a patch. Same rules as a
+/// drop: start snaps to 15 minutes, all-day is the start of the day without duration, only changed fields are sent, the due
+/// date is never part of it. A duration equal to the default (30 minutes) on a card without one is not sent.
+public enum ScheduleEditing {
+    public static func patch(for entry: ScheduleEntry, start: Date, minutes: Int?, allDay: Bool, calendar: Calendar = .current) -> ScheduleEditResult {
+        let dayStart = calendar.startOfDay(for: start)
+        if allDay {
+            if entry.plannedAllDay && entry.plannedAt == dayStart { return .noChange }
+            return .patch(SchedulePatch(plannedAt: .set(dayStart), plannedAllDay: true))
+        }
+        if let minutes, !(5...CalendarRules.maximumMinutes).contains(minutes) { return .invalidMinutes }
+        let c = calendar.dateComponents([.hour, .minute], from: start)
+        let snapped = CalendarRules.snap(minutes: (c.hour ?? 0) * 60 + (c.minute ?? 0))
+        let newStart = calendar.date(bySettingHour: snapped / 60, minute: snapped % 60, second: 0, of: dayStart) ?? start
+        var patch = SchedulePatch()
+        if entry.plannedAllDay || entry.plannedAt != newStart { patch.plannedAt = .set(newStart) }
+        if entry.plannedAllDay { patch.plannedAllDay = false }
+        if let minutes, minutes != entry.minutes { patch.plannedMinutes = .set(minutes) }
+        return patch.isEmpty ? .noChange : .patch(patch)
+    }
+}

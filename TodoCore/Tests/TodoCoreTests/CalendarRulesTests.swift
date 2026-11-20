@@ -379,3 +379,62 @@ final class CalendarRulesTests: XCTestCase {
         XCTAssertEqual(ScheduleWriteRoute.choose(allDay, isOnline: false, queueCarriesScheduleFields: true), .queue)
     }
 }
+
+/// The editor "Start und Dauer" (iPhone sheet, detail on iPad/Mac) turns its fields into a patch (card 8CECAD24, phase 2).
+final class ScheduleEditingTests: XCTestCase {
+    private var cal: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        return c
+    }
+    private func at(_ d: Int, _ h: Int, _ m: Int = 0) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: d, hour: h, minute: m))! }
+    private func entry(start: Date? = nil, minutes: Int? = nil, allDay: Bool = false, due: Date? = nil) -> ScheduleEntry {
+        ScheduleEntry(taskID: UUID(), projectID: UUID(), title: "T", plannedAt: start, plannedMinutes: minutes, plannedAllDay: allDay, dueAt: due)
+    }
+
+    func testNewStartOnAnUnscheduledCardSnapsAndKeepsTheDurationUnsetWhenItIsTheDefault() {
+        let r = ScheduleEditing.patch(for: entry(), start: at(24, 9, 7), minutes: 30, allDay: false, calendar: cal)
+        XCTAssertEqual(r, .patch(SchedulePatch(plannedAt: .set(at(24, 9)))), "default 30 minutes is not sent: the server shows 30 without a value")
+    }
+
+    func testDurationOtherThanTheDefaultIsSent() {
+        let r = ScheduleEditing.patch(for: entry(), start: at(24, 9), minutes: 90, allDay: false, calendar: cal)
+        XCTAssertEqual(r, .patch(SchedulePatch(plannedAt: .set(at(24, 9)), plannedMinutes: .set(90))))
+    }
+
+    func testOnlyAChangedFieldIsSent() {
+        let e = entry(start: at(23, 9), minutes: 45)
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(23, 9), minutes: 60, allDay: false, calendar: cal), .patch(SchedulePatch(plannedMinutes: .set(60))))
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(23, 10, 14), minutes: 45, allDay: false, calendar: cal), .patch(SchedulePatch(plannedAt: .set(at(23, 10, 15)))))
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(23, 9, 6), minutes: 45, allDay: false, calendar: cal), .noChange, "snaps to the same 09:00")
+    }
+
+    func testAllDayUsesTheStartOfTheDayAndNoDuration() {
+        let e = entry(start: at(23, 9), minutes: 45)
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(25, 16), minutes: 45, allDay: true, calendar: cal),
+                       .patch(SchedulePatch(plannedAt: .set(at(25, 0)), plannedAllDay: true)))
+        let allDay = entry(start: at(25, 0), allDay: true)
+        XCTAssertEqual(ScheduleEditing.patch(for: allDay, start: at(25, 18), minutes: nil, allDay: true, calendar: cal), .noChange)
+    }
+
+    func testAllDayBackToTimedTurnsTheFlagOff() {
+        let allDay = entry(start: at(25, 0), allDay: true)
+        XCTAssertEqual(ScheduleEditing.patch(for: allDay, start: at(25, 0), minutes: 30, allDay: false, calendar: cal),
+                       .patch(SchedulePatch(plannedAt: .set(at(25, 0)), plannedAllDay: false)))
+    }
+
+    func testDurationOutsideTheServerRangeIsInvalid() {
+        let e = entry(start: at(23, 9))
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(23, 9), minutes: 4, allDay: false, calendar: cal), .invalidMinutes)
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(23, 9), minutes: 1441, allDay: false, calendar: cal), .invalidMinutes)
+        XCTAssertEqual(ScheduleEditing.patch(for: e, start: at(23, 9), minutes: 1440, allDay: false, calendar: cal), .patch(SchedulePatch(plannedMinutes: .set(1440))))
+    }
+
+    func testDueDateIsNeverPartOfThePatch() {
+        let e = entry(start: at(23, 9), due: at(23, 12))
+        guard case .patch(let p) = ScheduleEditing.patch(for: e, start: at(26, 15), minutes: 120, allDay: false, calendar: cal) else { return XCTFail("expected a patch") }
+        XCTAssertEqual(p.plannedAt, .set(at(26, 15)))
+        // SchedulePatch has no dueAt key at all; this documents the rule next to the editor.
+        XCTAssertEqual(Mirror(reflecting: p).children.compactMap(\.label).sorted(), ["plannedAllDay", "plannedAt", "plannedMinutes"])
+    }
+}

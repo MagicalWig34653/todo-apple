@@ -262,3 +262,38 @@ extension LiveWelle3Tests {
     }
 }
 
+
+extension LiveEtappe2Tests {
+    /// Leaves a fresh account with calendar cards for the app's write tour (card 8CECAD24): two overlapping cards today, an
+    /// all-day card, two cards without a start. Writes `{"token":...,"ids":{title:id}}` to `TODO_LIVE_SEED_OUT`.
+    func testLiveSeedCalendarTourAccount() async throws {
+        guard let out = ProcessInfo.processInfo.environment["TODO_LIVE_SEED_OUT"] else { throw XCTSkip("TODO_LIVE_SEED_OUT not set") }
+        let f = try await fixture()
+        let origin = ProcessInfo.processInfo.environment["TODO_LIVE_RP_ORIGIN"] ?? "http://localhost:25173"
+        let invite = try await f.admin.createInvitation()
+        let store = InMemoryTokenStore()
+        let url = try XCTUnwrap(URL(string: try XCTUnwrap(ProcessInfo.processInfo.environment["TODO_LIVE_BASE_URL"])))
+        let person = APIClient(baseURL: url, tokenStore: store)
+        _ = try await person.registerWithPasskey(token: invite.token, displayName: "Kalender \(f.suffix)", authenticator: VirtualPasskey(origin: origin))
+        let project = try await person.createProject(name: "Kalender-Tour")
+        let day = Calendar.current.startOfDay(for: Date())
+        func at(_ h: Int, _ m: Int = 0) -> Date { Calendar.current.date(bySettingHour: h, minute: m, second: 0, of: day)! }
+        var ids: [String: String] = ["project": project.id.uuidString]
+        func card(_ title: String, start: Date? = nil, minutes: Int? = nil, allDay: Bool = false, due: Date? = nil) async throws {
+            let t = try await person.createTask(projectID: project.id, title: title)
+            ids[title] = t.id.uuidString
+            var version = t.version
+            if let due { version = try await person.setPlanning(taskID: t.id, PlanningData(dueAt: due)).task.version }
+            if let start {
+                _ = try await person.updateSchedule(taskID: t.id, version: version, SchedulePatch(plannedAt: .set(start), plannedMinutes: minutes.map { .set($0) } ?? .keep, plannedAllDay: allDay ? true : nil))
+            }
+        }
+        try await card("Termin A", start: at(10), minutes: 60, due: at(17))
+        try await card("Termin B", start: at(10, 30), minutes: 60)
+        try await card("Ganztag C", start: day, allDay: true)
+        try await card("Ohne Termin D", due: at(18))
+        try await card("Ohne Termin E")
+        let token = try XCTUnwrap(try store.load())
+        try JSONSerialization.data(withJSONObject: ["token": token, "ids": ids]).write(to: URL(fileURLWithPath: out))
+    }
+}
