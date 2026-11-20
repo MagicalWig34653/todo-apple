@@ -127,8 +127,65 @@ public struct PushPrefs: Codable, Sendable, Equatable {
     /// the server then uses 8.
     public var dailyBriefHour: Int?
 
-    public init(categories: PushCategories = .init(), showContent: Bool = false, badge: Bool = true, dailyBriefHour: Int? = nil) {
+    /// True if the server reported the confirmation/daily-brief settings (contract 1.1.0 or newer). Older servers
+    /// answer without them; the UI then hides the two switches instead of showing ones that do nothing.
+    public var supportsBriefSettings: Bool
+
+    public init(categories: PushCategories = .init(), showContent: Bool = false, badge: Bool = true, dailyBriefHour: Int? = nil,
+                supportsBriefSettings: Bool = false) {
         self.categories = categories; self.showContent = showContent; self.badge = badge; self.dailyBriefHour = dailyBriefHour
+        self.supportsBriefSettings = supportsBriefSettings
+    }
+
+    enum CodingKeys: String, CodingKey { case categories, showContent, badge, dailyBriefHour }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        categories = try c.decode(PushCategories.self, forKey: .categories)
+        showContent = try c.decode(Bool.self, forKey: .showContent)
+        badge = try c.decode(Bool.self, forKey: .badge)
+        dailyBriefHour = try c.decodeIfPresent(Int.self, forKey: .dailyBriefHour)
+        let raw = try c.decodeIfPresent([String: Bool].self, forKey: .categories)
+        supportsBriefSettings = c.contains(.dailyBriefHour) || raw?["daily_brief"] != nil || raw?["confirmations"] != nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(categories, forKey: .categories); try c.encode(showContent, forKey: .showContent)
+        try c.encode(badge, forKey: .badge); try c.encodeIfPresent(dailyBriefHour, forKey: .dailyBriefHour)
+    }
+}
+
+/// The daily brief hour is a UTC hour on the server; people pick a local time.
+public enum DailyBriefHour {
+    public static let defaultUTCHour = 8
+
+    /// Server value, or the default if it is missing or outside 0...23.
+    public static func effective(_ utcHour: Int?) -> Int {
+        guard let utcHour, (0...23).contains(utcHour) else { return defaultUTCHour }
+        return utcHour
+    }
+
+    public struct Option: Equatable, Sendable, Identifiable {
+        public let utcHour: Int
+        /// Local time of day in minutes (whole hours of UTC can land on :30 or :45 in some zones).
+        public let localMinutes: Int
+        public var id: Int { utcHour }
+    }
+
+    /// Minutes since local midnight at which `utcHour` falls (today's offset, so daylight saving is respected).
+    public static func localMinutes(utcHour: Int, now: Date, timeZone: TimeZone) -> Int {
+        var utc = Calendar(identifier: .gregorian); utc.timeZone = TimeZone(secondsFromGMT: 0)!
+        let instant = utc.date(bySettingHour: utcHour, minute: 0, second: 0, of: now) ?? now
+        var local = Calendar(identifier: .gregorian); local.timeZone = timeZone
+        let parts = local.dateComponents([.hour, .minute], from: instant)
+        return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
+    /// All 24 UTC hours, ordered by local time of day.
+    public static func options(now: Date = Date(), timeZone: TimeZone = .current) -> [Option] {
+        (0...23).map { Option(utcHour: $0, localMinutes: localMinutes(utcHour: $0, now: now, timeZone: timeZone)) }
+            .sorted { $0.localMinutes < $1.localMinutes }
     }
 }
 
