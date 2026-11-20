@@ -43,19 +43,28 @@ final class PushSettingsTour: XCTestCase {
             XCTAssertFalse(time.exists, "no time picker while off")
             if !large { shot("tagesbericht-aus-\(look)") }
 
-            brief.tap()
-            XCTAssertTrue(time.waitForExistence(timeout: 15), "time picker after switching on (\(look))")
+            flip(brief)
+            if !time.waitForExistence(timeout: 15), let debug = ProcessInfo.processInfo.environment["TODO_TOUR_DEBUG"] {
+                try? app.debugDescription.write(toFile: "\(debug)/tree-\(look).txt", atomically: true, encoding: .utf8)
+                try? XCUIScreen.main.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "\(debug)/fail-\(look).png"))
+            }
+            XCTAssertTrue(time.exists, "time picker after switching on (\(look))")
             XCTAssertEqual(app.switches["push.cat.dailyBrief"].value as? String, "1")
             XCTAssertTrue(reveal(app, app.switches["push.cat.dailyBrief"]), "switch still visible")
             Thread.sleep(forTimeInterval: 2)
             shot("tagesbericht-an-\(look)")
 
             // Reset the account for the next look (real tap again).
-            app.switches["push.cat.dailyBrief"].tap()
+            flip(app.switches["push.cat.dailyBrief"])
             expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: time)
             waitForExpectations(timeout: 15)
             app.terminate()
         }
+    }
+
+    /// The element's center is the label; the real switch sits at the trailing edge of the row.
+    private func flip(_ toggle: XCUIElement) {
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
     }
 
     /// Scrolls the settings list with deterministic drags until the element sits in the upper part of the screen.
