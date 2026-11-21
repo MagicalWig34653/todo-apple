@@ -5,7 +5,8 @@ import XCTest
 /// app start. The test itself asks the backend (`GET /v1/reviews`) with the account token between the taps; the Core tests only prove
 /// the client against the backend, the tour only looks at the UI. Seed: `LiveReviewVariantsTests.testSeedVariantReviews` (task
 /// "Wetterdaten-Anbieter", variants a "Open-Meteo" and b "Wetterdienst A"). Needs `TODO_UITEST_SERVER`, `TODO_UITEST_TOKEN`,
-/// optional `TODO_TOUR_OUT` (directory for PNGs).
+/// optional `TODO_TOUR_OUT` (directory for PNGs). The undo offer is restored from the server's `undoUntil` after a restart; the second
+/// test (`testNoUndoOfferAfterTheWindow`, needs `TODO_E2E_EXPIRED=1`) runs after the host shifted `decided_at` past the window.
 final class ReviewVariantsServerE2E: XCTestCase {
     private var server = "", token = "", out: String?
     private let title = "Wetterdaten-Anbieter"
@@ -42,7 +43,7 @@ final class ReviewVariantsServerE2E: XCTestCase {
         XCTAssertEqual(until.timeIntervalSinceNow, 300, accuracy: 30, "undo window about 5 minutes")
         shot("nach-wahl-server-angenommen")
 
-        // Real tap on "Rückgängig" (same session: the app offers the undo only for a decision made in this session): the server
+        // Real tap on "Rückgängig" (same session as the decision): the server
         // is back to pending without a choice, the bar is gone, the choice is possible again.
         let undo = app.buttons["Rückgängig"]
         XCTAssertTrue(undo.waitForExistence(timeout: 20), "undo button")
@@ -66,13 +67,57 @@ final class ReviewVariantsServerE2E: XCTestCase {
         XCTAssertEqual(before?.chosen, "a", "second choice stored")
         app.terminate()
 
-        // Fresh start after the choice: the result comes from the server, the choose buttons are gone. The undo offer is
-        // session-only (AppModel.offerReviewUndo), so there is no undo bar after a restart even though the server window is open.
+        // Fresh start after the choice, still inside the server's window: the result comes from the server and the undo offer is
+        // restored from the server's `undoUntil` (card 1D9C8B0C, decision 21.11.2026), with the same text as in the deciding session.
         app = launch("task:\(title)")
         XCTAssertTrue(app.staticTexts["Variante A gewählt: Open-Meteo"].firstMatch.waitForExistence(timeout: 30), "chosen text after a fresh start")
         XCTAssertFalse(app.buttons[choose].exists, "no choose button after the choice")
-        XCTAssertFalse(app.otherElements["review.undo.bar"].exists, "undo offer does not survive a restart (known, session-only)")
-        shot("neustart-nach-wahl")
+        let bar = app.otherElements["review.undo.bar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 30), "undo bar is offered again after a restart inside the server window")
+        XCTAssertTrue(bar.staticTexts["Variante A gewählt: Open-Meteo"].exists, "bar names the choice")
+        let seen = try XCTUnwrap(try serverReview()?.undoUntil, "server still reports the window")
+        XCTAssertGreaterThan(seen.timeIntervalSinceNow, 0, "window still open on the server")
+        shot("neustart-nach-wahl-mit-rueckgaengig")
+
+        // Tap on the restored "Rückgängig": server pending again without a choice.
+        app.buttons["Rückgängig"].tap()
+        XCTAssertTrue(waitForGone(bar), "bar gone after the undo")
+        before = try waitForServer { $0?.state == "pending" }
+        XCTAssertNil(before?.chosen, "restored undo took the choice back on the server")
+        XCTAssertNil(before?.undoUntil)
+        XCTAssertTrue(reveal(app, choose).isHittable, "choose button is back after the restored undo")
+        shot("nach-neustart-rueckgaengig")
+
+        // Leave an accepted review behind (variant B) for `testNoUndoOfferAfterTheWindow`; a fresh start after an undo offers nothing.
+        app.terminate()
+        app = launch("task:\(title)")
+        XCTAssertTrue(reveal(app, choose).isHittable)
+        XCTAssertFalse(app.otherElements["review.undo.bar"].exists, "pending review: nothing to take back")
+        app.buttons[choose].tap()
+        XCTAssertTrue(app.otherElements["review.undo.bar"].waitForExistence(timeout: 20))
+        before = try waitForServer { $0?.state == "accepted" }
+        XCTAssertEqual(before?.chosen, "b")
+        app.terminate()
+    }
+
+    /// Second step, run after the host moved `decided_at` of that review more than the window into the past in the scratch database
+    /// (`UPDATE task_reviews SET decided_at = ...`; the backend code stays untouched): the server no longer reports `undoUntil`, so a
+    /// fresh start shows the result but no undo bar. Env `TODO_E2E_EXPIRED=1` guards against running it by accident.
+    func testNoUndoOfferAfterTheWindow() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let s = env["TODO_UITEST_SERVER"], let t = env["TODO_UITEST_TOKEN"], env["TODO_E2E_EXPIRED"] == "1" else { throw XCTSkip("expired-window variables not set") }
+        server = s; token = t; out = env["TODO_TOUR_OUT"]
+        continueAfterFailure = false
+        let warm = launch("feed"); Thread.sleep(forTimeInterval: 8); warm.terminate()  // first launch after an install answers 401
+        let state = try XCTUnwrap(try serverReview(), "review exists")
+        XCTAssertEqual(state.state, "accepted", "decision from the first test is still in place")
+        XCTAssertNil(state.undoUntil, "server window is over")
+        let app = launch("task:\(title)")
+        XCTAssertTrue(app.staticTexts["Variante B gewählt: Wetterdienst A"].firstMatch.waitForExistence(timeout: 30), "result is shown")
+        Thread.sleep(forTimeInterval: 6)  // the offer would be restored by the first context load; give it time to show up
+        XCTAssertFalse(app.otherElements["review.undo.bar"].exists, "no undo offer after the server window")
+        XCTAssertFalse(app.buttons["Rückgängig"].exists)
+        shot("nach-fristablauf-ohne-angebot")
         app.terminate()
     }
 

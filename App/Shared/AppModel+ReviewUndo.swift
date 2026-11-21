@@ -10,6 +10,15 @@ extension AppModel {
         reviewUndo = ReviewUndoOffer(taskID: review.taskID, until: until, message: message)
     }
 
+    /// Offers the undo again from what the server says (opened card after an app restart): the server's `undoUntil` is the only clock,
+    /// and only the deciding person gets the offer (`ReviewUndo.restorableUntil`). A newer offer of this session stays.
+    func restoreReviewUndo(from review: Review?) {
+        let current = reviewUndo.map { (taskID: $0.taskID, until: $0.until) }
+        guard let review, let until = ReviewUndo.restorableUntil(for: review, accountID: user?.id, current: current, dismissedTaskIDs: reviewUndoClosed) else { return }
+        let decision: ReviewDecision = review.state == "accepted" ? .accept : .requestChanges
+        reviewUndo = ReviewUndoOffer(taskID: review.taskID, until: until, message: Self.decisionMessage(for: review, decision: decision))
+    }
+
     /// What the bar says after a decision: the choice for a review with variants, else the plain outcome.
     static func decisionMessage(for review: Review, decision: ReviewDecision) -> String {
         if decision == .accept, let text = review.chosenText { return text }
@@ -26,10 +35,12 @@ extension AppModel {
         guard let client else { return }
         do {
             _ = try await client.undoReviewDecision(taskID: offer.taskID)
+            reviewUndoClosed.insert(offer.taskID)
             if reviewUndo == offer { reviewUndo = nil }
             Haptics.success()
         } catch APIError.conflict(let reason) {
             if reviewUndo == offer { reviewUndo = nil }
+            reviewUndoClosed.insert(offer.taskID)
             noticeKey = switch reason {
             case "undo_window_expired": "review.undo.error.expired"
             case "already_acted_on": "review.undo.error.actedOn"

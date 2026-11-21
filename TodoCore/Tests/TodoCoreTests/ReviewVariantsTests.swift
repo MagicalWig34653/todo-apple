@@ -153,6 +153,66 @@ final class ReviewVariantsTests: XCTestCase {
         XCTAssertNil(N.next.index(from: 0, count: 0))
     }
 
+    // MARK: Restoring the undo offer after a restart (server `undoUntil` is the only clock)
+
+    private var me: UUID { Self.meID }
+    private static let meID = UUID()
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+    private func decided(state: String = "accepted", by: UUID?, until: Date?, agentJob: UUID? = nil) throws -> Review {
+        let stamp = until.map { #","undoUntil":"\#(ISO8601DateFormatter().string(from: $0))""# } ?? ""
+        let decider = by.map { "\"\($0)\"" } ?? "null"
+        let job = agentJob.map { "\"\($0)\"" } ?? "null"
+        let json = reviewJSON(state: state, extra: twoVariants + stamp)
+            .replacingOccurrences(of: #""decidedBy":null"#, with: #""decidedBy":\#(decider)"#)
+            .replacingOccurrences(of: #""agentJobID":null"#, with: #""agentJobID":\#(job)"#)
+        return try decode(json)
+    }
+    private func restore(_ review: Review?, account: UUID? = nil, current: (taskID: UUID, until: Date)? = nil, dismissed: Set<UUID> = []) -> Date? {
+        ReviewUndo.restorableUntil(for: review, accountID: account ?? me, now: now, current: current, dismissedTaskIDs: dismissed)
+    }
+
+    func testRestoreOffersOwnDecisionWithServerUntil() throws {
+        let until = now.addingTimeInterval(120)
+        XCTAssertEqual(restore(try decided(by: me, until: until)), until, "accepted, own, window open: the server's end, no local clock")
+        XCTAssertEqual(restore(try decided(state: "changes_requested", by: me, until: until)), until)
+    }
+
+    func testRestoreOffersNothingAfterTheWindow() throws {
+        XCTAssertNil(restore(try decided(by: me, until: now)), "window ends exactly now")
+        XCTAssertNil(restore(try decided(by: me, until: now.addingTimeInterval(-1))))
+    }
+
+    func testRestoreOffersNothingForForeignOrNonPersonDecisions() throws {
+        let until = now.addingTimeInterval(120)
+        XCTAssertNil(restore(try decided(by: UUID(), until: until)), "another person decided")
+        XCTAssertNil(restore(try decided(by: nil, until: until)), "no decider")
+        XCTAssertNil(restore(try decided(by: me, until: until, agentJob: UUID())), "runner decision")
+        XCTAssertNil(restore(try decided(by: me, until: until), account: UUID()), "other account signed in")
+        XCTAssertNil(ReviewUndo.restorableUntil(for: try decided(by: me, until: until), accountID: nil, now: now, current: nil))
+    }
+
+    func testRestoreOffersNothingWithoutAnUndoableDecision() throws {
+        let until = now.addingTimeInterval(120)
+        XCTAssertNil(restore(try decided(state: "pending", by: me, until: until)), "pending review")
+        XCTAssertNil(restore(try decided(state: "withdrawn", by: me, until: until)))
+        XCTAssertNil(restore(try decided(by: me, until: nil)), "older server without undoUntil")
+        XCTAssertNil(restore(nil), "card without review")
+    }
+
+    func testRestoreKeepsALaterOrEqualOfferOfTheSession() throws {
+        let review = try decided(by: me, until: now.addingTimeInterval(120))
+        let other = UUID()
+        XCTAssertNil(restore(review, current: (review.taskID, now.addingTimeInterval(120))), "same offer already shown")
+        XCTAssertNil(restore(review, current: (other, now.addingTimeInterval(200))), "a later session offer is not overwritten")
+        XCTAssertEqual(restore(review, current: (other, now.addingTimeInterval(60))), now.addingTimeInterval(120), "an earlier ending offer yields")
+    }
+
+    func testRestoreSkipsAnOfferTheServerAlreadyRefused() throws {
+        let review = try decided(by: me, until: now.addingTimeInterval(120))
+        XCTAssertNil(restore(review, dismissed: [review.taskID]), "409 already_acted_on keeps `undoUntil` on the server")
+        XCTAssertNotNil(restore(review, dismissed: [UUID()]))
+    }
+
     // MARK: Request and errors
 
     func testDecideAcceptSendsVariantID() async throws {

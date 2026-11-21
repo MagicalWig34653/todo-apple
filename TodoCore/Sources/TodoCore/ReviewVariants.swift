@@ -143,6 +143,19 @@ public enum ReviewUndo {
     public static let windowMinutes = 5
     public static let window: TimeInterval = TimeInterval(windowMinutes) * 60
 
+    /// The end of the undo window to offer again after a restart (or any reload), taken from the server's `undoUntil` only; nil = offer
+    /// nothing new. Only the deciding person may take a decision back (the server also reports `undoUntil` for other people's
+    /// decisions), runner decisions are never undoable, and an offer the server already refused (`dismissedTaskIDs`) stays away.
+    /// A `current` offer that ends at the same time or later is kept.
+    public static func restorableUntil(for review: Review?, accountID: UUID?, now: Date = Date(), current: (taskID: UUID, until: Date)?,
+                                       dismissedTaskIDs: Set<UUID> = []) -> Date? {
+        guard let review, let accountID, review.state == "accepted" || review.state == "changes_requested",
+              review.agentJobID == nil, review.decidedBy == accountID,
+              let until = review.undoUntil, until > now, !dismissedTaskIDs.contains(review.taskID) else { return nil }
+        if let current, current.until >= until { return nil }
+        return until
+    }
+
     /// Seconds left until `until`; 0 when passed or unknown.
     public static func remaining(until: Date?, now: Date = Date()) -> TimeInterval {
         guard let until else { return 0 }

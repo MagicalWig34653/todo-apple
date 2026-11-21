@@ -38,6 +38,7 @@ final class AppModel {
             if serverURL != oldValue {
                 sessionGeneration = UUID()
                 recoveryToken = nil
+                reviewUndo = nil; reviewUndoClosed = []
                 capabilities = nil
                 phase = .signedOut
             }
@@ -342,6 +343,7 @@ final class AppModel {
         VoicePlayer.clearCache()
         cachedUser = nil
         user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
+        reviewUndo = nil; reviewUndoClosed = []
         phase = .signedOut
         await refreshCapabilities()
     }
@@ -689,6 +691,8 @@ final class AppModel {
 
     /// The last review decision that can still be taken back (bar at the bottom while the server's undo window lasts).
     var reviewUndo: ReviewUndoOffer?
+    /// Tasks whose offer ended by an undo or a refusal (409): a reload with a stale context must not offer them again while the server still reports `undoUntil`.
+    var reviewUndoClosed: Set<UUID> = []
     /// Counts finished undos so open lists and card details reload.
     var reviewUndoGeneration = 0
 

@@ -36,6 +36,7 @@ final class TaskDetailModel {
         subtasks = context.subtasks
         if self.context != context { self.context = context }
         if criteria != context.criteria, !criteriaBusy { criteria = context.criteria }
+        app.restoreReviewUndo(from: context.review)
     }
 
     // MARK: Acceptance criteria
@@ -181,6 +182,7 @@ final class TaskDetailModel {
             if subtasks != context.subtasks { subtasks = context.subtasks }
             if self.context != context { self.context = context }
             if criteria != context.criteria, !criteriaBusy { criteria = context.criteria }
+            app.restoreReviewUndo(from: context.review)
         }
         await loadLinks(app)
     }
