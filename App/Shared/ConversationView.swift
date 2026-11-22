@@ -200,7 +200,7 @@ struct ChatBubble: View {
             HStack(spacing: Space.xs) {
                 if agent { Image(systemName: "bolt.fill").foregroundStyle(Color.chipPurple).accessibilityHidden(true) }
                 authorName.fontWeight(.semibold)
-                if let at = comment.createdAt { Text(verbatim: CommandFormat.relative(at)) }
+                AuditTimeText(date: comment.createdAt, identifier: "audit.comment")
             }
             .font(.caption).foregroundStyle(Color.textSecondary)
             content

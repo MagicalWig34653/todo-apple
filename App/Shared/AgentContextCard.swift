@@ -103,7 +103,7 @@ struct AgentContextCard: View {
                 MarkdownText(note.note).font(.subheadline).lineLimit(6).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: Space.s) {
                     if let who = note.actorLabel { Text(verbatim: who) }
-                    if note.createdAt != nil { Text(verbatim: CommandFormat.relative(note.createdAt)) }
+                    AuditTimeText(date: note.createdAt, identifier: "audit.note")
                 }
                 .font(.caption).foregroundStyle(Color.textSecondary)
             }
@@ -127,7 +127,8 @@ struct AgentContextCard: View {
             .font(.subheadline.weight(.semibold))
             HStack(spacing: Space.s) {
                 if let who = review.requestedByLabel { Text(verbatim: who) }
-                if let at = review.decidedAt ?? review.createdAt { Text(verbatim: CommandFormat.relative(at)) }
+                AuditTimeText(date: review.createdAt, label: "time.requested", identifier: "audit.requested")
+                AuditTimeText(date: review.decidedAt, label: "time.decided", identifier: "audit.decided")
             }
             .font(.caption).foregroundStyle(Color.textSecondary)
             MarkdownText(review.summary).font(.subheadline).lineLimit(8).fixedSize(horizontal: false, vertical: true)

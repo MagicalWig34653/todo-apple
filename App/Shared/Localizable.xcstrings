@@ -3952,6 +3952,66 @@
         }
       }
     },
+    "time.answered": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "beantwortet"
+          }
+        }
+      }
+    },
+    "time.asked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gestellt"
+          }
+        }
+      }
+    },
+    "time.created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "erstellt"
+          }
+        }
+      }
+    },
+    "time.decided": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "entschieden"
+          }
+        }
+      }
+    },
+    "time.requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "angefragt"
+          }
+        }
+      }
+    },
+    "time.updated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zuletzt geändert"
+          }
+        }
+      }
+    },
     "users.search": {
       "localizations": {
         "de": {

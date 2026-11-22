@@ -407,6 +407,11 @@ struct TaskDetailView: View {
                     TextField(accessible: "task.description", text: $text, axis: .vertical)
                         .font(.body).foregroundStyle(Color.textSecondary).lineLimit(1...12)
                 }
+                HStack(spacing: Space.s) {
+                    AuditTimeText(date: model.context?.task.createdAt ?? model.task.createdAt, label: "time.created", identifier: "audit.created")
+                    AuditTimeText(date: model.context?.task.updatedAt ?? model.task.updatedAt, label: "time.updated", identifier: "audit.updated")
+                }
+                .font(.caption).foregroundStyle(Color.textSecondary)
             }
         }
     }

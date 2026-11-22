@@ -347,7 +347,7 @@ struct QuestionAnswerView: View {
                     MarkdownText(prompt).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: Space.s) {
                         if let asker { Text(verbatim: asker) }
-                        if askedAt != nil { Text(verbatim: CommandFormat.relative(askedAt)) }
+                        AuditTimeText(date: askedAt, label: "time.asked", identifier: "audit.asked")
                         if blocking { Text("cc.question.blocking").foregroundStyle(Color.priority(2)) }
                     }
                     .font(.caption).foregroundStyle(Color.textSecondary)
@@ -414,7 +414,7 @@ struct ReviewDecisionView: View {
                     MarkdownText(summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: Space.s) {
                         if let requestedBy { Text(verbatim: requestedBy) }
-                        if requestedAt != nil { Text(verbatim: CommandFormat.relative(requestedAt)) }
+                        AuditTimeText(date: requestedAt, label: "time.requested", identifier: "audit.requested")
                     }
                     .font(.caption).foregroundStyle(Color.textSecondary)
                 }

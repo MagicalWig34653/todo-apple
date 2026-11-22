@@ -117,10 +117,13 @@ public struct TodoTask: Codable, Sendable, Equatable, Hashable, Identifiable {
     /// Board column of the project (nil = "Ohne Spalte" or a project without own columns) and the position in it.
     public var columnID: UUID?
     public var boardPosition: Int
+    /// Creation and last change as reported by the server; nil on servers before card 330C57F8.
+    public var createdAt: Date?
+    public var updatedAt: Date?
 
     public init(
         id: UUID, projectID: UUID, title: String, description: String = "", status: String = "open", version: Int = 1,
-        columnID: UUID? = nil, boardPosition: Int = 0
+        columnID: UUID? = nil, boardPosition: Int = 0, createdAt: Date? = nil, updatedAt: Date? = nil
     ) {
         self.id = id
         self.projectID = projectID
@@ -130,9 +133,11 @@ public struct TodoTask: Codable, Sendable, Equatable, Hashable, Identifiable {
         self.version = version
         self.columnID = columnID
         self.boardPosition = boardPosition
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
 
-    private enum CodingKeys: String, CodingKey { case id, projectID, title, description, status, version, columnID, boardPosition }
+    private enum CodingKeys: String, CodingKey { case id, projectID, title, description, status, version, columnID, boardPosition, createdAt, updatedAt }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -144,6 +149,8 @@ public struct TodoTask: Codable, Sendable, Equatable, Hashable, Identifiable {
         version = try c.decode(Int.self, forKey: .version)
         columnID = try c.decodeIfPresent(UUID.self, forKey: .columnID)
         boardPosition = try c.decodeIfPresent(Int.self, forKey: .boardPosition) ?? 0
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
     }
 
     public var isDone: Bool { status == TaskStatus.done.rawValue }
