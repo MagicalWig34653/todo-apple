@@ -170,13 +170,13 @@ final class TodoUITests: XCTestCase {
 
     private func tab(_ name: String) -> XCUIElement { app.tabBars.buttons[name] }
 
-    /// iPhone: exactly Für dich, Projekte, Planen, Suche; the former Todoist tabs are gone from the bar.
-    func testTabBarHasFourTabs() throws {
+    /// iPhone: exactly Für dich, Jetzt, Projekte, Planen, Suche (Jetzt since 18.11.); the former Todoist tabs are gone from the bar.
+    func testTabBarHasFiveTabs() throws {
         try XCTSkipIf(isPad(), "iPhone tab bar")
-        for name in ["Für dich", "Projekte", "Planen", "Suche"] {
+        for name in ["Für dich", "Jetzt", "Projekte", "Planen", "Suche"] {
             XCTAssertTrue(tab(name).waitForExistence(timeout: 5), "tab \(name)")
         }
-        XCTAssertEqual(app.tabBars.buttons.count, 4)
+        XCTAssertEqual(app.tabBars.buttons.count, 5)
         for gone in ["Eingang", "Anstehend", "Durchsuchen", "Heute"] {
             XCTAssertFalse(tab(gone).exists, "no tab \(gone)")
         }

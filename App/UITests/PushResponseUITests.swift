@@ -31,24 +31,39 @@ final class PushResponseUITests: XCTestCase {
                                         title: first["title"] as! String))
     }
 
-    /// Same shape and key order as `PushMessage.payload()` in the backend (sorted keys, uppercase UUIDs).
-    private func payload(_ task: RealTask) -> String {
-        """
-        {"aps":{"alert":{"body":"Eine Aufgabe ist fällig.","title":"Erinnerung"},"badge":1,"category":"TODO_REMINDER",\
-        "mutable-content":1,"sound":"default","thread-id":"\(task.id)"},"kind":"reminder",\
-        "projectID":"\(task.projectID.uppercased())","taskID":"\(task.id.uppercased())"}
+    private enum Kind: String, CaseIterable {
+        case reminder, question, review
+        var category: String { "TODO_\(rawValue.uppercased())" }
+        var title: String {
+            switch self {
+            case .reminder: "Erinnerung"
+            case .question: "Rückfrage vom Agenten"
+            case .review: "Review bereit"
+            }
+        }
+    }
+
+    /// Same shape and key order as `PushMessage.payload()` in the backend (sorted keys, uppercase UUIDs; `thread-id` is the
+    /// project, `subjectID` the question or review the push is about).
+    private func payload(_ task: RealTask, kind: Kind = .reminder) -> String {
+        let subject = kind == .reminder ? "" : ",\"subjectID\":\"\(UUID().uuidString)\""
+        return """
+        {"aps":{"alert":{"body":"Eine Aufgabe wartet.","title":"\(kind.title)"},"badge":1,"category":"\(kind.category)",\
+        "mutable-content":1,"sound":"default","thread-id":"\(task.projectID.uppercased())"},"kind":"\(kind.rawValue)",\
+        "projectID":"\(task.projectID.uppercased())"\(subject),"taskID":"\(task.id.uppercased())"}
         """
     }
 
-    private func launch(delay: Int, only: String? = nil) throws -> (XCUIApplication, RealTask) {
+    private func launch(delay: Int, only: String? = nil, kind: Kind = .reminder, action: String? = nil) throws -> (XCUIApplication, RealTask) {
         let (server, token, task) = try firstBackendTask()
         let app = XCUIApplication()
         app.launchEnvironment["TODO_DEBUG_SERVER"] = server
         app.launchEnvironment["TODO_DEBUG_TOKEN"] = token
         app.launchEnvironment["TODO_DEBUG_SELECT"] = "today"
-        app.launchEnvironment["TODO_DEBUG_DELIVER_RESPONSE"] = payload(task)
+        app.launchEnvironment["TODO_DEBUG_DELIVER_RESPONSE"] = payload(task, kind: kind)
         app.launchEnvironment["TODO_DEBUG_DELIVER_DELAY"] = "\(delay)"
         if let only { app.launchEnvironment["TODO_DEBUG_DELIVER_ONLY"] = only }
+        if let action { app.launchEnvironment["TODO_DEBUG_DELIVER_ACTION"] = action }
         app.launch()
         return (app, task)
     }
@@ -83,5 +98,38 @@ final class PushResponseUITests: XCTestCase {
     func testDidReceiveCompletionOnMainQueue() throws {
         let (app, _) = try launch(delay: 0, only: "didReceive")
         assertHandlersCompleted(app, expecting: ["didReceive"])
+    }
+
+    // MARK: Every notification kind the backend sends (card 68AB3453: crashes "when opening a notification")
+
+    /// Tap on a reminder, a question and a review while the app starts (cold): `didReceive` only, as for a tap.
+    func testTapColdStartForEveryKind() throws {
+        for kind in Kind.allCases {
+            let (app, _) = try launch(delay: 0, only: "didReceive", kind: kind)
+            assertHandlersCompleted(app, expecting: ["didReceive"])
+            XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 20) || app.windows.firstMatch.exists, "\(kind): UI up")
+            app.terminate()
+        }
+    }
+
+    /// The same with the app running (warm).
+    func testTapWarmStartForEveryKind() throws {
+        for kind in Kind.allCases {
+            let (app, _) = try launch(delay: 8, only: "didReceive", kind: kind)
+            XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 20), "\(kind): UI up before the delivery")
+            assertHandlersCompleted(app, expecting: ["didReceive"])
+            app.terminate()
+        }
+    }
+
+    /// Action buttons that open the app ("Antworten" on a question, "Öffnen" on a review), cold and warm.
+    func testActionButtonsThatOpenTheApp() throws {
+        for (kind, action) in [(Kind.question, "TODO_ANSWER"), (Kind.review, "TODO_OPEN")] {
+            for delay in [0, 8] {
+                let (app, _) = try launch(delay: delay, only: "didReceive", kind: kind, action: action)
+                assertHandlersCompleted(app, expecting: ["didReceive"])
+                app.terminate()
+            }
+        }
     }
 }

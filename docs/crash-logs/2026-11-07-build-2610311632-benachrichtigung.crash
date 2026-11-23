@@ -1,0 +1,211 @@
+Incident Identifier: 07382FBA-E862-4D3F-B270-137079DD8B1A
+Distributor ID:      com.apple.TestFlight
+Hardware Model:      iPhone18,1
+Process:             Todo-iOS [41526]
+Path:                /private/var/containers/Bundle/Application/F2B9DD91-184A-4FBD-AD70-212EEFE62605/Todo-iOS.app/Todo-iOS
+Identifier:          de.linolaske.todo
+Version:             0.1.0 (2610311632)
+AppStoreTools:       27B52
+AppVariant:          1:iPhone18,1:27
+Beta:                YES
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           de.linolaske.todo [12863]
+
+Date/Time:           2026-11-07 10:18:02.7687 +0100
+Launch Time:         2026-11-07 09:39:05.5993 +0100
+OS Version:          iPhone OS 27.2 (24B119)
+Release Type:        User
+Baseband Version:    2.20.04
+Report Version:      104
+
+Exception Type:  EXC_CRASH (SIGABRT)
+Exception Codes: 0x0000000000000000, 0x0000000000000000
+Termination Reason: SIGNAL 6 Abort trap: 6
+Terminating Process: Todo-iOS [41526]
+
+Triggered by Thread:  3
+
+Last Exception Backtrace:
+0   CoreFoundation                	0x18d03b8e0 __exceptionPreprocess + 120 (:-1)
+1   libobjc.A.dylib               	0x18cdb8390 objc_exception_throw + 88 (:-1)
+2   Foundation                    	0x18d88fa90 -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:] + 288 (:-1)
+3   UIKitCore                     	0x192373468 -[UIApplication _performBlockAfterCATransactionCommitSynchronizes:] + 276 (:-1)
+4   UIKitCore                     	0x192380964 -[UIApplication _updateStateRestorationArchiveForBackgroundEvent:saveState:exitIfCouldNotRestoreState:updateSnapshot:windowScene:] + 516 (:-1)
+5   UIKitCore                     	0x192380cf4 -[UIApplication _updateSnapshotAndStateRestorationWithAction:windowScene:] + 144 (:-1)
+6   Todo-iOS                      	0x102225cb0 @objc closure #1 in NotificationDelegate.userNotificationCenter(_:didReceive:) + 76 (/<compiler-generated>:0)
+7   Todo-iOS                      	0x1020f8b25 <deduplicated_symbol> + 1
+8   Todo-iOS                      	0x1020f6381 <deduplicated_symbol> + 1
+9   Todo-iOS                      	0x1020f8b25 <deduplicated_symbol> + 1
+10  Todo-iOS                      	0x10213a205 <deduplicated_symbol> + 1
+11  Todo-iOS                      	0x1020f8b25 <deduplicated_symbol> + 1
+12  libswift_Concurrency.dylib    	0x18e593885 completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*) + 1 (:-1)
+
+Thread 0 name:
+Thread 0:
+0   libsystem_kernel.dylib        	0x0000000248eefcd4 mach_msg2_trap + 8
+1   libsystem_kernel.dylib        	0x0000000248ef3308 mach_msg2_internal + 76 (:-1)
+2   libsystem_kernel.dylib        	0x0000000248ef3228 mach_msg2 + 4 (:-1)
+3   libsystem_kernel.dylib        	0x0000000248ef3228 mach_msg_overwrite + 424 (:-1)
+4   libsystem_kernel.dylib        	0x0000000248ef3074 mach_msg + 24 (:-1)
+5   libdispatch.dylib             	0x00000001bb93589c _dispatch_mach_msg_reply_recv + 188 (:-1)
+6   libdispatch.dylib             	0x00000001bb93589c _dispatch_mach_send_and_wait_for_reply + 496 (:-1)
+7   libdispatch.dylib             	0x00000001bb935ce8 dispatch_mach_send_with_result_and_wait_for_reply + 60 (:-1)
+8   libxpc.dylib                  	0x000000018cf5bae0 _xpc_connection_enqueue_sync + 84 (:-1)
+9   libxpc.dylib                  	0x000000018cf5bae0 xpc_connection_send_message_with_reply_sync + 300 (:-1)
+10  RunningBoardServices          	0x0000000198d08848 -[RBSXPCMessage sendToConnection:error:] + 328 (:-1)
+11  RunningBoardServices          	0x0000000198cfaeb0 -[RBSXPCMessage invokeOnConnection:withReturnCollectionClass:entryClass:error:] + 144 (:-1)
+12  RunningBoardServices          	0x0000000198cfbf9c -[RBSXPCMessage invokeOnConnection:withReturnClass:error:] + 32 (:-1)
+13  RunningBoardServices          	0x0000000198cff620 -[RBSConnection acquireAssertion:error:] + 260 (:-1)
+14  RunningBoardServices          	0x0000000198d03238 -[RBSAssertion acquireWithError:] + 168 (:-1)
+15  BoardServices                 	0x000000019c3b0908 -[BSNSXPCTransport _newAcquiredAssertionWithAttributes:] + 176 (:-1)
+16  BoardServices                 	0x000000019c3b0700 -[BSNSXPCTransport _newMessageSessionWithReason:] + 60 (:-1)
+17  BoardServices                 	0x000000019c3b0f7c -[BSNSXPCTransport sendMessageWithReply:onQueue:replyHandler:] + 660 (:-1)
+18  Foundation                    	0x000000018d4a5c68 -[NSXPCConnection _sendInvocation:orArguments:count:methodSignature:selector:withProxy:] + 2884 (:-1)
+19  CoreFoundation                	0x000000018cff7818 ___forwarding___ + 1044 (:-1)
+20  CoreFoundation                	0x000000018cff7a30 _CF_forwarding_prep_0 + 96
+21  UIKitCore                     	0x00000001912f93e4 -[_UIRemoteKeyboards startConnection] + 804 (:-1)
+22  UIKitCore                     	0x0000000191513834 -[_UIRemoteKeyboards _resumeConnectionForReason:] + 132 (:-1)
+23  UIKitCore                     	0x0000000191513834 __44-[_UIRemoteKeyboards applicationWillResume:]_block_invoke + 352 (:-1)
+24  libdispatch.dylib             	0x00000001bb933fb4 _dispatch_client_callout + 16 (:-1)
+25  libdispatch.dylib             	0x00000001bb91ed34 _dispatch_block_invoke_direct + 224 (:-1)
+26  BoardServices                 	0x000000019c38a8c4 __BSSERVICEMAINRUNLOOPQUEUE_IS_CALLING_OUT_TO_A_BLOCK__ + 52 (:-1)
+27  BoardServices                 	0x000000019c38a724 -[BSServiceMainRunLoopQueue _performNextFromRunLoopSource] + 212 (:-1)
+28  BoardServices                 	0x000000019c38a724 BSServiceMainRunLoopSourceHandler + 232 (:-1)
+29  CoreFoundation                	0x000000018cffddb4 __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__ + 28 (:-1)
+30  CoreFoundation                	0x000000018cffdd28 __CFRunLoopDoSource0 + 192 (:-1)
+31  CoreFoundation                	0x000000018cfdf258 __CFRunLoopDoSources0 + 316 (:-1)
+32  CoreFoundation                	0x000000018cfde374 __CFRunLoopRun + 416 (:-1)
+33  CoreFoundation                	0x000000018cfdf7e4 _CFRunLoopRunSpecificWithOptions + 344 (:-1)
+34  GraphicsServices              	0x0000000239838f24 GSEventRunModal + 120 (:-1)
+35  UIKitCore                     	0x00000001911b4aa4 UIApplicationMain + 336 (:-1)
+36  SwiftUI                       	0x0000000197296ae4 closure #1 in KitRendererCommon(_:) + 168 (:-1)
+37  SwiftUI                       	0x000000019729027c specialized UnsafeMutablePointer<>.withMemoryRebound<A, B, C>(to:capacity:_:) + 12 (:-1)
+38  SwiftUI                       	0x000000019729027c KitRendererCommon(_:) + 16 (:-1)
+39  SwiftUI                       	0x000000019729027c runApp<A>(_:) + 136 (:-1)
+40  SwiftUI                       	0x000000019729013c static App.main() + 172 (:-1)
+41  Todo-iOS                      	0x0000000102303dec static TodoApp.$main() + 52 (TodoApp.swift:0)
+42  Todo-iOS                      	0x0000000102303dec main + 64
+43  dyld                          	0x000000018ce30524 start + 6488 (:-1)
+
+Thread 1 name:
+Thread 1:
+0   libsystem_kernel.dylib        	0x0000000248ef4f14 necp_client_action + 8
+1   Network                       	0x000000018ec209b4 nw_path_evaluator_evaluate(NWConcrete_nw_path_evaluator*, int*) + 564 (:-1)
+2   Network                       	0x000000018ebe2de4 nw_path_create_evaluator_for_endpoint + 56 (:-1)
+3   Network                       	0x000000018eca6ab4 nw_association_activate(NWConcrete_nw_association*, NSObject<OS_nw_parameters>*, bool, bool) + 180 (:-1)
+4   Network                       	0x000000018eca6d9c nw_association_register_internal + 288 (:-1)
+5   Network                       	0x000000018eca867c nw_association_register + 24 (:-1)
+6   Network                       	0x000000018eca867c nw_endpoint_handler_initialize_association + 336 (:-1)
+7   Network                       	0x000000018f5681e4 nw_endpoint_handler_fillout_route_stats + 56 (:-1)
+8   Network                       	0x000000018f16f26c nw_endpoint_fallback_get_timeout_nanos(NWConcrete_nw_endpoint_handler*) + 12 (:-1)
+9   Network                       	0x000000018f16f26c nw_endpoint_fallback_start_timer(NWConcrete_nw_endpoint_handler*) + 12 (:-1)
+10  Network                       	0x000000018f16f26c -[NWConcrete_nw_endpoint_fallback startWithHandler:] + 6452 (:-1)
+11  Network                       	0x000000018ede256c nw_endpoint_handler_path_change(NWConcrete_nw_endpoint_handler*, bool) + 11608 (:-1)
+12  Network                       	0x000000018eca5fd8 nw_endpoint_handler_start + 1148 (:-1)
+13  Network                       	0x000000018edebc50 nw_endpoint_flow_start_child + 2256 (:-1)
+14  Network                       	0x000000018ec8cf24 nw_endpoint_flow_setup_protocols(NWConcrete_nw_endpoint_handler*, nw_protocol*, nw_protocol*, bool, bool) + 7016 (:-1)
+15  Network                       	0x000000018ede7454 -[NWConcrete_nw_endpoint_flow startWithHandler:] + 4924 (:-1)
+16  Network                       	0x000000018ede165c nw_endpoint_handler_path_change(NWConcrete_nw_endpoint_handler*, bool) + 7752 (:-1)
+17  Network                       	0x000000018eca5fd8 nw_endpoint_handler_start + 1148 (:-1)
+18  Network                       	0x000000018edcc73c __nw_connection_start_block_invoke + 1276 (:-1)
+19  Network                       	0x000000018ec6f788 nw_connection_async_if_needed + 88 (:-1)
+20  Network                       	0x000000018edcadc8 nw_connection_start + 532 (:-1)
+21  CFNetwork                     	0x00000001997dca04 NWIOConnection::_startConnection_Completion() + 584 (:-1)
+22  CFNetwork                     	0x00000001997df544 NWIOConnection::_startConnection_Conditional() + 116 (:-1)
+23  CFNetwork                     	0x00000001997df544 invocation function for block in NWIOConnection::_startConnection() + 356 (:-1)
+24  CFNetwork                     	0x00000001997e1340 invocation function for block in NWIOConnection::_setupConnection(void () block_pointer) + 1780 (:-1)
+25  CFNetwork                     	0x00000001997dd670 Tube::preConnectConfiguration(NSObject<OS_tcp_connection>*, NSObject<OS_nw_parameters>*, void () block_pointer) + 1020 (:-1)
+26  CFNetwork                     	0x00000001997e2e00 NWIOConnection::_setupConnection(void () block_pointer) + 3440 (:-1)
+27  CFNetwork                     	0x00000001997e2e00 NWIOConnection::_startConnection() + 3528 (:-1)
+28  CFNetwork                     	0x00000001997e2e00 NWIOConnection::open() + 4020 (:-1)
+29  CFNetwork                     	0x00000001997e1dd0 Tube::_onqueue_startConnection() + 388 (:-1)
+30  CFNetwork                     	0x00000001997e5498 invocation function for block in Tube::_onqueue_prepConnection(void () block_pointer, void (int) block_pointer) + 1688 (:-1)
+31  CFNetwork                     	0x00000001997e30e4 invocation function for block in Tube::_onqueue_prepConnection(void () block_pointer, void (int) block_pointer) + 36 (:-1)
+32  libdispatch.dylib             	0x00000001bb919ccc _dispatch_call_block_and_release + 32 (:-1)
+33  libdispatch.dylib             	0x00000001bb933fb4 _dispatch_client_callout + 16 (:-1)
+34  libdispatch.dylib             	0x00000001bb92287c _dispatch_continuation_invoke_inline + 240 (:-1)
+35  libdispatch.dylib             	0x00000001bb92287c _dispatch_continuation_pop_inline + 276 (:-1)
+36  libdispatch.dylib             	0x00000001bb92287c _dispatch_lane_drain + 604 (:-1)
+37  libdispatch.dylib             	0x00000001bb92287c _dispatch_lane_serial_drain + 644 (:-1)
+38  libdispatch.dylib             	0x00000001bb923470 _dispatch_lane_invoke2 + 56 (:-1)
+39  libdispatch.dylib             	0x00000001bb923470 _dispatch_queue_class_invoke + 264 (:-1)
+40  libdispatch.dylib             	0x00000001bb923470 _dispatch_lane_invoke + 312 (:-1)
+41  libdispatch.dylib             	0x00000001bb92445c _dispatch_continuation_pop_inline + 168 (:-1)
+42  libdispatch.dylib             	0x00000001bb92445c _dispatch_workloop_invoke2 + 396 (:-1)
+43  libdispatch.dylib             	0x00000001bb92445c _dispatch_queue_class_invoke + 604 (:-1)
+44  libdispatch.dylib             	0x00000001bb92445c _dispatch_workloop_invoke + 648 (:-1)
+45  libdispatch.dylib             	0x00000001bb92dc8c _dispatch_root_queue_drain_deferred_wlh + 248 (:-1)
+46  libdispatch.dylib             	0x00000001bb92d6b0 _dispatch_wlh_worker_thread + 28 (:-1)
+47  libdispatch.dylib             	0x00000001bb92d6b0 _dispatch_workloop_worker_thread + 640 (:-1)
+48  libsystem_pthread.dylib       	0x000000018cee4238 _pthread_wqthread + 292 (:-1)
+49  libsystem_pthread.dylib       	0x000000018cee3910 start_wqthread + 8
+
+Thread 2:
+
+Thread 3 name:
+Thread 3 Crashed:
+0   libsystem_kernel.dylib        	0x0000000248efa1fc __pthread_kill + 8
+1   libsystem_pthread.dylib       	0x000000018ceea440 pthread_kill + 268 (:-1)
+2   libsystem_c.dylib             	0x000000019489796c abort + 148 (:-1)
+3   libc++abi.dylib               	0x00000002d5ea4d9c __abort_message + 132 (:-1)
+4   libc++abi.dylib               	0x00000002d5ea9fec demangling_terminate_handler() + 296 (:-1)
+5   libobjc.A.dylib               	0x000000018cddd414 _objc_terminate() + 156 (:-1)
+6   libc++abi.dylib               	0x00000002d5eb4c5c std::__terminate(void (*)()) + 16 (:-1)
+7   libc++abi.dylib               	0x00000002d5eb68bc __cxxabiv1::failed_throw(__cxxabiv1::__cxa_exception*) + 88 (:-1)
+8   libc++abi.dylib               	0x00000002d5ea2f74 __cxa_throw + 92 (:-1)
+9   libobjc.A.dylib               	0x000000018cdb84f8 objc_exception_throw + 448 (:-1)
+10  Foundation                    	0x000000018d88fa90 -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:] + 288 (:-1)
+11  UIKitCore                     	0x0000000192373468 -[UIApplication _performBlockAfterCATransactionCommitSynchronizes:] + 276 (:-1)
+12  UIKitCore                     	0x0000000192380964 -[UIApplication _updateStateRestorationArchiveForBackgroundEvent:saveState:exitIfCouldNotRestoreState:updateSnapshot:windowScene:] + 516 (:-1)
+13  UIKitCore                     	0x0000000192380cf4 -[UIApplication _updateSnapshotAndStateRestorationWithAction:windowScene:] + 144 (:-1)
+14  Todo-iOS                      	0x0000000102225cb0 @objc closure #1 in NotificationDelegate.userNotificationCenter(_:didReceive:) + 76 (/<compiler-generated>:0)
+15  Todo-iOS                      	0x00000001020f8b25 <deduplicated_symbol> + 1
+16  Todo-iOS                      	0x00000001020f6381 <deduplicated_symbol> + 1
+17  Todo-iOS                      	0x00000001020f8b25 <deduplicated_symbol> + 1
+18  Todo-iOS                      	0x000000010213a205 <deduplicated_symbol> + 1
+19  Todo-iOS                      	0x00000001020f8b25 <deduplicated_symbol> + 1
+20  libswift_Concurrency.dylib    	0x000000018e593885 completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*) + 1 (:-1)
+
+Thread 4:
+
+Thread 5:
+
+
+Thread 3 crashed with ARM Thread State (64-bit):
+    x0: 0x0000000000000000   x1: 0x0000000000000000   x2: 0x0000000000000000   x3: 0x0000000000000000
+    x4: 0x00000002d5eb7333   x5: 0x000000016dfd1b00   x6: 0x000000000000006e   x7: 0x00000000003ff800
+    x8: 0x61a393b8d3a87816   x9: 0x61a393b9be554816  x10: 0x0000000000000002  x11: 0x00000000fffffffd
+   x12: 0x0000000000000000  x13: 0x0000000000000000  x14: 0x0000000000000000  x15: 0x0000000000000000
+   x16: 0x0000000000000148  x17: 0x000000016dfd3000  x18: 0x0000000000000000  x19: 0x0000000000000006
+   x20: 0x0000000000003803  x21: 0x000000016dfd30e0  x22: 0x00000001f793c000  x23: 0x00000001eea85338
+   x24: 0x0000000102df73d0  x25: 0x0000000000000000  x26: 0x000000016dfd30e0  x27: 0x0000000000000000
+   x28: 0xffffffff02ffffff   fp: 0x000000016dfd1a70   lr: 0x000000018ceea440
+    sp: 0x000000016dfd1a50   pc: 0x0000000248efa1fc cpsr: 0x40000000
+   esr: 0x56000080 (Syscall)
+
+
+Binary Images:
+        0x1020e4000 -         0x102533fff Todo-iOS arm64  <470440ff7109342db6037593cd73e7ab> /private/var/containers/Bundle/Application/F2B9DD91-184A-4FBD-AD70-212EEFE62605/Todo-iOS.app/Todo-iOS
+        0x10287c000 -         0x102887fff libobjc-trampolines.dylib arm64e  <d3d14282bd223f3ba20146a300aeef3e> /private/preboot/Cryptexes/OS/usr/lib/libobjc-trampolines.dylib
+        0x18cdac000 -         0x18cdf9a77 libobjc.A.dylib arm64e  <377f9f281c743aed8dd871b4361f3e39> /usr/lib/libobjc.A.dylib
+        0x18ce2b000 -         0x18cee28d7 dyld arm64e  <17f02809e0e132f4862efacde862b8de> /usr/lib/dyld
+        0x18cee3000 -         0x18ceef1e7 libsystem_pthread.dylib arm64e  <32e283032aad31669d1170e8bcf8e076> /usr/lib/system/libsystem_pthread.dylib
+        0x18cf42000 -         0x18cfa34af libxpc.dylib arm64e  <9ba91df039a53c28b96ebe2463c5c793> /usr/lib/system/libxpc.dylib
+        0x18cfa4000 -         0x18d488327 CoreFoundation arm64e  <d79f14d9f9483cd8b0d1eb66b9b8cf94> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+        0x18d489000 -         0x18e58ba23 Foundation arm64e  <e623eebd082f32afbfc7f1dc83ae62dd> /System/Library/Frameworks/Foundation.framework/Foundation
+        0x18e58c000 -         0x18e6183df libswift_Concurrency.dylib arm64e  <c1f170c0b34932b98f2d079d53b04c77> /usr/lib/swift/libswift_Concurrency.dylib
+        0x18ebce000 -         0x1903ceb27 Network arm64e  <e810c0ce21b436a0a7e30963d815c624> /System/Library/Frameworks/Network.framework/Network
+        0x1910fa000 -         0x193148ed3 UIKitCore arm64e  <58942358b42d383b903248516012fb92> /System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore
+        0x19481e000 -         0x19489f01b libsystem_c.dylib arm64e  <6efe8434ad503dc1959eac218e55ea11> /usr/lib/system/libsystem_c.dylib
+        0x19724f000 -         0x1985527b3 SwiftUI arm64e  <e32a9a5bf8ce3aa88ad953e25d621b08> /System/Library/Frameworks/SwiftUI.framework/SwiftUI
+        0x198cf2000 -         0x198d442b3 RunningBoardServices arm64e  <6da75304e3c93f4db68ac1d4d0c7e9fa> /System/Library/PrivateFrameworks/RunningBoardServices.framework/RunningBoardServices
+        0x199777000 -         0x199aedb17 CFNetwork arm64e  <03f6f4ff3faf3d89b3fc9a98c15993c6> /System/Library/Frameworks/CFNetwork.framework/CFNetwork
+        0x19c388000 -         0x19c429d17 BoardServices arm64e  <42c2ab2231c93b06b7bf612b5333b3e8> /System/Library/PrivateFrameworks/BoardServices.framework/BoardServices
+        0x1bb918000 -         0x1bb95edd7 libdispatch.dylib arm64e  <84b7e81db830384fa10396323c6f5189> /usr/lib/system/libdispatch.dylib
+        0x239838000 -         0x23983fea3 GraphicsServices arm64e  <94d8382e73c73bc48357a25a79687d11> /System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices
+        0x248eef000 -         0x248f2c2db libsystem_kernel.dylib arm64e  <26ffa9065aca39bf8f7c94fe9ab8c657> /usr/lib/system/libsystem_kernel.dylib
+        0x2d5ea1000 -         0x2d5ebac17 libc++abi.dylib arm64e  <93e4747be352324481c32a785d3cff98> /usr/lib/libc++abi.dylib
+
+EOF

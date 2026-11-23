@@ -77,7 +77,7 @@ enum DebugLaunch {
     /// `TODO_DEBUG_DELIVER_RESPONSE=<userInfo JSON>` (server payload format): calls the REAL `NotificationDelegate`
     /// (`didReceive` and `willPresent`, through the Objective-C protocol entry the system uses) with a notification response
     /// built from that payload, from a background queue as UserNotifications does, after `TODO_DEBUG_DELIVER_DELAY` seconds
-    /// (default 0 = during launch, "cold"; larger = with the UI up, "warm"); `TODO_DEBUG_DELIVER_ONLY` limits it to one callback. The completion handlers assert the main queue
+    /// (default 0 = during launch, "cold"; larger = with the UI up, "warm"); `TODO_DEBUG_DELIVER_ONLY` limits it to one callback; `TODO_DEBUG_DELIVER_ACTION` picks the action button instead of the default tap. The completion handlers assert the main queue
     /// like UIKit's does (`dispatchPrecondition` traps otherwise), then `DebugProbe` shows the outcome. Needs no banner.
     static func deliverResponseIfRequested() {
         guard let json = env["TODO_DEBUG_DELIVER_RESPONSE"], let data = json.data(using: .utf8),
@@ -347,6 +347,9 @@ private final class DebugNotificationResponse: UNNotificationResponse {
     }
     required init?(coder: NSCoder) { super.init(coder: coder) }
     override var notification: UNNotification { fakeNotification ?? super.notification }
-    override var actionIdentifier: String { UNNotificationDefaultActionIdentifier }
+    /// `TODO_DEBUG_DELIVER_ACTION` (e.g. `TODO_ANSWER`, `TODO_OPEN`) answers as that action button; unset = default tap.
+    override var actionIdentifier: String {
+        ProcessInfo.processInfo.environment["TODO_DEBUG_DELIVER_ACTION"] ?? UNNotificationDefaultActionIdentifier
+    }
 }
 #endif

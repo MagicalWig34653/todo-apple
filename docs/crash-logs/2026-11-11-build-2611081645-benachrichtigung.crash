@@ -1,0 +1,162 @@
+Incident Identifier: EC7EEE07-8FB9-4CE6-A458-ECDB15F4A7D0
+Distributor ID:      com.apple.TestFlight
+Hardware Model:      iPhone18,1
+Process:             Todo-iOS [57008]
+Path:                /private/var/containers/Bundle/Application/CC6710FC-50F0-4F40-9EC6-09AB94AE743E/Todo-iOS.app/Todo-iOS
+Identifier:          de.linolaske.todo
+Version:             0.1.0 (2611081645)
+AppStoreTools:       27B52
+AppVariant:          1:iPhone18,1:27
+Beta:                YES
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           de.linolaske.todo [16789]
+
+Date/Time:           2026-11-11 20:31:36.6174 +0100
+Launch Time:         2026-11-11 20:31:36.4835 +0100
+OS Version:          iPhone OS 27.2 (24B119)
+Release Type:        User
+Baseband Version:    2.20.04
+Report Version:      104
+
+Exception Type:  EXC_CRASH (SIGABRT)
+Exception Codes: 0x0000000000000000, 0x0000000000000000
+Termination Reason: SIGNAL 6 Abort trap: 6
+Terminating Process: Todo-iOS [57008]
+
+Triggered by Thread:  6
+
+Last Exception Backtrace:
+0   CoreFoundation                	0x18d03b8e0 __exceptionPreprocess + 120 (:-1)
+1   libobjc.A.dylib               	0x18cdb8390 objc_exception_throw + 88 (:-1)
+2   Foundation                    	0x18d88fa90 -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:] + 288 (:-1)
+3   UIKitCore                     	0x192373468 -[UIApplication _performBlockAfterCATransactionCommitSynchronizes:] + 276 (:-1)
+4   UIKitCore                     	0x192380964 -[UIApplication _updateStateRestorationArchiveForBackgroundEvent:saveState:exitIfCouldNotRestoreState:updateSnapshot:windowScene:] + 516 (:-1)
+5   UIKitCore                     	0x192380cf4 -[UIApplication _updateSnapshotAndStateRestorationWithAction:windowScene:] + 144 (:-1)
+6   Todo-iOS                      	0x100df2d9c 0x100ca8000 + 1355164
+7   Todo-iOS                      	0x100cbcdf5 0x100ca8000 + 85493
+8   Todo-iOS                      	0x100cba525 0x100ca8000 + 75045
+9   Todo-iOS                      	0x100cbcdf5 0x100ca8000 + 85493
+10  Todo-iOS                      	0x100cfe4d5 0x100ca8000 + 353493
+11  Todo-iOS                      	0x100cbcdf5 0x100ca8000 + 85493
+12  libswift_Concurrency.dylib    	0x18e593885 completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*) + 1 (:-1)
+
+Thread 0 name:
+Thread 0:
+0   CoreFoundation                	0x000000018cfb0dbc __CFStrHashEightBit + 96 (:-1)
+1   CoreFoundation                	0x000000018cfb0dbc __CFStringHash + 184 (:-1)
+2   BaseBoard                     	0x000000019c2bec44 BSSettingForKey + 8 (:-1)
+3   BaseBoard                     	0x000000019c2bec44 -[BSKeyedSettings _settingForKey:saveKey:] + 60 (:-1)
+4   BaseBoard                     	0x000000019c2c0c94 -[BSKeyedSettings objectForKey:] + 48 (:-1)
+5   FrontBoardServices            	0x00000001b522f69c -[FBSSettings _underlyingValueForSetting:].cold.1 + 132 (:-1)
+6   FrontBoardServices            	0x00000001b522f5dc -[FBSSettings _underlyingValueForSetting:] + 56 (:-1)
+7   FrontBoardServices            	0x00000001b522f7a4 -[FBSSettings _valueForSetting:] + 24 (:-1)
+8   FrontBoardServices            	0x00000001b522ff7c -[FBSSettings valueForSetting:] + 116 (:-1)
+9   FrontBoardServices            	0x00000001b5239f54 ___realizeSettingsExtension_block_invoke_3.262 + 32 (:-1)
+10  UIKitCore                     	0x000000019115cc50 -[_UISceneRenderingEnvironmentClientComponent screenBrightness] + 36 (:-1)
+11  UIKitCore                     	0x0000000191156540 -[_UISceneRenderingEnvironmentClientComponent scene:didUpdateSettings:] + 220 (:-1)
+12  FrontBoardServices            	0x00000001b523956c -[FBSSceneObserver scene:didUpdateSettings:] + 160 (:-1)
+13  FrontBoardServices            	0x00000001b525d308 __76-[FBSScene updater:didUpdateSettings:withDiff:transitionContext:completion:]_block_invoke.144 + 768 (:-1)
+14  FrontBoardServices            	0x00000001b5237d54 -[FBSScene _callOutQueue_maybeCoalesceClientSettingsUpdates:] + 128 (:-1)
+15  FrontBoardServices            	0x00000001b5247aa8 -[FBSScene updater:didUpdateSettings:withDiff:transitionContext:completion:] + 688 (:-1)
+16  FrontBoardServices            	0x00000001b5237adc __94-[FBSWorkspaceScenesClient _queue_updateScene:withSettings:diff:transitionContext:completion:]_block_invoke_2.cold.1 + 352 (:-1)
+17  FrontBoardServices            	0x00000001b523836c __94-[FBSWorkspaceScenesClient _queue_updateScene:withSettings:diff:transitionContext:completion:]_block_invoke_2 + 96 (:-1)
+18  FrontBoardServices            	0x00000001b5238458 -[FBSWorkspace _calloutQueue_executeCalloutFromSource:withBlock:] + 168 (:-1)
+19  libdispatch.dylib             	0x00000001bb933fb4 _dispatch_client_callout + 16 (:-1)
+20  libdispatch.dylib             	0x00000001bb91ed34 _dispatch_block_invoke_direct + 224 (:-1)
+21  BoardServices                 	0x000000019c38a8c4 __BSSERVICEMAINRUNLOOPQUEUE_IS_CALLING_OUT_TO_A_BLOCK__ + 52 (:-1)
+22  BoardServices                 	0x000000019c38a724 -[BSServiceMainRunLoopQueue _performNextFromRunLoopSource] + 212 (:-1)
+23  BoardServices                 	0x000000019c38a724 BSServiceMainRunLoopSourceHandler + 232 (:-1)
+24  CoreFoundation                	0x000000018cffddb4 __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__ + 28 (:-1)
+25  CoreFoundation                	0x000000018cffdd28 __CFRunLoopDoSource0 + 192 (:-1)
+26  CoreFoundation                	0x000000018cfdf258 __CFRunLoopDoSources0 + 316 (:-1)
+27  CoreFoundation                	0x000000018cfde374 __CFRunLoopRun + 416 (:-1)
+28  CoreFoundation                	0x000000018cfdf7e4 _CFRunLoopRunSpecificWithOptions + 344 (:-1)
+29  GraphicsServices              	0x0000000239838f24 GSEventRunModal + 120 (:-1)
+30  UIKitCore                     	0x00000001911b4aa4 UIApplicationMain + 336 (:-1)
+31  SwiftUI                       	0x0000000197296ae4 closure #1 in KitRendererCommon(_:) + 168 (:-1)
+32  SwiftUI                       	0x000000019729027c specialized UnsafeMutablePointer<>.withMemoryRebound<A, B, C>(to:capacity:_:) + 12 (:-1)
+33  SwiftUI                       	0x000000019729027c KitRendererCommon(_:) + 16 (:-1)
+34  SwiftUI                       	0x000000019729027c runApp<A>(_:) + 136 (:-1)
+35  SwiftUI                       	0x000000019729013c static App.main() + 172 (:-1)
+36  Todo-iOS                      	0x0000000100ed58f0 0x100ca8000 + 2283760
+37  dyld                          	0x000000018ce30524 start + 6488 (:-1)
+
+Thread 1:
+
+Thread 2:
+
+Thread 3:
+
+Thread 4:
+
+Thread 5:
+
+Thread 6 name:
+Thread 6 Crashed:
+0   libsystem_kernel.dylib        	0x0000000248efa1fc __pthread_kill + 8 (:-1)
+1   libsystem_pthread.dylib       	0x000000018ceea440 pthread_kill + 268 (:-1)
+2   libsystem_c.dylib             	0x000000019489796c abort + 148 (:-1)
+3   libc++abi.dylib               	0x00000002d5ea4d9c __abort_message + 132 (:-1)
+4   libc++abi.dylib               	0x00000002d5ea9fec demangling_terminate_handler() + 296 (:-1)
+5   libobjc.A.dylib               	0x000000018cddd414 _objc_terminate() + 156 (:-1)
+6   libc++abi.dylib               	0x00000002d5eb4c5c std::__terminate(void (*)()) + 16 (:-1)
+7   libc++abi.dylib               	0x00000002d5eb68bc __cxxabiv1::failed_throw(__cxxabiv1::__cxa_exception*) + 88 (:-1)
+8   libc++abi.dylib               	0x00000002d5ea2f74 __cxa_throw + 92 (:-1)
+9   libobjc.A.dylib               	0x000000018cdb84f8 objc_exception_throw + 448 (:-1)
+10  Foundation                    	0x000000018d88fa90 -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:] + 288 (:-1)
+11  UIKitCore                     	0x0000000192373468 -[UIApplication _performBlockAfterCATransactionCommitSynchronizes:] + 276 (:-1)
+12  UIKitCore                     	0x0000000192380964 -[UIApplication _updateStateRestorationArchiveForBackgroundEvent:saveState:exitIfCouldNotRestoreState:updateSnapshot:windowScene:] + 516 (:-1)
+13  UIKitCore                     	0x0000000192380cf4 -[UIApplication _updateSnapshotAndStateRestorationWithAction:windowScene:] + 144 (:-1)
+14  Todo-iOS                      	0x0000000100df2d9c 0x100ca8000 + 1355164
+15  Todo-iOS                      	0x0000000100cbcdf5 0x100ca8000 + 85493
+16  Todo-iOS                      	0x0000000100cba525 0x100ca8000 + 75045
+17  Todo-iOS                      	0x0000000100cbcdf5 0x100ca8000 + 85493
+18  Todo-iOS                      	0x0000000100cfe4d5 0x100ca8000 + 353493
+19  Todo-iOS                      	0x0000000100cbcdf5 0x100ca8000 + 85493
+20  libswift_Concurrency.dylib    	0x000000018e593885 completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*) + 1 (:-1)
+
+Thread 7:
+
+Thread 8:
+
+Thread 9:
+
+Thread 10:
+
+
+Thread 6 crashed with ARM Thread State (64-bit):
+    x0: 0x0000000000000000   x1: 0x0000000000000000   x2: 0x0000000000000000   x3: 0x0000000000000000
+    x4: 0x00000002d5eb7333   x5: 0x000000016f499b00   x6: 0x000000000000006e   x7: 0x00000000003ff800
+    x8: 0x4226af37ecfe98fe   x9: 0x4226af3683b728fe  x10: 0x0000000000000002  x11: 0x00000000fffffffd
+   x12: 0x0000000000000000  x13: 0x0000000000000000  x14: 0x0000000000000000  x15: 0x0000000000000000
+   x16: 0x0000000000000148  x17: 0x000000016f49b000  x18: 0x0000000000000000  x19: 0x0000000000000006
+   x20: 0x0000000000002f03  x21: 0x000000016f49b0e0  x22: 0x00000001f793c000  x23: 0x00000001eea85338
+   x24: 0x0000000101bf3590  x25: 0x0000000000000000  x26: 0x000000016f49b0e0  x27: 0x0000000000000000
+   x28: 0xffffffff02ffffff   fp: 0x000000016f499a70   lr: 0x000000018ceea440
+    sp: 0x000000016f499a50   pc: 0x0000000248efa1fc cpsr: 0x40000000
+   esr: 0x56000080 (Syscall)
+
+
+Binary Images:
+        0x100ca8000 -         0x101107fff Todo-iOS arm64  <901481e2dd7732da8525c5c7144bc979> /private/var/containers/Bundle/Application/CC6710FC-50F0-4F40-9EC6-09AB94AE743E/Todo-iOS.app/Todo-iOS
+        0x101398000 -         0x1013a3fff libobjc-trampolines.dylib arm64e  <d3d14282bd223f3ba20146a300aeef3e> /private/preboot/Cryptexes/OS/usr/lib/libobjc-trampolines.dylib
+        0x18cdac000 -         0x18cdf9a77 libobjc.A.dylib arm64e  <377f9f281c743aed8dd871b4361f3e39> /usr/lib/libobjc.A.dylib
+        0x18ce2b000 -         0x18cee28d7 dyld arm64e  <17f02809e0e132f4862efacde862b8de> /usr/lib/dyld
+        0x18cee3000 -         0x18ceef1e7 libsystem_pthread.dylib arm64e  <32e283032aad31669d1170e8bcf8e076> /usr/lib/system/libsystem_pthread.dylib
+        0x18cfa4000 -         0x18d488327 CoreFoundation arm64e  <d79f14d9f9483cd8b0d1eb66b9b8cf94> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+        0x18d489000 -         0x18e58ba23 Foundation arm64e  <e623eebd082f32afbfc7f1dc83ae62dd> /System/Library/Frameworks/Foundation.framework/Foundation
+        0x18e58c000 -         0x18e6183df libswift_Concurrency.dylib arm64e  <c1f170c0b34932b98f2d079d53b04c77> /usr/lib/swift/libswift_Concurrency.dylib
+        0x1910fa000 -         0x193148ed3 UIKitCore arm64e  <58942358b42d383b903248516012fb92> /System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore
+        0x19481e000 -         0x19489f01b libsystem_c.dylib arm64e  <6efe8434ad503dc1959eac218e55ea11> /usr/lib/system/libsystem_c.dylib
+        0x19724f000 -         0x1985527b3 SwiftUI arm64e  <e32a9a5bf8ce3aa88ad953e25d621b08> /System/Library/Frameworks/SwiftUI.framework/SwiftUI
+        0x19c2bb000 -         0x19c387907 BaseBoard arm64e  <30d1ab6a31323596bbfb2e737f930718> /System/Library/PrivateFrameworks/BaseBoard.framework/BaseBoard
+        0x19c388000 -         0x19c429d17 BoardServices arm64e  <42c2ab2231c93b06b7bf612b5333b3e8> /System/Library/PrivateFrameworks/BoardServices.framework/BoardServices
+        0x1b522e000 -         0x1b52e63c7 FrontBoardServices arm64e  <ac3e3b80688c353097ae5b58e1510b21> /System/Library/PrivateFrameworks/FrontBoardServices.framework/FrontBoardServices
+        0x1bb918000 -         0x1bb95edd7 libdispatch.dylib arm64e  <84b7e81db830384fa10396323c6f5189> /usr/lib/system/libdispatch.dylib
+        0x239838000 -         0x23983fea3 GraphicsServices arm64e  <94d8382e73c73bc48357a25a79687d11> /System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices
+        0x248eef000 -         0x248f2c2db libsystem_kernel.dylib arm64e  <26ffa9065aca39bf8f7c94fe9ab8c657> /usr/lib/system/libsystem_kernel.dylib
+        0x2d5ea1000 -         0x2d5ebac17 libc++abi.dylib arm64e  <93e4747be352324481c32a785d3cff98> /usr/lib/libc++abi.dylib
+
+EOF
