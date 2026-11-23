@@ -129,3 +129,11 @@ Aus sauberem main 5f872c8 (Absturz beim Öffnen einer Benachrichtigung: Tests un
 - Testgruppen: interne Gruppe "ich" (alle Builds) enthält den Build, `internalBuildState IN_BETA_TESTING`. Extern: `externalBuildState READY_FOR_BETA_SUBMISSION`, keiner externen Gruppe zugewiesen, nicht zur Beta-App-Prüfung eingereicht (es gibt noch keine externe Gruppe).
 - "Was testen" auf Deutsch (`de-DE`) gesetzt. Dabei hat `asc` die App-Lokalisierung `de-DE` angelegt, ohne Beschreibung und Feedback-E-Mail; die braucht Apple für externe Tester (Beta-App-Beschreibung, Feedback-E-Mail, Kontaktdaten der Beta-App-Prüfung sind leer): Lino muss sie eintragen.
 - macOS nicht hochgeladen. Nicht geprüft: Gerätetest (Lino).
+
+## Upload Stand 87410a8 (2026-11-23, nur iOS, Karte 06EB19A3 Webhook)
+Aus sauberem main 87410a8 (Quellcode der App gleich 5f872c8, seit Build 2611231422 nur Doku geaendert), Version 0.1.0, `scripts/testflight-archive.sh` mit `TODO_UPLOAD=1`, Team `J2DU2P47XW`, Build 2611231933. Die App selbst bekommt kein Webhook-Feature (Einstellung nur in der PWA); der Build haelt das Paket testbar und belegt die Upload-Kette.
+- iOS: Build 2611231933, "Upload succeeded", ARCHIVE und EXPORT SUCCEEDED, Exit 0, Build-ID in App Store Connect `df896d79-e8db-4621-96f0-017cb0b8c237`, Verarbeitung `VALID` (per `asc builds info`).
+- Upload-Pruefungen: `aps-environment = production` im Export (Archiv `development`, wie bisher), Icon (Icon Composer) im Archiv, `usesNonExemptEncryption=false` am Build, System-PATH gegen Homebrew-rsync (Skript).
+- Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`); extern `READY_FOR_BETA_SUBMISSION`, keiner externen Gruppe zugewiesen (es gibt keine), zuweisbar sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt (siehe 5f872c8-Abschnitt).
+- "Was testen" (`de-DE`) am Build gesetzt und per `asc builds test-notes view` gelesen: Hinweis auf den Webhook (Einstellungen > Webhook in der Web-App, nach dem Server-Deploy) und kurze Pruefung von Anmeldung, "Fuer dich", Aufgaben.
+- macOS nicht hochgeladen. Nicht geprueft: Geraetetest (Lino).
