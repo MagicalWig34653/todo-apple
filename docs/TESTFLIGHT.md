@@ -121,3 +121,11 @@ Aus Branch `glowup` (def0e78: Glow-up W1, iPhone-Navigation Variante A 432c190, 
 - Nicht geprueft: Verarbeitung in App Store Connect, Testgruppen-Zuweisung, Funktion auf Geraeten.
 
 - Stolperstein 17.11.2026: Homebrew-rsync 3.5.2 vor /usr/bin/rsync im PATH laesst den Export mit "Packaging: Copy failed" scheitern. Beide Skripte setzen deshalb am Anfang `export PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH`. Ein HTTP 500 beim "Error Downloading App Information" ist ein Serverfehler bei App Store Connect: spaeter wiederholen.
+
+## Upload Stand 5f872c8 (2026-11-23, nur iOS, Karte 68AB3453)
+Aus sauberem main 5f872c8 (Absturz beim Öffnen einer Benachrichtigung: Tests und Belege, Fix `ea11306` ist enthalten), Version 0.1.0, `scripts/testflight-archive.sh` mit `TODO_UPLOAD=1`, Team `J2DU2P47XW`.
+- iOS: Build 2611231422, "Upload succeeded", Delivery UUID `6f275df3-0c08-4e43-9fcb-d97ef3a509ae` (= Build-ID in App Store Connect), Exit 0, ARCHIVE und EXPORT SUCCEEDED, Verarbeitung `VALID`.
+- Upload-Prüfungen: Distribution-Log `aps-environment = production` (Archiv `development`, wie bisher erwartet); Icon (Icon Composer) im Archiv; `usesNonExemptEncryption=false` (Exportkonformität beantwortet, kommt aus dem Build); Homebrew-rsync umgangen (Skript setzt System-PATH).
+- Testgruppen: interne Gruppe "ich" (alle Builds) enthält den Build, `internalBuildState IN_BETA_TESTING`. Extern: `externalBuildState READY_FOR_BETA_SUBMISSION`, keiner externen Gruppe zugewiesen, nicht zur Beta-App-Prüfung eingereicht (es gibt noch keine externe Gruppe).
+- "Was testen" auf Deutsch (`de-DE`) gesetzt. Dabei hat `asc` die App-Lokalisierung `de-DE` angelegt, ohne Beschreibung und Feedback-E-Mail; die braucht Apple für externe Tester (Beta-App-Beschreibung, Feedback-E-Mail, Kontaktdaten der Beta-App-Prüfung sind leer): Lino muss sie eintragen.
+- macOS nicht hochgeladen. Nicht geprüft: Gerätetest (Lino).
