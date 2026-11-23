@@ -136,7 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         #if DEBUG
         // Offscreen rendering run (TODO_DEBUG_RENDER): no window, no activation, no Dock icon.
-        if ProcessInfo.processInfo.environment["TODO_DEBUG_RENDER"] != nil { NSApp.setActivationPolicy(.prohibited) }
+        let env = ProcessInfo.processInfo.environment
+        if env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_WINDOW_SHOTS"] != nil { NSApp.setActivationPolicy(.prohibited) }
         #endif
     }
 
