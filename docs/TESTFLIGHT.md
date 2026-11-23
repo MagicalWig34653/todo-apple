@@ -137,3 +137,10 @@ Aus sauberem main 87410a8 (Quellcode der App gleich 5f872c8, seit Build 26112314
 - Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`); extern `READY_FOR_BETA_SUBMISSION`, keiner externen Gruppe zugewiesen (es gibt keine), zuweisbar sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt (siehe 5f872c8-Abschnitt).
 - "Was testen" (`de-DE`) am Build gesetzt und per `asc builds test-notes view` gelesen: Hinweis auf den Webhook (Einstellungen > Webhook in der Web-App, nach dem Server-Deploy) und kurze Pruefung von Anmeldung, "Fuer dich", Aufgaben.
 - macOS nicht hochgeladen. Nicht geprueft: Geraetetest (Lino).
+
+## Upload Stand f273fef (2026-11-23, nur iOS, Karte 6199815B Passkey-1004-Retry)
+Aus Branch `t3/apple-passkey-1004-retry` (Quelltext der App gleich 5ead94f, f273fef aendert nur Doku), Version 0.1.0, Team `J2DU2P47XW`. Archiv mit `xcodebuild archive` (Release, Build 2611232255), Export mit `destination=upload` ausschliesslich ueber `~/Development/orchestrator/tools/testflight-upload.sh` nach gruener Tor-Freigabe (`upload-tor.py gueltig` Exit 0; Nachweis `runtime/nachweise/todolino-apple-2611232255.json`).
+- iOS: Build 2611232255, "Upload succeeded", EXPORT SUCCEEDED, Exit 0, Build-ID in App Store Connect `eba280b0-39b1-4e6b-a3be-7ce4ce667376`, Verarbeitung `VALID` (`asc builds wait`/`info`). `usesNonExemptEncryption=false` am Build (Exportkonformitaet beantwortet).
+- Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`). Extern weiter keine Gruppe; zuweisbar sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt.
+- "Was testen" (`de-DE`) per `asc builds test-notes create` gesetzt und per `view` gelesen: Passkey-Wiederholung nach frischer Installation testen.
+- Nicht geprueft: Geraetetest (Lino).
