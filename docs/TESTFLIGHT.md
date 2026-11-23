@@ -137,3 +137,12 @@ Aus sauberem main 87410a8 (Quellcode der App gleich 5f872c8, seit Build 26112314
 - Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`); extern `READY_FOR_BETA_SUBMISSION`, keiner externen Gruppe zugewiesen (es gibt keine), zuweisbar sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt (siehe 5f872c8-Abschnitt).
 - "Was testen" (`de-DE`) am Build gesetzt und per `asc builds test-notes view` gelesen: Hinweis auf den Webhook (Einstellungen > Webhook in der Web-App, nach dem Server-Deploy) und kurze Pruefung von Anmeldung, "Fuer dich", Aufgaben.
 - macOS nicht hochgeladen. Nicht geprueft: Geraetetest (Lino).
+
+## Upload Stand 73f5d8c (2026-11-23, nur iOS, Karte A6B0D5E3 W4-Rest)
+Aus Branch `t3/apple-w4-macos-window-previews` (73f5d8c, sauberer Stand, gepusht), Version 0.1.0, `scripts/testflight-archive.sh` mit `TODO_UPLOAD=1`, Team `J2DU2P47XW`, Build 2611232050. Inhalt: macOS-Fenster-E2E und Previews je Screen (Debug-Code und Previews, fuer die iPhone-App keine sichtbare Aenderung).
+- iOS: Build 2611232050, "Upload succeeded", ARCHIVE und EXPORT SUCCEEDED, Build-ID in App Store Connect `77adc713-580a-46ba-abb7-bd0d6378a9cc`, Verarbeitung `VALID` (`asc builds info`).
+- Upload-Pruefungen: Distribution-Log `aps-environment = production` im Export (Archiv `development`, wie bisher), Icon (AppIcon60x60@2x, Assets.car) im Archiv, `usesNonExemptEncryption=false` am Build (Exportkonformitaet), System-PATH gegen Homebrew-rsync (Skript).
+- Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`). Extern: keine externe Gruppe vorhanden, nicht eingereicht; zuweisbar, sobald Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eingetragen sind (siehe 5f872c8-Abschnitt).
+- "Was testen" (`de-DE`) am Build gesetzt und per `asc builds test-notes view` gelesen.
+- macOS nicht hochgeladen. Nicht geprueft: Geraetetest (Lino).
+
