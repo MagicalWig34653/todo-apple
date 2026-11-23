@@ -131,7 +131,8 @@ final class AppModel {
         }
     }
 
-    private let passkey = PlatformPasskey()
+    /// Retries once after ~3 s on 1004 notAssociated (swcd has not confirmed the AASA right after install).
+    private let passkey = RetryingPasskey(PlatformPasskey())
 
     var client: APIClient? {
         guard let url = URL(string: serverURL), url.scheme != nil, url.host != nil else { return nil }
