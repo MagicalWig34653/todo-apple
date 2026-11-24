@@ -502,7 +502,7 @@ struct TaskDetailView: View {
                     Button { setRecurrence(f) } label: { Label(Self.repeatKey(f), systemImage: rule?.frequency == f ? "checkmark" : "repeat") }
                 }
             } label: {
-                if let rule { Text(Self.repeatKey(rule.frequency)).fontWeight(.medium) } else { Text("repeat.none") }
+                if let rule { Text(verbatim: RepeatText.text(rule)).fontWeight(.medium) } else { Text("repeat.none") }
             }
         }
     }

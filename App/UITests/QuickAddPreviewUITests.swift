@@ -3,7 +3,9 @@ import XCTest
 /// Quick-add preview (card 8DB7E4F8): while typing, the sheet shows what it understood (due date, repetition) and the
 /// lines vanish again when the text is removed. Real app against the real backend; nothing is saved.
 /// Needs `TODO_UITEST_SERVER` / `TODO_UITEST_TOKEN` like `TodoUITests` (skipped without). With `TODO_TOUR_OUT=<dir>` it also
-/// writes PNGs before / while / after typing, for light and dark (`XCUIDevice.appearance`, the launch argument has no effect).
+/// writes PNGs before / while / after typing. The look (`TODO_TOUR_LOOK=light|dark`) only names the files: the appearance itself
+/// is set on the simulator (`simctl ui <udid> appearance dark`, run with `TODO_UITEST_DEVICE`); neither the launch argument
+/// nor `XCUIDevice.appearance` takes effect here.
 @MainActor
 final class QuickAddPreviewUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -15,11 +17,10 @@ final class QuickAddPreviewUITests: XCTestCase {
         }
     }
 
-    override func tearDown() async throws { XCUIDevice.shared.appearance = .unspecified }
+    private var look: String { ProcessInfo.processInfo.environment["TODO_TOUR_LOOK"] ?? "light" }
 
-    private func launch(dark: Bool) {
+    private func launch() {
         let env = ProcessInfo.processInfo.environment
-        XCUIDevice.shared.appearance = dark ? .dark : .light
         app = XCUIApplication()
         app.launchEnvironment["TODO_DEBUG_SERVER"] = env["TODO_UITEST_SERVER"]
         app.launchEnvironment["TODO_DEBUG_TOKEN"] = env["TODO_UITEST_TOKEN"]
@@ -36,9 +37,8 @@ final class QuickAddPreviewUITests: XCTestCase {
 
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
 
-    private func runFlow(dark: Bool) {
-        let look = dark ? "dark" : "light"
-        launch(dark: dark)
+    func testPreviewAppearsAndDisappears() {
+        launch()
         XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 30))
         app.buttons["quickAddButton"].tap()
         let field = app.textFields["quickAddTitle"]
@@ -55,6 +55,8 @@ final class QuickAddPreviewUITests: XCTestCase {
         // While: the repetition (with interval) and the due date it implies appear.
         let text = "Pflanzen giessen alle 2 Wochen"
         field.typeText(text)
+        // First keyboard use on a fresh simulator shows the glide-typing intro; it covers the lower half and nothing else.
+        if app.buttons["Continue"].waitForExistence(timeout: 2) { app.buttons["Continue"].tap() }
         let repeatLine = element("quickAddPreviewRepeat")
         XCTAssertTrue(repeatLine.waitForExistence(timeout: 5), "repeat preview appears")
         XCTAssertTrue(repeatLine.label.contains("Alle 2 Wochen"), "repeat preview names the interval: \(repeatLine.label)")
@@ -78,7 +80,4 @@ final class QuickAddPreviewUITests: XCTestCase {
         shot("quickadd-\(look)-4-nachher")
         app.terminate()
     }
-
-    func testPreviewAppearsAndDisappearsLight() { runFlow(dark: false) }
-    func testPreviewAppearsAndDisappearsDark() { runFlow(dark: true) }
 }

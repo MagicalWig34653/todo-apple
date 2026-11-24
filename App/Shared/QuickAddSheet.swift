@@ -37,7 +37,9 @@ struct QuickAddSheet: View {
     @State private var priority = 0
     @State private var project: UUID?
     @State private var labelIDs: Set<UUID> = []
-    @State private var recurrence: RecurrenceRule.Frequency?
+    @State private var recurrence: RecurrenceRule?
+    /// Due date the text alone produced (preview chip); nil once the user picked a date by hand.
+    @State private var parsedDue: Date?
     @State private var labelTokens: [String] = []
     @State private var recognized: [String] = []
     /// Chips the user set by hand win over what the text parser finds.
@@ -62,6 +64,7 @@ struct QuickAddSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.canvas)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: recognized)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: recurrence)
         .modifier(QuickAddPresentation(largeOnly: typeSize.isAccessibilitySize))
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
@@ -107,6 +110,7 @@ struct QuickAddSheet: View {
                 .font(.caption).foregroundStyle(Color.textSecondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                 .transition(.opacity)
             }
+            preview
             TextField(accessible: "quickAdd.notes", text: $notes, axis: .vertical)
                 .font(.subheadline).foregroundStyle(Color.textSecondary).lineLimit(2...5)
                 .frame(maxWidth: .infinity, minHeight: TapTarget.minimum, alignment: .topLeading).contentShape(Rectangle())
@@ -140,6 +144,27 @@ struct QuickAddSheet: View {
     }
 
     // MARK: pieces
+
+    /// What the text produced: due date and repetition, shown while typing and gone with the text. The due chip
+    /// disappears once the user picks a date by hand (the pick wins, see `dueTouched`).
+    @ViewBuilder private var preview: some View {
+        let shownDue = dueTouched ? nil : parsedDue
+        if shownDue != nil || recurrence != nil {
+            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: Space.xs)) : AnyLayout(HStackLayout(spacing: Space.m))
+            layout {
+                if let shownDue {
+                    Label { Text("quickAdd.preview.due \(DueFormat.text(shownDue))") } icon: { Image(systemName: "calendar") }
+                        .accessibilityIdentifier("quickAddPreviewDue")
+                }
+                if let recurrence {
+                    Label { Text("quickAdd.preview.repeat \(RepeatText.text(recurrence))") } icon: { Image(systemName: "arrow.triangle.2.circlepath") }
+                        .accessibilityIdentifier("quickAddPreviewRepeat")
+                }
+            }
+            .font(.footnote.weight(.medium)).foregroundStyle(Color.brand)
+            .transition(.opacity)
+        }
+    }
 
     /// Due chips: one scrolling row, or a column from the accessibility sizes on so no chip is cut off.
     @ViewBuilder private var dueChips: some View {
@@ -275,7 +300,8 @@ struct QuickAddSheet: View {
         recognized = parsed.recognized
         if !dueTouched { due = parsed.due ?? dueDate }
         if !priorityTouched { priority = parsed.priority ?? 0 }
-        recurrence = parsed.recurrence
+        recurrence = parsed.recurrenceRule
+        parsedDue = parsed.due
         labelTokens = parsed.labelTokens
         if !projectTouched {
             if let token = parsed.projectToken?.lowercased(),
@@ -300,7 +326,7 @@ struct QuickAddSheet: View {
             dismiss()
             // Planning and labels go through the outbox: it waits until the task exists on the server (offline too).
             if due != nil || priority > 0 || repeating != nil {
-                await model.savePlanning(taskID: id, PlanningData(dueAt: due, priority: priority, recurrence: repeating.map { RecurrenceRule(frequency: $0) }))
+                await model.savePlanning(taskID: id, PlanningData(dueAt: due, priority: priority, recurrence: repeating))
             }
             for l in labels { if let known = meta.allLabels.first(where: { $0.id == l }) { await model.setLabel(known, on: id, enabled: true) } }
             for name in newLabelNames { await model.addLabel(named: name, to: id, known: meta.allLabels) }
@@ -320,3 +346,18 @@ struct QuickAddSheet: View {
 #Preview("Quick add dark") { quickAddPreview().preferredColorScheme(.dark) }
 #Preview("Quick add accessibility5") { quickAddPreview().dynamicTypeSize(.accessibility5) }
 #endif
+
+/// "Täglich" / "Alle 2 Wochen": the rule as text (interval 1 uses the plain frequency names).
+enum RepeatText {
+    static func text(_ rule: RecurrenceRule) -> String {
+        let n = rule.interval
+        switch (rule.frequency, n > 1) {
+        case (.daily, false): return String(localized: "repeat.daily")
+        case (.weekly, false): return String(localized: "repeat.weekly")
+        case (.monthly, false): return String(localized: "repeat.monthly")
+        case (.daily, true): return String(localized: "repeat.every.days \(n)")
+        case (.weekly, true): return String(localized: "repeat.every.weeks \(n)")
+        case (.monthly, true): return String(localized: "repeat.every.months \(n)")
+        }
+    }
+}

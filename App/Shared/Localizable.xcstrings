@@ -4312,6 +4312,56 @@
         }
       }
     },
+    "quickAdd.preview.due %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fällig: %@"
+          }
+        }
+      }
+    },
+    "quickAdd.preview.repeat %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholung: %@"
+          }
+        }
+      }
+    },
+    "repeat.every.days %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle %lld Tage"
+          }
+        }
+      }
+    },
+    "repeat.every.weeks %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle %lld Wochen"
+          }
+        }
+      }
+    },
+    "repeat.every.months %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle %lld Monate"
+          }
+        }
+      }
+    },
     "quickAdd.recognized": {
       "localizations": {
         "de": {
