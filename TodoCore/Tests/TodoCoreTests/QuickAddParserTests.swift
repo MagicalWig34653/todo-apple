@@ -87,4 +87,54 @@ final class QuickAddParserTests: XCTestCase {
     func testLeapDayRollsToNextLeapYear() {
         XCTAssertEqual(parse("Schalttag 29.2.").due, date(2028, 2, 29))
     }
+
+    // MARK: Weekday recurrence and months (card 8DB7E4F8)
+    func testEveryWeekdayIsWeeklyStartingNextOccurrence() {
+        // Friday 30 Oct 2026: next Monday is 2 Nov.
+        let p = parse("Teamrunde jeden Montag")
+        XCTAssertEqual(p.title, "Teamrunde"); XCTAssertEqual(p.recurrence, .weekly)
+        XCTAssertEqual(p.due, date(2026, 11, 2)); XCTAssertFalse(p.hasTime)
+        XCTAssertEqual(p.recognized, ["jeden Montag"])
+        XCTAssertEqual(parse("Putzen jeden Samstag").due, date(2026, 10, 31))
+        XCTAssertEqual(parse("Putzen jeden Samstag").recurrence, .weekly)
+    }
+    func testEveryWeekdayWithFeminineArticleAndTime() {
+        let p = parse("Sport jeden Dienstag um 18 Uhr #Privat")
+        XCTAssertEqual(p.title, "Sport"); XCTAssertEqual(p.recurrence, .weekly)
+        XCTAssertEqual(p.due, date(2026, 11, 3, 18)); XCTAssertTrue(p.hasTime); XCTAssertEqual(p.projectToken, "Privat")
+    }
+    func testEveryDayAndWeekStillWork() {
+        XCTAssertEqual(parse("Pflanzen jeden Tag").recurrence, .daily)
+        XCTAssertEqual(parse("Bericht jede Woche").recurrence, .weekly)
+        XCTAssertEqual(parse("Miete jeden Monat").recurrence, .monthly)
+        XCTAssertEqual(parse("Miete jeden Monat").title, "Miete")
+    }
+    func testInMonthsAddsCalendarMonths() {
+        let p = parse("Zahnkontrolle in 2 Monaten")
+        XCTAssertEqual(p.title, "Zahnkontrolle"); XCTAssertEqual(p.due, date(2026, 12, 30)); XCTAssertNil(p.recurrence)
+        XCTAssertEqual(p.recognized, ["in 2 Monaten"])
+        XCTAssertEqual(parse("Anruf in 1 Monat").due, date(2026, 11, 30))
+        XCTAssertEqual(parse("Anruf in 4 Monaten").due, date(2027, 2, 28), "month end is clamped")
+        XCTAssertEqual(parse("Anruf in 2 Monaten um 9 Uhr").due, date(2026, 12, 30, 9))
+    }
+    func testNextMonthIsFirstOfNextMonth() {
+        let p = parse("Budget naechsten Monat")
+        XCTAssertEqual(p.title, "Budget"); XCTAssertEqual(p.due, date(2026, 11, 1))
+        XCTAssertEqual(parse("Budget nächsten Monat").due, date(2026, 11, 1))
+        XCTAssertEqual(parse("Budget kommenden Monat").due, date(2026, 11, 1))
+        XCTAssertEqual(parse("Budget nächsten Monat").recognized, ["nächsten Monat"])
+    }
+    func testNextMonthAtYearEnd() {
+        let dec = QuickAddParser.parse("Plan naechsten Monat", now: date(2026, 12, 20, 10), calendar: cal)
+        XCTAssertEqual(dec.due, date(2027, 1, 1))
+    }
+    func testMonthWordsInTitlesAreNotDates() {
+        for s in ["Monatsbericht schreiben", "Jeden Monat Geld sparen ist gut", "Wir reden in Monaten", "in 0 Monaten", "in 400 Monaten"] {
+            let p = parse(s)
+            if s == "Jeden Monat Geld sparen ist gut" { XCTAssertEqual(p.recurrence, .monthly); continue }
+            XCTAssertNil(p.due, s); XCTAssertEqual(p.title, s, s)
+        }
+        XCTAssertEqual(parse("Jeden Vormittag lesen").title, "Jeden Vormittag lesen")
+        XCTAssertNil(parse("Jeden Vormittag lesen").recurrence)
+    }
 }
