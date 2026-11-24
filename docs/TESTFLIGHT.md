@@ -144,3 +144,11 @@ Aus Branch `t3/apple-passkey-1004-retry` (Quelltext der App gleich 5ead94f, f273
 - Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`). Extern weiter keine Gruppe; zuweisbar sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt.
 - "Was testen" (`de-DE`) per `asc builds test-notes create` gesetzt und per `view` gelesen: Passkey-Wiederholung nach frischer Installation testen.
 - Nicht geprueft: Geraetetest (Lino).
+
+## Upload Stand dcf9137 (2026-11-24, nur iOS, Karte DF163B26 Benachrichtigungen buendeln)
+Aus origin/main dcf9137 (sauber), Version 0.1.0, Team `J2DU2P47XW`, Build 2611240410. Archiv mit `xcodebuild archive` (Release, `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`), Export mit `destination=upload` ausschliesslich ueber `~/Development/orchestrator/tools/testflight-upload.sh` nach gruener Tor-Freigabe (`upload-tor.py pruefen` Exit 0 mit `brain_gesehen`, `gueltig` Exit 0; Nachweis `runtime/nachweise/todolino-apple-2611240410.json`).
+- iOS: Build 2611240410, "Upload succeeded", EXPORT SUCCEEDED, Exit 0, Build-ID in App Store Connect `bbb61267-4a66-4b77-8fd9-a60e2d0e268b`, Verarbeitung `VALID`; `usesNonExemptEncryption=false` am Build (Exportkonformitaet beantwortet).
+- Upload-Pruefungen: Icon (`AppIcon`, `Assets.car`) im Archiv; `ITSAppUsesNonExemptEncryption=false` im Archiv; `aps-environment` im Archiv `development` (der Export setzt production, wie bei 2611231422); System-PATH gegen Homebrew-rsync (testflight-upload.sh); Signing.local.xcconfig in den Worktree kopiert.
+- Testgruppen: interne Gruppe "ich" enthaelt den Build (`asc builds groups list`), `internalBuildState IN_BETA_TESTING`; extern `READY_FOR_BETA_SUBMISSION`, keine externe Gruppe vorhanden (zuweisbar, sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt).
+- "Was testen" (`de-DE`) per `asc builds test-notes create` gesetzt und per `view` gelesen: Stapel pro Projekt, Zusammenfassungszeile, "Spaeter"-Kopie im selben Stapel.
+- Nicht geprueft: Geraetetest (Lino); die Zusammenfassungszeile auf dem Sperrbildschirm ist im Simulator nicht sichtbar.
