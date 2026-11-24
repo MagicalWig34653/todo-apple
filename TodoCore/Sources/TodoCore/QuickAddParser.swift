@@ -9,10 +9,15 @@ public struct QuickAddParse: Equatable, Sendable {
     /// Stored priority (0 none ... 3 highest); nil when the text did not mention one.
     public var priority: Int?
     public var recurrence: RecurrenceRule.Frequency?
+    /// Every N days/weeks/months ("alle 2 Wochen"); 1 for plain "jeden Tag" and when there is no recurrence.
+    public var recurrenceInterval = 1
     public var projectToken: String?
     public var labelTokens: [String] = []
     /// The phrases that were recognised and removed from the title (for chips and highlighting).
     public var recognized: [String] = []
+
+    /// The rule to store with the task (frequency plus interval); nil when the text mentioned no recurrence.
+    public var recurrenceRule: RecurrenceRule? { recurrence.map { RecurrenceRule(frequency: $0, interval: recurrenceInterval) } }
 }
 
 public enum QuickAddParser {
@@ -51,7 +56,19 @@ public enum QuickAddParser {
             case "monatlich": result.recurrence = .monthly; take(i, 1); continue
             default: break
             }
+            // "alle 2 Wochen", "alle zwei Tage", "alle 3 Monate": needs a number and a unit, so "Alle 2 Kinder abholen" stays a title.
+            if w == "alle", let n = count(next), let freq = unit(next2) {
+                result.recurrence = freq; result.recurrenceInterval = n; take(i, 3); continue
+            }
             if ["jeden", "jede", "jedes"].contains(w) {
+                // "jede zweite Woche", "jeden dritten Monat", "jeden zweiten Montag".
+                if let n = ordinal(next), n >= 2 {
+                    if let freq = unit(next2) { result.recurrence = freq; result.recurrenceInterval = n; take(i, 3); continue }
+                    if let entry = weekdays.first(where: { $0.names.contains(next2) && next2.count > 2 }) {
+                        result.recurrence = .weekly; result.recurrenceInterval = n
+                        dayDate = nextWeekday(entry.weekday, after: today, calendar: calendar); take(i, 3); continue
+                    }
+                }
                 if next == "tag" { result.recurrence = .daily; take(i, 2); continue }
                 if next == "woche" { result.recurrence = .weekly; take(i, 2); continue }
                 if next == "monat" { result.recurrence = .monthly; take(i, 2); continue }
@@ -116,6 +133,30 @@ public enum QuickAddParser {
         }
         result.title = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
         return result
+    }
+
+    private static let numberWords: [String: Int] = [
+        "ein": 1, "eine": 1, "zwei": 2, "drei": 3, "vier": 4, "fuenf": 5, "sechs": 6, "sieben": 7, "acht": 8, "neun": 9,
+        "zehn": 10, "elf": 11, "zwoelf": 12,
+    ]
+    private static let ordinals: [String: Int] = [
+        "zweite": 2, "zweiten": 2, "zweites": 2, "dritte": 3, "dritten": 3, "drittes": 3, "vierte": 4, "vierten": 4,
+        "viertes": 4, "fuenfte": 5, "fuenften": 5, "sechste": 6, "sechsten": 6,
+    ]
+
+    /// A count for "alle N ...": digits (1...399, like "in N Tagen") or a number word.
+    private static func count(_ w: String) -> Int? {
+        if let n = Int(w) { return n > 0 && n < 400 ? n : nil }
+        return numberWords[w]
+    }
+    private static func ordinal(_ w: String) -> Int? { ordinals[w] }
+    private static func unit(_ w: String) -> RecurrenceRule.Frequency? {
+        switch w {
+        case "tag", "tage", "tagen": .daily
+        case "woche", "wochen": .weekly
+        case "monat", "monate", "monaten": .monthly
+        default: nil
+        }
     }
 
     private static func normalize(_ s: String) -> String {
