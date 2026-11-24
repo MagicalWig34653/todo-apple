@@ -25,7 +25,7 @@ chmod +x "$work/App"
 # Stubbed tools: log calls; xcodebuild fails like a red test run; the seed step (swift test) succeeds and writes a token.
 for t in xcodegen xcrun; do printf '#!/usr/bin/env bash\necho "%s $*" >>"$STUB_LOG"\n[[ "%s" == xcrun && "$2" == create ]] && echo STUB-SIM\nexit 0\n' "$t" "$t" >"$work/bin/$t"; done
 printf '#!/usr/bin/env bash\necho "swift $*" >>"$STUB_LOG"\necho "{\\"token\\":\\"stub-token\\"}" >"$TODO_LIVE_SEED_OUT"\n' >"$work/bin/swift"
-printf '#!/usr/bin/env bash\necho "xcodebuild $*" >>"$STUB_LOG"\nexit 7\n' >"$work/bin/xcodebuild"
+printf '#!/usr/bin/env bash\necho "xcodebuild $* server=$TEST_RUNNER_TODO_UITEST_SERVER token=$TEST_RUNNER_TODO_UITEST_TOKEN" >>"$STUB_LOG"\nexit 7\n' >"$work/bin/xcodebuild"
 chmod +x "$work"/bin/*
 
 export TODO_BACKEND_BIN="$work/App" TODO_UITEST_PORT=$port STUB_LOG="$work/calls.log" TODO_UITEST_TMP="$work/scratch"
@@ -40,7 +40,7 @@ kill $holder; wait $holder 2>/dev/null; holder=
 
 PATH="$work/bin:$PATH" scripts/ui-tests.sh >"$work/out2" 2>&1; code=$?
 check "failing run: exit code 7 passed on" '[[ $code -eq 7 ]]'
-check "failing run: xcodebuild got server and token" 'grep -q "TEST_RUNNER_TODO_UITEST_TOKEN=stub-token" "$work/calls.log" || grep -q "stub-token" "$work/out2"'
+check "failing run: xcodebuild got server and token" 'grep -q "server=http://127.0.0.1:$port token=stub-token" "$work/calls.log"'
 check "failing run: seed ran with the feed seed" 'grep -q "LiveEtappe2Tests/testSeedDemoData" "$work/calls.log"'
 check "failing run: port free again" '! python3 -I -c "import socket;s=socket.socket();s.settimeout(1);s.connect((\"127.0.0.1\",$port))" 2>/dev/null'
 check "failing run: scratch removed" '[[ ! -e "$work/scratch" ]]'
