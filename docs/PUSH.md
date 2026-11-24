@@ -27,6 +27,16 @@ Umgesetzt über `APS_ENVIRONMENT` in `App/Config/Base.xcconfig` (Debug `developm
 - Zähler: `aps.badge` vom Server (offene Fragen plus ausstehende Reviews); in der laufenden App hält `refreshCommandSummary` ihn aktuell, wenn "Zähler" aktiv ist.
 - Keine Notification Service Extension (`mutable-content` ist gesetzt, die Nachricht ist aber ohne Nachladen vollständig).
 
+## Bündelung (Karte DF163B26)
+
+Benachrichtigungen eines Projekts stapeln sich als eine Gruppe, statt einzeln zu stehen.
+
+- **Gruppe:** Der Server setzt `aps.thread-id` = Projekt-ID (Backend `PushDelivery.swift`, Erinnerung, Rückfrage, Review, Kommentar); iOS stapelt danach selbst. Ohne Projekt (`action_request`, `daily_brief`, `test`) sendet der Server keine Thread-ID, diese Pushes landen im App-Standardstapel (ohne Notification Service Extension nicht änderbar).
+- **Lokale Kopie ("Später"):** `PushGrouping.threadIdentifier(for:)` (TodoCore): Thread-ID des Servers, sonst Projekt-ID (Großbuchstaben, wie der Server), sonst `todolino.<kind>`, sonst keine. `NotificationDelegate.snoozeRequest` setzt sie, wenn die Kopie keine hat; die Erinnerung bleibt so im Stapel ihres Projekts.
+- **Zusammenfassung:** Jede der sechs Kategorien trägt ein `categorySummaryFormat` ("%u weitere Erinnerungen", "... Rückfragen", "... Reviews", "... Kommentare", "... Bestätigungen", "... Tagesberichte"), Schlüssel `push.summary.*` in `Localizable.xcstrings`, Zuordnung `PushGrouping.summaryFormatKey(category:)`.
+- **Nicht umgesetzt:** `summary-arg` (Projektname in der Zusammenfassung) braucht Server oder Notification Service Extension; nicht Teil dieser Karte.
+- **Tests:** `PushGroupingTests` (TodoCore, 8 Tests); `PushGroupingUITests` (Simulator, echter `NotificationDelegate` über `TODO_DEBUG_DELIVER_RESPONSE` mit `TODO_DEBUG_DELIVER_ACTION=TODO_SNOOZE`): Thread der "Später"-Kopie mit und ohne Server-Thread, und `summaries=6/6` aus `getNotificationCategories`. Grenze: Der Simulator kann die Benachrichtigungserlaubnis nicht erteilen, die Probe meldet deshalb die gebaute Anfrage, nicht den Systemspeicher; das tatsächliche Stapeln auf dem Sperrbildschirm macht iOS und ist nicht automatisiert geprüft.
+
 ## Einstellungen
 
 Kategorien Erinnerungen, Rückfragen, Reviews, Kommentare, Bestätigungen, Tagesbericht (Zuweisungen gibt es serverseitig noch ohne Auslöser, daher nicht in der Oberfläche), "Inhalt anzeigen" (Standard aus: generische Texte ohne Aufgabentitel), "Zähler am App-Symbol". Werte gelten pro Konto, nicht pro Gerät. Systemstatus mit Link in die Systemeinstellungen bei "Nicht erlaubt".

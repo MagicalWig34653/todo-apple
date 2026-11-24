@@ -88,7 +88,13 @@ enum DebugLaunch {
         let content = UNMutableNotificationContent()
         content.userInfo = userInfo
         content.categoryIdentifier = (userInfo["aps"] as? [String: Any])?["category"] as? String ?? ""
+        // The system fills `threadIdentifier` from `aps.thread-id` for a remote push.
+        content.threadIdentifier = (userInfo["aps"] as? [String: Any])?["thread-id"] as? String ?? ""
         let request = UNNotificationRequest(identifier: "debug-deliver", content: content, trigger: nil)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            await DebugProbe.reportSummaries()
+        }
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
             let delegate: UNUserNotificationCenterDelegate = NotificationDelegate.shared
             let notification = DebugNotification(request: request)
@@ -318,6 +324,18 @@ final class DebugProbe {
     var enabled = false
     private(set) var completed: [String] = []
     func mark(_ name: String) { completed.append(name) }
+
+    /// Reports the thread of the snooze copy the app built.
+    static func reportGrouping(snoozeThread: String) {
+        shared.mark("snoozeThread=\(snoozeThread.isEmpty ? "none" : snoozeThread)")
+    }
+
+    /// Reads back from the system how many registered categories carry a summary format.
+    static func reportSummaries() async {
+        let categories = await UNUserNotificationCenter.current().notificationCategories()
+        shared.mark("summaries=\(categories.filter { !$0.categorySummaryFormat.isEmpty }.count)/\(categories.count)")
+    }
+
     /// "completed:" followed by the handlers that ran on the main queue, e.g. `completed:willPresent,didReceive`.
     var status: String { "completed:" + completed.joined(separator: ",") }
 }

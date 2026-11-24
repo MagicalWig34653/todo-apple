@@ -4502,6 +4502,66 @@
         }
       }
     },
+    "push.summary.reminders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%u weitere Erinnerungen"
+          }
+        }
+      }
+    },
+    "push.summary.questions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%u weitere Rückfragen"
+          }
+        }
+      }
+    },
+    "push.summary.reviews": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%u weitere Reviews"
+          }
+        }
+      }
+    },
+    "push.summary.comments": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%u weitere Kommentare"
+          }
+        }
+      }
+    },
+    "push.summary.confirmations": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%u weitere Bestätigungen"
+          }
+        }
+      }
+    },
+    "push.summary.dailyBrief": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%u weitere Tagesberichte"
+          }
+        }
+      }
+    },
     "push.cat.comments": {
       "localizations": {
         "de": {

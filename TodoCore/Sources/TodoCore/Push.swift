@@ -268,10 +268,13 @@ public struct PushPayload: Equatable, Sendable {
     public let subjectID: UUID?
     public let category: String?
     public let badge: Int?
+    /// `aps.thread-id` (the server sends the project id); nil if missing or empty.
+    public let threadID: String?
 
-    public init(kind: Kind?, taskID: UUID? = nil, projectID: UUID? = nil, subjectID: UUID? = nil, category: String? = nil, badge: Int? = nil) {
+    public init(kind: Kind?, taskID: UUID? = nil, projectID: UUID? = nil, subjectID: UUID? = nil, category: String? = nil,
+                badge: Int? = nil, threadID: String? = nil) {
         self.kind = kind; self.taskID = taskID; self.projectID = projectID; self.subjectID = subjectID
-        self.category = category; self.badge = badge
+        self.category = category; self.badge = badge; self.threadID = threadID
     }
 
     /// Tolerant parsing: unknown or malformed fields become nil, a payload is never rejected as a whole.
@@ -282,6 +285,7 @@ public struct PushPayload: Equatable, Sendable {
         taskID = id("taskID"); projectID = id("projectID"); subjectID = id("subjectID")
         category = aps?["category"] as? String
         badge = (aps?["badge"] as? NSNumber)?.intValue
+        threadID = (aps?["thread-id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     /// Default tap destination. `test` and unknown kinds open nothing.
@@ -338,6 +342,32 @@ public enum PushResponseAction: Equatable, Sendable {
         default:
             // Default tap, "answer" and "open" all open the destination.
             return payload.link.map(PushResponseAction.open) ?? .none
+        }
+    }
+}
+
+/// Grouping of notifications on the lock screen and in Notification Center: one stack per project, with a summary line
+/// per category ("3 weitere Rückfragen"). Remote pushes get their stack from the server's `aps.thread-id`; this decides it
+/// for local copies ("Später") and names the summary strings the categories register.
+public enum PushGrouping {
+    /// Server thread first, then the project (same value the server uses, uppercase UUID), then the kind for pushes
+    /// without a project (confirmations, daily brief), else nil (no stack of its own).
+    public static func threadIdentifier(for payload: PushPayload) -> String? {
+        if let threadID = payload.threadID { return threadID }
+        if let projectID = payload.projectID { return projectID.uuidString }
+        return payload.kind.map { "todolino.\($0.rawValue)" }
+    }
+
+    /// Localization key of the summary format (`%u` = number of hidden notifications) of a category; nil for unknown ones.
+    public static func summaryFormatKey(category: String) -> String? {
+        switch category {
+        case PushIdentifiers.reminder: "push.summary.reminders"
+        case PushIdentifiers.question: "push.summary.questions"
+        case PushIdentifiers.review: "push.summary.reviews"
+        case PushIdentifiers.comment: "push.summary.comments"
+        case PushIdentifiers.confirmation: "push.summary.confirmations"
+        case PushIdentifiers.dailyBrief: "push.summary.dailyBrief"
+        default: nil
         }
     }
 }

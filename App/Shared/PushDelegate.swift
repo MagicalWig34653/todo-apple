@@ -31,7 +31,18 @@ enum NotificationCategorySetup {
         // Confirmation requests and the daily brief have no actions: a tap opens the command center.
         let confirmation = UNNotificationCategory(identifier: PushIdentifiers.confirmation, actions: [], intentIdentifiers: [], options: [])
         let dailyBrief = UNNotificationCategory(identifier: PushIdentifiers.dailyBrief, actions: [], intentIdentifiers: [], options: [])
-        UNUserNotificationCenter.current().setNotificationCategories([reminder, question, review, comment, confirmation, dailyBrief])
+        // Notifications of one project stack as a group (`thread-id`); the summary line says what the hidden ones are.
+        let categories = [reminder, question, review, comment, confirmation, dailyBrief].map(withSummary)
+        UNUserNotificationCenter.current().setNotificationCategories(Set(categories))
+    }
+
+    /// The same category with a localized summary format ("%u weitere Rückfragen").
+    private static func withSummary(_ category: UNNotificationCategory) -> UNNotificationCategory {
+        guard let key = PushGrouping.summaryFormatKey(category: category.identifier) else { return category }
+        return UNNotificationCategory(
+            identifier: category.identifier, actions: category.actions, intentIdentifiers: category.intentIdentifiers,
+            hiddenPreviewsBodyPlaceholder: nil, categorySummaryFormat: String(localized: String.LocalizationValue(key)),
+            options: category.options)
     }
 }
 
@@ -89,11 +100,24 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 
     /// "Später": a local copy of the reminder in one hour (nothing is sent to the server).
     private static func snooze(_ content: UNNotificationContent, taskID: UUID) async {
-        guard let copy = content.mutableCopy() as? UNMutableNotificationContent else { return }
-        let request = UNNotificationRequest(
+        guard let request = snoozeRequest(from: content, taskID: taskID) else { return }
+        #if DEBUG
+        // The system keeps no pending request without notification permission (the simulator cannot grant it), so the
+        // probe reports the request the app built, before `add` (which can wait on the permission state).
+        await DebugProbe.reportGrouping(snoozeThread: request.content.threadIdentifier)
+        #endif
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+
+    /// The copy stays in the project's stack even if the original came without a thread id.
+    static func snoozeRequest(from content: UNNotificationContent, taskID: UUID) -> UNNotificationRequest? {
+        guard let copy = content.mutableCopy() as? UNMutableNotificationContent else { return nil }
+        if copy.threadIdentifier.isEmpty, let thread = PushGrouping.threadIdentifier(for: PushPayload(userInfo: content.userInfo)) {
+            copy.threadIdentifier = thread
+        }
+        return UNNotificationRequest(
             identifier: "snooze-\(taskID.uuidString)", content: copy,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3600, repeats: false))
-        try? await UNUserNotificationCenter.current().add(request)
     }
 }
 
