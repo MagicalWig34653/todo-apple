@@ -235,3 +235,20 @@ struct CalendarNoticeBanner: View {
         }
     }
 }
+
+#if DEBUG
+private struct CalendarDetailPreview: View {
+    @State private var app = AppModel()
+    @State private var meta = TaskMeta()
+    private let model = CalendarSeed.model()
+    var body: some View {
+        Group {
+            if let id = (model.entries.first ?? model.unscheduled.first)?.id { CalendarDetailSheet(model: model, id: id) }
+        }
+        .environment(app).environment(meta).tint(.brand)
+    }
+}
+#Preview("Kalender-Detail light") { CalendarDetailPreview().preferredColorScheme(.light) }
+#Preview("Kalender-Detail dark") { CalendarDetailPreview().preferredColorScheme(.dark) }
+#Preview("Kalender-Detail accessibility5") { CalendarDetailPreview().dynamicTypeSize(.accessibility5) }
+#endif

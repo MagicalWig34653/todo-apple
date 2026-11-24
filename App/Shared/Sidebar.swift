@@ -527,4 +527,18 @@ private struct SidebarPreviewHost<Content: View>: View {
 #Preview("Project row light") { List { ProjectRowLabel(name: "Website-Relaunch", color: .brand, count: 4) }.preferredColorScheme(.light) }
 #Preview("Project row dark") { List { ProjectRowLabel(name: "Website-Relaunch", color: .brand, count: 4) }.preferredColorScheme(.dark) }
 #Preview("Project row accessibility5") { List { ProjectRowLabel(name: "Datenschutzgrundverordnung", color: .brand, count: 12) }.dynamicTypeSize(.accessibility5) }
+// Screen previews (card A6B0D5E3): every screen reachable from the sidebar, light / dark / accessibility5.
+@MainActor private func sidebarScreen<V: View>(_ screen: V) -> some View { SidebarPreviewHost { NavigationStack { screen } } }
+#Preview("Projekte light") { sidebarScreen(ProjectsHome()).preferredColorScheme(.light) }
+#Preview("Projekte dark") { sidebarScreen(ProjectsHome()).preferredColorScheme(.dark) }
+#Preview("Projekte accessibility5") { sidebarScreen(ProjectsHome()).dynamicTypeSize(.accessibility5) }
+#Preview("Etiketten light") { sidebarScreen(LabelsView()).preferredColorScheme(.light) }
+#Preview("Etiketten dark") { sidebarScreen(LabelsView()).preferredColorScheme(.dark) }
+#Preview("Etiketten accessibility5") { sidebarScreen(LabelsView()).dynamicTypeSize(.accessibility5) }
+#Preview("Etikett-Aufgaben light") { sidebarScreen(LabelTasksView(labelID: UUID())).preferredColorScheme(.light) }
+#Preview("Etikett-Aufgaben dark") { sidebarScreen(LabelTasksView(labelID: UUID())).preferredColorScheme(.dark) }
+#Preview("Etikett-Aufgaben accessibility5") { sidebarScreen(LabelTasksView(labelID: UUID())).dynamicTypeSize(.accessibility5) }
+#Preview("Konto light") { sidebarScreen(AccountView()).preferredColorScheme(.light) }
+#Preview("Konto dark") { sidebarScreen(AccountView()).preferredColorScheme(.dark) }
+#Preview("Konto accessibility5") { sidebarScreen(AccountView()).dynamicTypeSize(.accessibility5) }
 #endif

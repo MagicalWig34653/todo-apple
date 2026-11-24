@@ -379,4 +379,14 @@ private struct NavPreviewHost<Content: View>: View {
 #Preview("Inbox light") { NavPreviewHost { NavigationStack { InboxView() } }.preferredColorScheme(.light) }
 #Preview("Inbox dark") { NavPreviewHost { NavigationStack { InboxView() } }.preferredColorScheme(.dark) }
 #Preview("Inbox accessibility5") { NavPreviewHost { NavigationStack { InboxView() } }.dynamicTypeSize(.accessibility5) }
+private struct PlanPreview: View {
+    @State private var section: PlanSection
+    init(_ section: PlanSection) { _section = State(initialValue: section) }
+    var body: some View { NavPreviewHost { NavigationStack { PlanView(section: $section) } } }
+}
+#Preview("Plan Heute light") { PlanPreview(.today).preferredColorScheme(.light) }
+#Preview("Plan Heute dark") { PlanPreview(.today).preferredColorScheme(.dark) }
+#Preview("Plan Heute accessibility5") { PlanPreview(.today).dynamicTypeSize(.accessibility5) }
+#Preview("Plan Anstehend light") { PlanPreview(.upcoming).preferredColorScheme(.light) }
+#Preview("Plan Eingang dark") { PlanPreview(.inbox).preferredColorScheme(.dark) }
 #endif

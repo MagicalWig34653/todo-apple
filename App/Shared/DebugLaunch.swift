@@ -136,7 +136,7 @@ enum DebugLaunch {
     /// `ImageRenderer` and quits. The app runs with activation policy `.prohibited` (see `AppDelegate`), so no window
     /// appears and nothing is activated. `TODO_DEBUG_RENDER_MODE=hosting` renders an `NSHostingView` in an off-screen
     /// window (never ordered front) instead, for views whose content loads in `.task`.
-    static var renderRequested: Bool { env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil || env["TODO_DEBUG_CALENDAR_RENDER"] != nil }
+    static var renderRequested: Bool { env["TODO_DEBUG_WINDOW_SHOTS"] != nil || env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil || env["TODO_DEBUG_CALENDAR_RENDER"] != nil }
 
     /// `TODO_DEBUG_NOW_RENDER=<dir>`: the "Jetzt" screen with sample data, light and dark, off-screen (no server needed).
     static func renderNowSamples(dir: String) async {
@@ -228,6 +228,7 @@ enum DebugLaunch {
     }
 
     static func renderIfRequested(model: AppModel) async {
+        if env["TODO_DEBUG_WINDOW_SHOTS"] != nil { await DebugWindowShots.run(model: model); return }
         if let dir = env["TODO_DEBUG_CALENDAR_RENDER"] { await renderCalendarSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_VARIANTS_RENDER"] { await renderVariantsSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_NOW_RENDER"] { await renderNowSamples(dir: dir); return }

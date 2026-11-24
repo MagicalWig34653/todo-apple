@@ -122,7 +122,12 @@ final class AppModel {
 
     init(session: URLSession? = nil, tokenStoreForServer: ((URL) -> any TokenStore)? = nil) {
         networkSession = session ?? Self.session
+        #if DEBUG
+        // A debug server given by the environment counts from the first launch (no warm-up launch to save it to UserDefaults first).
+        let initialURL = URL(string: ProcessInfo.processInfo.environment["TODO_DEBUG_SERVER"] ?? AppConfig.savedBaseURL)
+        #else
         let initialURL = URL(string: AppConfig.savedBaseURL)
+        #endif
         let debugStore = InMemoryTokenStore(token: ProcessInfo.processInfo.environment["TODO_DEBUG_TOKEN"])
         self.tokenStoreForServer = tokenStoreForServer ?? { url in
             #if DEBUG
