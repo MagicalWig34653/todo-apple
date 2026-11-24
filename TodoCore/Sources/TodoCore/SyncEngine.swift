@@ -254,9 +254,16 @@ public actor SyncEngine {
             case .labelCreate:
                 created[m.id] = TaskLabel(id: m.id, name: m.name ?? "")
             case .labelRename:
-                if let n = m.name, let known = created[m.id] { created[m.id] = TaskLabel(id: known.id, name: n, version: known.version) }
+                if let n = m.name, let known = created[m.id] {
+                    created[m.id] = TaskLabel(id: known.id, name: n, version: known.version)
+                } else if let n = m.name {
+                    o.renamedLabels[m.id] = n
+                }
             case .labelDelete:
-                created[m.id] = nil
+                if created.removeValue(forKey: m.id) == nil {
+                    o.deletedLabels.insert(m.id)
+                    o.renamedLabels[m.id] = nil
+                }
             case .taskLabelAdd:
                 guard let l = m.labelID else { continue }
                 o.labelAdds[m.id, default: []].insert(l); o.labelRemoves[m.id]?.remove(l)
@@ -414,13 +421,15 @@ public actor SyncEngine {
     }
 
     @discardableResult
+    /// Throws `LabelNameError` for a name the server would refuse (empty, over 200 characters); the name is sent trimmed.
     public func createLabel(id: UUID = UUID(), name: String) throws -> SyncSnapshot {
-        try enqueue(SyncMutation(type: .labelCreate, id: id, name: name))
+        try enqueue(SyncMutation(type: .labelCreate, id: id, name: LabelName.normalized(name)))
     }
 
+    /// Throws `LabelNameError` like `createLabel`; renaming to the confirmed name queues nothing.
     @discardableResult
     public func renameLabel(_ id: UUID, name: String) throws -> SyncSnapshot {
-        try enqueue(SyncMutation(type: .labelRename, id: id, name: name))
+        try enqueue(SyncMutation(type: .labelRename, id: id, name: LabelName.normalized(name)))
     }
 
     @discardableResult
@@ -502,6 +511,8 @@ public actor SyncEngine {
         case .labelRename:
             for q in queue where q.mutation.type == .labelRename && q.mutation.id == m.id { drop.insert(q.id) }
             if let c = pendingCreate(of: m.id), let n = m.name { fold = (c.id, n); skip = true }
+            // The confirmed name again (and no rename on the wire right now): nothing to send, earlier queued renames are dropped.
+            else if let n = m.name, state.labels[m.id]?.name == n, !state.queue.contains(where: { $0.id == inFlight && $0.mutation.id == m.id }) { skip = true }
         case .labelDelete:
             let created = pendingCreate(of: m.id)
             for q in queue where q.mutation.id == m.id && [.labelRename, .labelCreate].contains(q.mutation.type) { drop.insert(q.id) }

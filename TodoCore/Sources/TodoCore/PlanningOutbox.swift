@@ -43,6 +43,10 @@ public struct OutboxSnapshot: Sendable, Equatable {
     public var namedAdds: [UUID: [String]] = [:]
     /// Labels created by a queued `label.create` (not yet on the server).
     public var newLabels: [TaskLabel] = []
+    /// Queued new names of labels the server already knows (last queued name wins); the confirmed name stays until the server answers.
+    public var renamedLabels: [UUID: String] = [:]
+    /// Labels whose `label.delete` is queued.
+    public var deletedLabels: Set<UUID> = []
     public var pending = 0
     public var rejected: [OutboxOp] = []
     public init() {}
