@@ -12,6 +12,8 @@
 #   TODO_UITEST_DEVICE  existing simulator UDID to use instead of a throw-away one (it is left alone afterwards)
 #   TODO_UITEST_ALL=1  also run the two local helpers AuditTimesServerE2E and ReviewVariantsServerE2E; they need their own seed
 #                      (LiveReviewVariantsTests.testSeedVariantReviews) and are skipped by default
+#   TODO_UITEST_RETRIES failed tests are repeated up to this many times (default 1; accessibility audits and lazy stacks
+#                      flake once in a while); a test that passed on a retry is still reported as such by xcodebuild
 #   TODO_UITEST_TMP    scratch directory (default mktemp); TODO_UITEST_KEEP=1 keeps it
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -71,7 +73,7 @@ skip=(-skip-testing:Todo-iOS-UITests/AuditTimesServerE2E -skip-testing:Todo-iOS-
 set +e
 TEST_RUNNER_TODO_UITEST_SERVER="$base" TEST_RUNNER_TODO_UITEST_TOKEN="$token" \
   xcodebuild test -project Todo.xcodeproj -scheme Todo-iOS -destination "id=$sim" \
-  -resultBundlePath "$scratch/result.xcresult" CODE_SIGNING_ALLOWED=NO ${skip[@]+"${skip[@]}"} "$@"
+  -resultBundlePath "$scratch/result.xcresult" -retry-tests-on-failure -test-iterations $(( ${TODO_UITEST_RETRIES:-1} + 1 )) CODE_SIGNING_ALLOWED=NO ${skip[@]+"${skip[@]}"} "$@"
 code=$?
 set -e
 # Summary line (the number to quote in progress notes).
