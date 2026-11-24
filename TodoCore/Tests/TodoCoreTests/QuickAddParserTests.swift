@@ -128,6 +128,15 @@ final class QuickAddParserTests: XCTestCase {
         let dec = QuickAddParser.parse("Plan naechsten Monat", now: date(2026, 12, 20, 10), calendar: cal)
         XCTAssertEqual(dec.due, date(2027, 1, 1))
     }
+    func testUmlautSpellingsWork() {
+        // Typed with real umlauts (keyboard) must behave like the ae/ue transliteration used in the rules.
+        XCTAssertEqual(parse("Paket übermorgen").due, day(1)); XCTAssertEqual(parse("Paket übermorgen").title, "Paket")
+        XCTAssertEqual(parse("Pflanzen täglich").recurrence, .daily)
+        XCTAssertEqual(parse("Bericht wöchentlich").recurrence, .weekly)
+        XCTAssertEqual(parse("Planung nächste Woche").due, day(2))
+        XCTAssertEqual(parse("Sport am Wochenende").due, day(31, month: 10))
+        XCTAssertEqual(parse("Frist 15. März").due, date(2027, 3, 15), "March spelling keeps working")
+    }
     func testMonthWordsInTitlesAreNotDates() {
         for s in ["Monatsbericht schreiben", "Jeden Monat Geld sparen ist gut", "Wir reden in Monaten", "in 0 Monaten", "in 400 Monaten"] {
             let p = parse(s)

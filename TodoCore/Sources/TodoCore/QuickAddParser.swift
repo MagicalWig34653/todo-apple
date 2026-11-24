@@ -55,6 +55,16 @@ public enum QuickAddParser {
                 if next == "tag" { result.recurrence = .daily; take(i, 2); continue }
                 if next == "woche" { result.recurrence = .weekly; take(i, 2); continue }
                 if next == "monat" { result.recurrence = .monthly; take(i, 2); continue }
+                // "jeden Montag": weekly, first due on the next such weekday (same rule as "am Montag").
+                if let entry = weekdays.first(where: { $0.names.contains(next) && next.count > 2 }) {
+                    result.recurrence = .weekly
+                    dayDate = nextWeekday(entry.weekday, after: today, calendar: calendar); take(i, 2); continue
+                }
+            }
+            if w == "naechsten" || w == "kommenden", next == "monat" {
+                // Like "naechste Woche" (next Monday): the start of the next month.
+                let first = calendar.date(from: calendar.dateComponents([.year, .month], from: today))
+                dayDate = first.flatMap { calendar.date(byAdding: .month, value: 1, to: $0) }; take(i, 2); continue
             }
             if w == "naechste" || w == "naechsten" || w == "kommenden", next == "woche" {
                 dayDate = nextWeekday(2, after: today, calendar: calendar); take(i, 2); continue
@@ -70,6 +80,10 @@ public enum QuickAddParser {
                 switch next2 {
                 case "tag", "tagen": dayOffset = n; take(i, 3); continue
                 case "woche", "wochen": dayOffset = n * 7; take(i, 3); continue
+                case "monat", "monaten":
+                    // Calendar months, month end clamped (30.10. + 4 months = 28.2.).
+                    guard let d = calendar.date(byAdding: .month, value: n, to: today) else { break }
+                    dayDate = d; take(i, 3); continue
                 default: break
                 }
             }
@@ -105,7 +119,10 @@ public enum QuickAddParser {
     }
 
     private static func normalize(_ s: String) -> String {
-        s.lowercased().folding(options: .diacriticInsensitive, locale: Locale(identifier: "de_DE"))
+        // Transliterate first: the rules use "ae/oe/ue/ss", plain diacritic folding would turn "nächsten" into "nachsten".
+        s.lowercased().replacingOccurrences(of: "ä", with: "ae").replacingOccurrences(of: "ö", with: "oe")
+            .replacingOccurrences(of: "ü", with: "ue").replacingOccurrences(of: "ß", with: "ss")
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "de_DE"))
             .trimmingCharacters(in: CharacterSet(charactersIn: ",.;!?"))
     }
 
