@@ -10,6 +10,8 @@
 #   TODO_UITEST_SEEDS  space-separated TODO_LIVE_SEED_* switches, default "FEED STATE BOARD W3" (all set to 1)
 #   TODO_UITEST_RUNTIME simulator runtime id, default com.apple.CoreSimulator.SimRuntime.iOS-27-0
 #   TODO_UITEST_DEVICE  existing simulator UDID to use instead of a throw-away one (it is left alone afterwards)
+#   TODO_UITEST_ALL=1  also run the two local helpers AuditTimesServerE2E and ReviewVariantsServerE2E; they need their own seed
+#                      (LiveReviewVariantsTests.testSeedVariantReviews) and are skipped by default
 #   TODO_UITEST_TMP    scratch directory (default mktemp); TODO_UITEST_KEEP=1 keeps it
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -43,7 +45,7 @@ fi
 [[ -x "$bin" ]] || die "backend binary not found (${bin:-no .workspace.local.json}); build it in the main repo (swift build) or set TODO_BACKEND_BIN"
 
 mkdir -p "$scratch"
-export DATABASE_DRIVER=sqlite DB_NAME="$scratch/ui.sqlite" RP_ID=localhost RP_ORIGIN="http://localhost:$port" BOOTSTRAP_TOKEN=dev-bootstrap-only
+export DATABASE_DRIVER=sqlite DB_NAME="$scratch/ui.sqlite" RP_ID=localhost RP_ORIGIN="http://localhost:$port" OAUTH_ISSUER="$base" BOOTSTRAP_TOKEN=dev-bootstrap-only
 "$bin" migrate --yes >"$scratch/migrate.log" 2>&1 || { cat "$scratch/migrate.log" >&2; die "migrate failed"; }
 "$bin" serve --hostname 127.0.0.1 --port "$port" >"$scratch/backend.log" 2>&1 & backend_pid=$!
 for _ in $(seq 1 60); do curl -fs "$base/health/ready" >/dev/null 2>&1 && break; kill -0 "$backend_pid" 2>/dev/null || { cat "$scratch/backend.log" >&2; die "backend exited"; }; sleep 1; done
@@ -64,10 +66,12 @@ fi
 
 xcodegen generate >/dev/null
 echo "ui-tests: running Todo-iOS-UITests on simulator $sim"
+skip=(-skip-testing:Todo-iOS-UITests/AuditTimesServerE2E -skip-testing:Todo-iOS-UITests/ReviewVariantsServerE2E)
+[[ "${TODO_UITEST_ALL:-0}" == "1" ]] && skip=()
 set +e
 TEST_RUNNER_TODO_UITEST_SERVER="$base" TEST_RUNNER_TODO_UITEST_TOKEN="$token" \
   xcodebuild test -project Todo.xcodeproj -scheme Todo-iOS -destination "id=$sim" \
-  -resultBundlePath "$scratch/result.xcresult" CODE_SIGNING_ALLOWED=NO "$@"
+  -resultBundlePath "$scratch/result.xcresult" CODE_SIGNING_ALLOWED=NO ${skip[@]+"${skip[@]}"} "$@"
 code=$?
 set -e
 # Summary line (the number to quote in progress notes).
