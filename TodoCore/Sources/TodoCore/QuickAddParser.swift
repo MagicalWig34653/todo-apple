@@ -29,10 +29,7 @@ public enum QuickAddParser {
         var dayDate: Date?
         var time: (h: Int, m: Int)?
 
-        func norm(_ s: String) -> String {
-            s.lowercased().folding(options: .diacriticInsensitive, locale: Locale(identifier: "de_DE"))
-                .trimmingCharacters(in: CharacterSet(charactersIn: ",.;!?"))
-        }
+        func norm(_ s: String) -> String { normalize(s) }
         func take(_ i: Int, _ n: Int) { result.recognized.append(words[i..<i + n].joined(separator: " ")); words.removeSubrange(i..<i + n) }
 
         var i = 0
@@ -66,6 +63,9 @@ public enum QuickAddParser {
                 dayDate = nextWeekday(7, after: today, calendar: calendar); take(i, 2); continue
             }
             if w == "wochenende" { dayDate = nextWeekday(7, after: today, calendar: calendar); take(i, 1); continue }
+            if let hit = parseAbsoluteDate(words: words, at: i, now: now, today: today, calendar: calendar) {
+                dayDate = hit.date; take(hit.start, hit.count); i = hit.start; continue
+            }
             if w == "in", let n = Int(next), n > 0, n < 400 {
                 switch next2 {
                 case "tag", "tagen": dayOffset = n; take(i, 3); continue
@@ -102,6 +102,63 @@ public enum QuickAddParser {
         }
         result.title = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
         return result
+    }
+
+    private static func normalize(_ s: String) -> String {
+        s.lowercased().folding(options: .diacriticInsensitive, locale: Locale(identifier: "de_DE"))
+            .trimmingCharacters(in: CharacterSet(charactersIn: ",.;!?"))
+    }
+
+    private static let months: [String: Int] = [
+        "januar": 1, "jan": 1, "februar": 2, "feb": 2, "maerz": 3, "marz": 3, "mrz": 3, "april": 4, "apr": 4, "mai": 5,
+        "juni": 6, "jun": 6, "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9,
+        "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12,
+    ]
+
+    /// Absolute dates: `15.12.`, `am 15.12`, `24.12.2026`, `24.12.26`, `3. Dezember`, `am 3. Dez 2027`.
+    /// A bare `d.m` without trailing dot only counts after "am" (otherwise `3.50` or `2.1` stay in the title).
+    /// Without a year the next matching day today or later is used (29.2. waits for the next leap year); an explicit
+    /// year is kept as typed. Invalid days (31.2.) are not recognised. Returns the day plus the words it consumed.
+    private static func parseAbsoluteDate(words: [String], at i: Int, now: Date, today: Date, calendar: Calendar)
+        -> (date: Date, start: Int, count: Int)? {
+        let raw = words[i].trimmingCharacters(in: CharacterSet(charactersIn: ",;!?"))
+        let hasAm = i > 0 && normalize(words[i - 1]) == "am"
+        let trailingDot = raw.hasSuffix(".")
+        var parts = raw.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        if trailingDot { parts.removeLast() }
+        guard (1...3).contains(parts.count), parts.allSatisfy({ !$0.isEmpty && $0.count <= 4 && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }),
+              parts[0].count <= 2, let day = Int(parts[0]) else { return nil }
+        var month: Int?, year: Int?, consumed = 1
+        if parts.count == 1 {
+            // "3. Dezember [2027]"
+            guard i + 1 < words.count, let m = months[normalize(words[i + 1])] else { return nil }
+            month = m; consumed = 2
+            if i + 2 < words.count, let y = Int(normalize(words[i + 2])), normalize(words[i + 2]).count == 4, (1900...2100).contains(y) {
+                year = y; consumed = 3
+            }
+        } else {
+            guard parts[1].count <= 2, let m = Int(parts[1]) else { return nil }
+            month = m
+            if parts.count == 2 {
+                guard trailingDot || hasAm else { return nil }
+            } else {
+                guard parts[2].count == 2 || parts[2].count == 4, let y = Int(parts[2]) else { return nil }
+                year = parts[2].count == 2 ? 2000 + y : y
+            }
+        }
+        guard let month, (1...12).contains(month), (1...31).contains(day) else { return nil }
+        func make(_ y: Int) -> Date? {
+            guard let d = calendar.date(from: DateComponents(year: y, month: month, day: day)) else { return nil }
+            let c = calendar.dateComponents([.year, .month, .day], from: d)
+            return c.year == y && c.month == month && c.day == day ? d : nil
+        }
+        let result: Date?
+        if let year { result = make(year) } else {
+            let thisYear = calendar.component(.year, from: today)
+            result = (thisYear...thisYear + 8).lazy.compactMap(make).first { $0 >= today }
+        }
+        guard let result else { return nil }
+        return (result, hasAm ? i - 1 : i, consumed + (hasAm ? 1 : 0))
     }
 
     private static func parseClock(_ w: String) -> (Int, Int)? {
