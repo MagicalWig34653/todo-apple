@@ -10,7 +10,13 @@ struct OverviewNowView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var model: OverviewNowModel
 
-    init(model: OverviewNowModel? = nil) { _model = State(initialValue: model ?? OverviewNowModel()) }
+    init(model: OverviewNowModel? = nil) {
+        #if DEBUG
+        _model = State(initialValue: model ?? OverviewNowModel.debugStub() ?? OverviewNowModel())
+        #else
+        _model = State(initialValue: model ?? OverviewNowModel())
+        #endif
+    }
 
     var body: some View {
         ScrollView {
@@ -85,6 +91,13 @@ struct OverviewNowView: View {
             EmptyState(symbol: "moon.zzz", title: "now.empty", message: "now.emptyHint", tint: .tileBlue)
                 .accessibilityIdentifier("now.empty")
         } else {
+            if let block = model.data?.now {
+                NowBlockView(block: block, now: model.now, silentExpanded: Binding(get: { model.silentExpanded }, set: { model.silentExpanded = $0 }),
+                             open: { open(taskID: $0, projectID: $1, title: $2) })
+                if !model.groups.isEmpty {
+                    Text("now.block.projects").font(.headline).padding(.top, Space.s).accessibilityAddTraits(.isHeader)
+                }
+            }
             projects(model.groups)
         }
     }
@@ -111,9 +124,12 @@ struct OverviewNowView: View {
 
     /// Antworten / Ansehen: the existing task detail (sheet on iPhone, inspector on iPad and Mac).
     private func open(taskID: UUID, in project: OverviewProject) {
+        open(taskID: taskID, projectID: project.projectID, title: project.title(of: taskID) ?? "")
+    }
+
+    private func open(taskID: UUID, projectID: UUID, title: String) {
         let known = app.tasks.first { $0.id == taskID }
-        let title = project.title(of: taskID) ?? ""
-        app.path = [known ?? TodoTask(id: taskID, projectID: project.projectID, title: title)]
+        app.path = [known ?? TodoTask(id: taskID, projectID: projectID, title: title)]
     }
 }
 
@@ -434,6 +450,7 @@ enum OverviewNowSample {
     static let now = Date(timeIntervalSince1970: 1_795_000_000)
     private static func ago(_ s: TimeInterval) -> Date { now.addingTimeInterval(-s) }
     private static let t1 = UUID(), t2 = UUID(), t3 = UUID(), t4 = UUID()
+    private static let pTodolino = UUID(), pApple = UUID()
 
     /// One project with only builds in the three states (debug screenshots: `TODO_DEBUG_NOW_PREVIEW=builds`).
     static let buildsOnly = OverviewNow(serverTime: now, projects: [
@@ -443,6 +460,29 @@ enum OverviewNowSample {
             OverviewBuild(taskID: t1, buildID: "215", label: "macOS", platform: "macos", createdAt: ago(900), commit: "0f1e2d3c4b5a", status: .succeeded),
             OverviewBuild(taskID: t1, buildID: "216", label: "Ohne Status", platform: "ios", createdAt: ago(1200))])
     ])
+
+    /// Block "Jetzt": two running (card and session), a question and a review waiting, two done, three silent.
+    static let block = NowBlock(
+        counts: NowCounts(running: 2, waiting: 2, recentlyDone: 2, silent: 3),
+        running: [
+            NowActive(kind: .task, projectID: pTodolino, projectName: "Todolino", taskID: t1, title: "Passkey-Anmeldung auf Safari absichern",
+                      text: "Fallback für Conditional UI geschrieben, Tests laufen", worker: "Claude Sonnet", since: ago(5400), lastSignAt: ago(240),
+                      ageSeconds: 240, dueAt: now.addingTimeInterval(3 * 3600), percent: 60),
+            NowActive(kind: .session, projectID: pApple, projectName: "Todolino Apple", title: "apple-jetzt", text: "Baut die Ansicht Jetzt mit dem Block",
+                      lastSignAt: ago(40), ageSeconds: 40)],
+        waiting: [
+            NowWaiting(kind: .question, id: UUID(), projectID: pTodolino, projectName: "Todolino", taskID: t3, taskTitle: "Runner-Bindings",
+                       text: "Soll der Runner nach Eigentumswechsel pausieren oder weiterlaufen?", createdAt: ago(720)),
+            NowWaiting(kind: .review, id: UUID(), projectID: pTodolino, projectName: "Todolino", taskID: t4, taskTitle: "Kalender Stufe A",
+                       text: "Schedule-API fertig", createdAt: ago(3600))],
+        recentlyDone: [
+            NowDone(taskID: UUID(), title: "Label umbenennen und löschen", projectID: pApple, projectName: "Todolino Apple", doneAt: ago(1800)),
+            NowDone(taskID: UUID(), title: "Benachrichtigungen bündeln", projectID: pApple, projectName: "Todolino Apple", doneAt: ago(14_400))],
+        silent: [
+            NowActive(kind: .task, projectID: pTodolino, projectName: "Todolino", taskID: UUID(), title: "Migration 0092 prüfen", text: "Skript angelegt",
+                      worker: "Claude Sonnet", since: ago(90_000), lastSignAt: ago(7200), ageSeconds: 7200, dueAt: ago(3600)),
+            NowActive(kind: .session, projectID: pTodolino, projectName: "Todolino", title: "backend-oauth", text: "Migration 0092 prüfen", lastSignAt: ago(2820), ageSeconds: 2820),
+            NowActive(kind: .task, projectID: pApple, projectName: "Todolino Apple", taskID: UUID(), title: "Widget „Heute“ für iOS", text: "", lastSignAt: ago(20_000), ageSeconds: 20_000)])
 
     static let data = OverviewNow(serverTime: now, projects: [
         OverviewProject(
@@ -473,7 +513,7 @@ enum OverviewNowSample {
                         pendingReviews: [OverviewOpenItem(taskID: UUID(), taskTitle: "Rate-Limit je Mandant", text: "Rate-Limit fertig", createdAt: ago(40_000))]),
         OverviewProject(projectID: UUID(), projectName: "Kubus Website", lastActivityAt: ago(100_000)),
         OverviewProject(projectID: UUID(), projectName: "Privat", lastActivityAt: ago(300_000))
-    ])
+    ], now: block)
 }
 
 struct OverviewNowPreviewHost: View {

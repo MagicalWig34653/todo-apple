@@ -77,10 +77,6 @@ final class NowBlockUITests: XCTestCase {
         try? XCUIScreen.main.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "\(out)/\(name).png"))
     }
 
-    private func scrollTo(_ el: XCUIElement) {
-        for _ in 0..<8 where !el.isHittable { app.swipeUp() }
-    }
-
     // MARK: Tests
 
     func testEmptyAndFullStub() {
@@ -95,21 +91,33 @@ final class NowBlockUITests: XCTestCase {
         // Full: all four groups; the silent group is collapsed until opened.
         launch(stub: "full")
         openNow()
-        XCTAssertTrue(element("now.block").waitForExistence(timeout: 10), "block")
-        XCTAssertTrue(element("now.block.running").exists, "Läuft gerade")
+        XCTAssertTrue(element("now.block.running").waitForExistence(timeout: 10), "block")
+        shot("jetzt-\(look)-2-gefuellt")
+        XCTAssertTrue(heading("Läuft gerade").exists, "Läuft gerade")
         XCTAssertGreaterThanOrEqual(app.descendants(matching: .any).matching(identifier: "now.block.running.item").count, 2)
-        XCTAssertTrue(app.staticTexts["Läuft gerade"].exists || element("now.block.running").label.contains("Läuft gerade"))
-        XCTAssertTrue(element("now.block.waiting").exists, "Wartet auf dich")
-        XCTAssertTrue(element("now.block.done").exists, "Zuletzt fertig")
+        XCTAssertTrue(heading("Wartet auf dich").exists, "Wartet auf dich")
+        XCTAssertGreaterThanOrEqual(app.descendants(matching: .any).matching(identifier: "now.block.waiting.item").count, 1)
+        app.terminate()
+
+        // Tail: nothing running or waiting; done and silent on one screen. The silent group starts collapsed and opens on tap.
+        launch(stub: "tail")
+        openNow()
+        XCTAssertTrue(element("now.block.running.empty").waitForExistence(timeout: 10), "Läuft gerade says nothing runs")
+        XCTAssertTrue(heading("Zuletzt fertig").waitForExistence(timeout: 5), "Zuletzt fertig")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "now.block.done.item").count, 2)
+        XCTAssertFalse(heading("Wartet auf dich").exists, "no waiting group without entries")
         let silent = element("now.block.silent")
-        XCTAssertTrue(silent.exists, "Ohne Lebenszeichen")
+        XCTAssertTrue(silent.waitForExistence(timeout: 5), "Ohne Lebenszeichen")
         XCTAssertTrue(silent.label.contains("Ohne Lebenszeichen (3)"), "count in the heading: \(silent.label)")
         XCTAssertFalse(element("now.block.silent.item").exists, "silent group starts collapsed")
-        shot("jetzt-\(look)-2-gefuellt")
-        scrollTo(silent)
+        shot("jetzt-\(look)-3-ohne-lebenszeichen-zu")
         silent.tap()
         XCTAssertTrue(element("now.block.silent.item").waitForExistence(timeout: 5), "silent group opens")
-        shot("jetzt-\(look)-3-ohne-lebenszeichen")
+        shot("jetzt-\(look)-4-ohne-lebenszeichen-offen")
+    }
+
+    private func heading(_ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", text)).firstMatch
     }
 
     func testFilledGroupsFromRealBackend() async throws {
@@ -132,7 +140,7 @@ final class NowBlockUITests: XCTestCase {
         let done = element("now.block.done.item")
         XCTAssertTrue(done.waitForExistence(timeout: 10), "the finished card shows under Zuletzt fertig")
         XCTAssertTrue(app.staticTexts[title].exists, "card title visible")
-        shot("jetzt-\(look)-4-echtes-backend")
+        shot("jetzt-\(look)-5-echtes-backend")
 
         // Ending the session removes it again (contract 1.4.0: ended true deletes the row).
         _ = try await request("PUT", "/v1/projects/\(projectID)/session-status", body: ["sessionName": session, "ended": true])

@@ -32,7 +32,24 @@ final class OverviewNowModel {
     var now: Date { Date().addingTimeInterval(clockOffset) }
     var groups: OverviewGroups { (data ?? OverviewNow()).grouped(at: now) }
     /// Nothing to show at all (no project with content).
-    var isEmpty: Bool { groups.isEmpty }
+    var isEmpty: Bool { (data ?? OverviewNow()).showsEmptyPage }
+    /// The block "Ohne Lebenszeichen" starts collapsed on every visit.
+    var silentExpanded = false
+
+    #if DEBUG
+    /// `TODO_DEBUG_NOW_STUB=empty|full`: sample data inside the real app shell (UI tests, screenshots); nil without the variable.
+    static func debugStub() -> OverviewNowModel? {
+        guard let variant = ProcessInfo.processInfo.environment["TODO_DEBUG_NOW_STUB"] else { return nil }
+        let data: OverviewNow
+        switch variant {
+        case "empty": data = OverviewNow(serverTime: OverviewNowSample.now, now: NowBlock())
+        // Nothing running or waiting, only done and silent: the short page where all of it is on screen at once.
+        case "tail": data = OverviewNow(serverTime: OverviewNowSample.now, now: NowBlock(recentlyDone: OverviewNowSample.block.recentlyDone, silent: OverviewNowSample.block.silent))
+        default: data = OverviewNowSample.data
+        }
+        return OverviewNowModel(stub: data, now: OverviewNowSample.now)
+    }
+    #endif
 
     // MARK: Loading
 

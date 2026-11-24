@@ -8878,6 +8878,176 @@
           }
         }
       }
+    },
+    "now.block.running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft gerade"
+          }
+        }
+      }
+    },
+    "now.block.runningEmpty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerade läuft nichts mit Lebenszeichen."
+          }
+        }
+      }
+    },
+    "now.block.waiting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf dich"
+          }
+        }
+      }
+    },
+    "now.block.done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt fertig"
+          }
+        }
+      }
+    },
+    "now.block.doneHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in den letzten 6 Stunden"
+          }
+        }
+      }
+    },
+    "now.block.silent %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Lebenszeichen (%lld)"
+          }
+        }
+      }
+    },
+    "now.block.silentHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Arbeit, aber ohne Meldung in den letzten 30 Minuten."
+          }
+        }
+      }
+    },
+    "now.block.projects": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte"
+          }
+        }
+      }
+    },
+    "now.block.session": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitzung"
+          }
+        }
+      }
+    },
+    "now.block.lifeSign %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lebenszeichen vor %@"
+          }
+        }
+      }
+    },
+    "now.block.lifeSignNow": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lebenszeichen gerade eben"
+          }
+        }
+      }
+    },
+    "now.block.since %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "seit %@"
+          }
+        }
+      }
+    },
+    "now.block.due %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frist %@"
+          }
+        }
+      }
+    },
+    "now.block.overdue %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überfällig seit %@"
+          }
+        }
+      }
+    },
+    "now.block.doneAgo %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fertig %@"
+          }
+        }
+      }
+    },
+    "now.block.expanded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ausgeklappt"
+          }
+        }
+      }
+    },
+    "now.block.collapsed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "eingeklappt"
+          }
+        }
+      }
     }
   }
 }
