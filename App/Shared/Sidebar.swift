@@ -344,6 +344,8 @@ struct SidebarScreen: View {
 struct LabelsView: View {
     @Environment(AppModel.self) private var model
     @Environment(TaskMeta.self) private var meta
+    @State private var renaming: TaskLabel?
+    @State private var deleting: TaskLabel?
 
     var body: some View {
         List {
@@ -358,12 +360,24 @@ struct LabelsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).taskRowInsets()
+                    .labelRowActions(l, rename: { renaming = l }, delete: { deleting = l })
                 }
             } header: { SectionHeaderLabel(title: "task.labels") }
         }
         .taskListStyle()
         .overlay { if meta.allLabels.isEmpty { EmptyState(symbol: "tag", title: "labels.empty", message: "labels.emptyHint", tint: .tileTeal) } }
         .navigationTitle("view.labels")
+        .sheet(item: $renaming) { LabelRenameSheet(label: $0) }
+        // An alert, not a confirmation dialog: on iPhone the dialog came up as a popover without a cancel button.
+        .alert(
+            Text("label.delete.title \(deleting?.name ?? "")"),
+            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting
+        ) { l in
+            Button("label.delete.cancel", role: .cancel) {}
+            Button("label.delete.confirm", role: .destructive) { Task { await model.deleteLabel(l) } }
+        } message: { l in
+            Text("label.delete.message \(meta.taskCount(for: l))")
+        }
     }
 }
 

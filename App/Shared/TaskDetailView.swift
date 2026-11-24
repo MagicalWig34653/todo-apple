@@ -158,7 +158,7 @@ final class TaskDetailModel {
             task = (app.pendingChanges > 0 ? app.tasks.first { $0.id == task.id } : nil) ?? planned.task
             planning = app.outboxSnapshot.planning[task.id] ?? planned.planning
             activity = try await a.items; attachments = try await f
-            allLabels = try await al.items
+            allLabels = LabelEditing.applying(app.outboxSnapshot, to: try await al.items)
             labels = Self.applyOutbox(try await l.items, task: task.id, known: allLabels, app.outboxSnapshot)
             loaded = true
             await loadSubtasks(app)
@@ -197,7 +197,7 @@ final class TaskDetailModel {
     }
 
     static func applyOutbox(_ confirmed: [TaskLabel], task: UUID, known: [TaskLabel], _ outbox: OutboxSnapshot) -> [TaskLabel] {
-        var list = confirmed
+        var list = LabelEditing.applying(outbox, to: confirmed)
         if let removed = outbox.labelRemoves[task] { list.removeAll { removed.contains($0.id) } }
         for id in outbox.labelAdds[task] ?? [] where !list.contains(where: { $0.id == id }) {
             if let l = known.first(where: { $0.id == id }) ?? outbox.newLabels.first(where: { $0.id == id }) { list.append(l) }

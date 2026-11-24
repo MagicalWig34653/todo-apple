@@ -72,11 +72,30 @@ final class LabelManagementUITests: XCTestCase {
     private func revealActions(of name: String) {
         let r = row(name)
         XCTAssertTrue(r.waitForExistence(timeout: 20), "row \(name)")
+        // The first feed after launch still re-lays the list out (rows move when labels arrive); a swipe in that moment can
+        // land on a neighbouring row (seen once: the dialog named another label). Let the row stand still first.
+        settleList(r)
         r.swipeLeft()
+    }
+
+    /// A fresh simulator shows the "Speed up your typing" tip on first keyboard use and covers the sheet.
+    private func dismissKeyboardTip() {
+        let tip = app.buttons["Continue"]
+        if tip.waitForExistence(timeout: 2) { tip.tap() }
+    }
+
+    private func settleList(_ r: XCUIElement) {
+        var last = r.frame
+        for _ in 0..<10 {
+            Thread.sleep(forTimeInterval: 0.4)
+            if r.frame == last { break }
+            last = r.frame
+        }
     }
 
     private func clearAndType(_ field: XCUIElement, _ text: String) {
         field.tap()
+        dismissKeyboardTip()
         if let current = field.value as? String, !current.isEmpty { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count)) }
         if !text.isEmpty { field.typeText(text) }
     }
@@ -95,8 +114,11 @@ final class LabelManagementUITests: XCTestCase {
         let old = "UTAlt\(stamp)", new = "UTNeu\(stamp)"
         try await createLabel(old)
         launch(dark: look == "dark")
+        XCTAssertTrue(row(old).waitForExistence(timeout: 20))
+        settleList(row(old))
+        shot("labels-\(look)-0-liste")
         revealActions(of: old)
-        shot("labels-\(look)-1-liste")
+        shot("labels-\(look)-1-liste-aktionen")
         app.buttons["labelRenameAction"].tap()
 
         let field = app.textFields["labelRenameField"]
@@ -109,6 +131,7 @@ final class LabelManagementUITests: XCTestCase {
         let error = app.staticTexts["labelRenameError"]
         XCTAssertTrue(error.waitForExistence(timeout: 5), "error for the empty name")
         XCTAssertTrue(error.label.contains("leer"), error.label)
+        dismissKeyboardTip()
         shot("labels-\(look)-2-umbenennen-fehler")
         XCTAssertTrue(field.exists, "sheet stays open")
 
@@ -143,13 +166,15 @@ final class LabelManagementUITests: XCTestCase {
         try await createLabel(name)
         launch(dark: look == "dark")
         revealActions(of: name)
+        shot("labels-\(look)-3b-swiped")
         app.buttons["labelDeleteAction"].tap()
 
         // The dialog names the label; cancelling keeps everything.
-        let confirm = app.buttons["labelDeleteConfirm"]
+        let confirm = app.alerts.buttons["Label löschen"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "confirmation dialog")
         shot("labels-\(look)-4-loeschen-dialog")
-        app.buttons["labelDeleteCancel"].tap()
+        XCTAssertTrue(app.alerts.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch.exists, "the dialog names the label; alert texts: \(app.alerts.staticTexts.allElementsBoundByIndex.map(\.label))")
+        app.alerts.buttons["Abbrechen"].tap()
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "dialog closed")
         XCTAssertTrue(row(name).exists, "label still listed after cancel")
         let afterCancel = try await serverLabels()

@@ -103,6 +103,8 @@ final class AppModel {
         for (t, ids) in m.labelAdds { o.labelAdds[t, default: []].formUnion(ids); o.labelRemoves[t]?.subtract(ids) }
         for (t, ids) in m.labelRemoves { o.labelRemoves[t, default: []].formUnion(ids); o.labelAdds[t]?.subtract(ids) }
         o.newLabels = m.newLabels
+        let edits = LabelEditing.merged(legacy: o, engine: m)
+        o.renamedLabels = edits.renamedLabels; o.deletedLabels = edits.deletedLabels
         return o
     }
     /// Bumped when confirmed planning/labels may have changed (lists refresh their metadata).
@@ -506,6 +508,29 @@ final class AppModel {
             if enabled { try await client.addLabel(label.id, toTask: taskID) } else { try await client.removeLabel(label.id, fromTask: taskID) }
             metaRevision += 1
         } catch { await handle(error) }
+    }
+
+    /// Renames a label (card 9E4572D1). Returns why the name is refused (nothing is queued then); nil when it was queued, sent
+    /// or needed nothing (same name). Shows at once through the overlay, the server follows with the sync.
+    func renameLabel(_ label: TaskLabel, to input: String) async -> LabelNameError? {
+        switch LabelEditing.checkRename(input, of: label) {
+        case .invalid(let reason): return reason
+        case .unchanged: return nil
+        case .valid(let name):
+            if await queueMeta({ try await $0.renameLabel(label.id, name: name) }) { return nil }
+            guard let client else { return nil }
+            do { _ = try await client.renameLabel(label.id, version: label.version, name: name); metaRevision += 1 }
+            catch { await handle(error) }
+            return nil
+        }
+    }
+
+    /// Deletes a label everywhere (the tasks keep existing, they only lose the label). The caller has asked for confirmation.
+    func deleteLabel(_ label: TaskLabel) async {
+        if await queueMeta({ try await $0.deleteLabel(label.id) }) { return }
+        guard let client else { return }
+        do { try await client.deleteLabel(label.id); metaRevision += 1 }
+        catch { await handle(error) }
     }
 
     /// Adds a label by name: reuses a known one, otherwise it is created on the server during the replay.

@@ -10,7 +10,9 @@ final class TaskMeta {
     /// Last server-confirmed values (persisted per account so lists keep their chips and due dates offline).
     private(set) var confirmedPlanning: [UUID: PlanningData] = [:]
     private(set) var overdue: [PlanningTask] = []
-    private(set) var allLabels: [TaskLabel] = []
+    private(set) var confirmedAllLabels: [TaskLabel] = []
+    /// All labels as the lists show them: confirmed ones with queued renames applied and queued deletes removed.
+    var allLabels: [TaskLabel] { LabelEditing.applying(overlay, to: confirmedAllLabels) }
     private(set) var confirmedLabels: [UUID: [TaskLabel]] = [:]
     /// Unsent planning/label edits (outbox) shown on top of the confirmed values.
     var overlay = OutboxSnapshot()
@@ -27,7 +29,7 @@ final class TaskMeta {
     func planning(for id: UUID) -> PlanningData? { overlay.planning[id] ?? confirmedPlanning[id] }
 
     func labels(for id: UUID) -> [TaskLabel] {
-        var list = confirmedLabels[id] ?? []
+        var list = LabelEditing.applying(overlay, to: confirmedLabels[id] ?? [])
         if let removed = overlay.labelRemoves[id] { list.removeAll { removed.contains($0.id) } }
         for add in overlay.labelAdds[id] ?? [] where !list.contains(where: { $0.id == add }) {
             if let known = allLabels.first(where: { $0.id == add }) ?? overlay.newLabels.first(where: { $0.id == add }) { list.append(known) }
@@ -78,14 +80,14 @@ final class TaskMeta {
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         guard let cache = try? decoder.decode(Cache.self, from: data) else { return }
         if confirmedPlanning.isEmpty { confirmedPlanning = cache.planning }
-        if allLabels.isEmpty { allLabels = cache.labels }
+        if confirmedAllLabels.isEmpty { confirmedAllLabels = cache.labels }
         if confirmedLabels.isEmpty { confirmedLabels = cache.labelsByTask }
     }
 
     private func persist(to url: URL?) {
         guard let url else { return }
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
-        try? encoder.encode(Cache(planning: confirmedPlanning, labels: allLabels, labelsByTask: confirmedLabels)).write(to: url, options: .atomic)
+        try? encoder.encode(Cache(planning: confirmedPlanning, labels: confirmedAllLabels, labelsByTask: confirmedLabels)).write(to: url, options: .atomic)
     }
 
     /// Planning and labels as the sync feed delivers them (contract 1.4.0): no REST round trips per label needed.
@@ -93,7 +95,7 @@ final class TaskMeta {
         guard app.metaFromFeed else { return }
         restored = true
         confirmedPlanning = app.feedPlanning
-        allLabels = app.feedLabels.map(\.asTaskLabel)
+        confirmedAllLabels = app.feedLabels.map(\.asTaskLabel)
         var map: [UUID: [TaskLabel]] = [:]
         for l in app.feedLabels { for t in l.taskIDs { map[t, default: []].append(l.asTaskLabel) } }
         confirmedLabels = map
@@ -139,7 +141,7 @@ final class TaskMeta {
                 guard let hits = try? await client.search(nil, labelID: label.id, limit: 100) else { complete = false; break }
                 for hit in hits.items { if let t = hit.task { map[t.id, default: []].append(label) } }
             }
-            allLabels = labels
+            confirmedAllLabels = labels
             if complete { confirmedLabels = map }
         }
         persist(to: app.metaCacheURL)
