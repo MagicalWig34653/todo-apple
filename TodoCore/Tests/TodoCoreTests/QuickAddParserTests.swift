@@ -146,4 +146,41 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(parse("Jeden Vormittag lesen").title, "Jeden Vormittag lesen")
         XCTAssertNil(parse("Jeden Vormittag lesen").recurrence)
     }
+
+    // MARK: Intervals (card 8DB7E4F8: "alle 2 Wochen")
+    func testEveryNWeeksSetsInterval() {
+        let p = parse("Pflanzen giessen alle 2 Wochen")
+        XCTAssertEqual(p.title, "Pflanzen giessen"); XCTAssertEqual(p.recurrence, .weekly); XCTAssertEqual(p.recurrenceInterval, 2)
+        XCTAssertEqual(p.due, day(30, month: 10), "recurrence without a date starts today (same rule as 'jeden Tag')")
+        XCTAssertEqual(p.recognized, ["alle 2 Wochen"])
+    }
+    func testEveryNDaysAndMonths() {
+        let d = parse("Tabletten alle 3 Tage"); XCTAssertEqual(d.recurrence, .daily); XCTAssertEqual(d.recurrenceInterval, 3); XCTAssertEqual(d.title, "Tabletten")
+        let m = parse("Rechnung alle 2 Monate"); XCTAssertEqual(m.recurrence, .monthly); XCTAssertEqual(m.recurrenceInterval, 2); XCTAssertEqual(m.title, "Rechnung")
+        let one = parse("Putzen alle 1 Woche"); XCTAssertEqual(one.recurrence, .weekly); XCTAssertEqual(one.recurrenceInterval, 1)
+    }
+    func testIntervalWordsAndOrdinals() {
+        let a = parse("Backup alle zwei Wochen"); XCTAssertEqual(a.recurrence, .weekly); XCTAssertEqual(a.recurrenceInterval, 2); XCTAssertEqual(a.title, "Backup")
+        let b = parse("Backup jede zweite Woche"); XCTAssertEqual(b.recurrence, .weekly); XCTAssertEqual(b.recurrenceInterval, 2); XCTAssertEqual(b.title, "Backup")
+        let c = parse("Bericht jeden dritten Monat"); XCTAssertEqual(c.recurrence, .monthly); XCTAssertEqual(c.recurrenceInterval, 3)
+        let d = parse("Wäsche jeden zweiten Tag"); XCTAssertEqual(d.recurrence, .daily); XCTAssertEqual(d.recurrenceInterval, 2)
+    }
+    func testEverySecondWeekdayStartsOnNextOccurrence() {
+        let p = parse("Team-Sync jeden zweiten Montag um 9:30")
+        XCTAssertEqual(p.title, "Team-Sync"); XCTAssertEqual(p.recurrence, .weekly); XCTAssertEqual(p.recurrenceInterval, 2)
+        XCTAssertEqual(p.due, day(2, 9, 30)); XCTAssertTrue(p.hasTime)
+    }
+    func testIntervalDefaultsToOneAndRuleCarriesIt() {
+        XCTAssertEqual(parse("Pflanzen jeden Tag").recurrenceInterval, 1)
+        XCTAssertNil(parse("Milch kaufen").recurrenceRule)
+        let rule = parse("Pflanzen alle 2 Wochen").recurrenceRule
+        XCTAssertEqual(rule?.frequency, .weekly); XCTAssertEqual(rule?.interval, 2)
+        XCTAssertEqual(parse("Pflanzen taeglich").recurrenceRule?.interval, 1)
+    }
+    func testIntervalPhrasesInTitlesAreNotRecurrence() {
+        for s in ["Alle 2 Kinder abholen", "Alle Fenster putzen", "alle 0 Wochen", "alle 400 Wochen", "alle zwei Autos waschen", "Jeden zweiten Vormittag lesen"] {
+            let p = parse(s)
+            XCTAssertNil(p.recurrence, s); XCTAssertNil(p.due, s); XCTAssertEqual(p.title, s, s)
+        }
+    }
 }
