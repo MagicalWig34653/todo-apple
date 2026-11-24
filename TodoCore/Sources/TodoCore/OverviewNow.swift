@@ -222,12 +222,143 @@ public struct OverviewProject: Decodable, Sendable, Equatable, Identifiable {
 public struct OverviewNow: Decodable, Sendable, Equatable {
     public let serverTime: Date?
     public let projects: [OverviewProject]
+    /// Block "Jetzt" (contract 1.4.0); nil for an older server, then only the project cards exist.
+    public let now: NowBlock?
 
-    public init(serverTime: Date? = nil, projects: [OverviewProject] = []) { self.serverTime = serverTime; self.projects = projects }
+    public init(serverTime: Date? = nil, projects: [OverviewProject] = [], now: NowBlock? = nil) {
+        self.serverTime = serverTime; self.projects = projects; self.now = now
+    }
     public init(from decoder: any Decoder) throws {
         guard let c = try? decoder.container(keyedBy: LooseKey.self) else { self.init(); return }
-        self.init(serverTime: c.loose("serverTime"), projects: c.list("projects"))
+        self.init(serverTime: c.loose("serverTime"), projects: c.list("projects"), now: c.loose("now"))
     }
+
+    /// Nothing to show: no project with content and an empty (or missing) block.
+    public var showsEmptyPage: Bool { projects.isEmpty && !(now?.hasContent ?? false) }
+}
+
+// MARK: Block "Jetzt" (contract session-status 1.4.0, field `now`)
+
+public struct NowCounts: Sendable, Equatable {
+    public let running: Int, waiting: Int, recentlyDone: Int, silent: Int
+    public init(running: Int = 0, waiting: Int = 0, recentlyDone: Int = 0, silent: Int = 0) {
+        self.running = running; self.waiting = waiting; self.recentlyDone = recentlyDone; self.silent = silent
+    }
+}
+
+/// A running card or session (`running`, `silent`).
+public struct NowActive: Decodable, Sendable, Equatable, Identifiable {
+    public enum Kind: String, Decodable, Sendable { case task, session }
+    public let kind: Kind
+    public let projectID: UUID
+    public let projectName: String
+    /// Only for a card.
+    public let taskID: UUID?
+    /// Card title or session name.
+    public let title: String
+    public let text: String
+    public let worker: String?
+    public let since: Date?
+    public let lastSignAt: Date?
+    public let ageSeconds: Int?
+    public let dueAt: Date?
+    /// 0...100 or nil (missing or out of range).
+    public let percent: Int?
+    public var id: String { "\(kind.rawValue):\(taskID?.uuidString ?? projectID.uuidString + title)" }
+
+    public init(kind: Kind, projectID: UUID, projectName: String, taskID: UUID? = nil, title: String, text: String = "", worker: String? = nil,
+                since: Date? = nil, lastSignAt: Date? = nil, ageSeconds: Int? = nil, dueAt: Date? = nil, percent: Int? = nil) {
+        self.kind = kind; self.projectID = projectID; self.projectName = projectName; self.taskID = taskID; self.title = title; self.text = text
+        self.worker = worker; self.since = since; self.lastSignAt = lastSignAt; self.ageSeconds = ageSeconds; self.dueAt = dueAt
+        self.percent = percent.flatMap { (0...100).contains($0) ? $0 : nil }
+    }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: LooseKey.self)
+        self.init(kind: try c.required("kind"), projectID: try c.required("projectID"), projectName: try c.required("projectName"),
+                  taskID: c.loose("taskID"), title: try c.required("title"), text: c.loose("text") ?? "", worker: c.loose("worker"),
+                  since: c.loose("since"), lastSignAt: c.loose("lastSignAt"), ageSeconds: c.loose("ageSeconds"), dueAt: c.loose("dueAt"),
+                  percent: c.loose("percent"))
+    }
+
+    /// A due date in the past (cards only).
+    public func isOverdue(at now: Date) -> Bool { kind == .task && (dueAt.map { $0 < now } ?? false) }
+}
+
+/// An open question or a pending review (`waiting`).
+public struct NowWaiting: Decodable, Sendable, Equatable, Identifiable {
+    public enum Kind: String, Decodable, Sendable { case question, review }
+    public let kind: Kind
+    public let id: UUID
+    public let projectID: UUID
+    public let projectName: String
+    public let taskID: UUID
+    public let taskTitle: String
+    public let text: String
+    public let createdAt: Date?
+    public var isQuestion: Bool { kind == .question }
+
+    public init(kind: Kind, id: UUID, projectID: UUID, projectName: String, taskID: UUID, taskTitle: String = "", text: String = "", createdAt: Date? = nil) {
+        self.kind = kind; self.id = id; self.projectID = projectID; self.projectName = projectName; self.taskID = taskID
+        self.taskTitle = taskTitle; self.text = text; self.createdAt = createdAt
+    }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: LooseKey.self)
+        self.init(kind: try c.required("kind"), id: try c.required("id"), projectID: try c.required("projectID"), projectName: try c.required("projectName"),
+                  taskID: try c.required("taskID"), taskTitle: c.loose("taskTitle") ?? "", text: c.loose("text") ?? "", createdAt: c.loose("createdAt"))
+    }
+}
+
+/// A card done within the last 6 hours (`recentlyDone`).
+public struct NowDone: Decodable, Sendable, Equatable, Identifiable {
+    public let taskID: UUID
+    public let title: String
+    public let projectID: UUID
+    public let projectName: String
+    public let doneAt: Date?
+    public var id: UUID { taskID }
+
+    public init(taskID: UUID, title: String, projectID: UUID, projectName: String, doneAt: Date? = nil) {
+        self.taskID = taskID; self.title = title; self.projectID = projectID; self.projectName = projectName; self.doneAt = doneAt
+    }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: LooseKey.self)
+        self.init(taskID: try c.required("taskID"), title: c.loose("title") ?? "", projectID: try c.required("projectID"),
+                  projectName: try c.required("projectName"), doneAt: c.loose("doneAt"))
+    }
+}
+
+public struct NowBlock: Decodable, Sendable, Equatable {
+    public let counts: NowCounts
+    public let running: [NowActive]
+    public let waiting: [NowWaiting]
+    public let recentlyDone: [NowDone]
+    /// Cards in progress and sessions without a sign of life for 30 minutes.
+    public let silent: [NowActive]
+
+    /// A count below the length of its list (lost element, older server) is raised to it, so the heading never undercounts.
+    public init(counts: NowCounts? = nil, running: [NowActive] = [], waiting: [NowWaiting] = [], recentlyDone: [NowDone] = [], silent: [NowActive] = []) {
+        self.running = running; self.waiting = waiting; self.recentlyDone = recentlyDone; self.silent = silent
+        let c = counts ?? NowCounts()
+        self.counts = NowCounts(running: max(c.running, running.count), waiting: max(c.waiting, waiting.count),
+                                recentlyDone: max(c.recentlyDone, recentlyDone.count), silent: max(c.silent, silent.count))
+    }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: LooseKey.self)
+        var counts = NowCounts()
+        if let k = try? c.nestedContainer(keyedBy: LooseKey.self, forKey: LooseKey("counts")) {
+            counts = NowCounts(running: k.loose("running") ?? 0, waiting: k.loose("waiting") ?? 0,
+                               recentlyDone: k.loose("recentlyDone") ?? 0, silent: k.loose("silent") ?? 0)
+        }
+        self.init(counts: counts, running: c.list("running"), waiting: c.list("waiting"), recentlyDone: c.list("recentlyDone"), silent: c.list("silent"))
+    }
+
+    /// Anything to show, silent entries included (they sit in the collapsed section).
+    public var hasContent: Bool { counts.running + counts.waiting + counts.recentlyDone + counts.silent > 0 }
+    /// Entries cut off by `limit` (compact): the server's count minus what came.
+    public var hiddenRunning: Int { counts.running - running.count }
+    public var hiddenWaiting: Int { counts.waiting - waiting.count }
+    public var hiddenDone: Int { counts.recentlyDone - recentlyDone.count }
+    public var hiddenSilent: Int { counts.silent - silent.count }
 }
 
 // MARK: Grouping
@@ -283,8 +414,14 @@ public enum OverviewFetchResult: Sendable, Equatable {
 
 extension APIClient {
     /// `GET /v1/overview/now`. A 404 (old server) is an own result, not an error; other errors are thrown.
-    public func fetchOverviewNow() async throws -> OverviewFetchResult {
-        do { return .loaded(try await send("GET", "v1/overview/now")) }
+    /// `compact` (since 1.4.0) returns only `serverTime` and `now`, texts cut to 140 characters; `limit` (1...50) caps each list of `now`.
+    public func fetchOverviewNow(compact: Bool = false, limit: Int? = nil) async throws -> OverviewFetchResult {
+        var query: [URLQueryItem] = []
+        if compact {
+            query.append(URLQueryItem(name: "compact", value: "true"))
+            if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
+        }
+        do { return .loaded(try await send("GET", "v1/overview/now", query: query)) }
         catch APIError.notFound { return .unsupported }
     }
 }
