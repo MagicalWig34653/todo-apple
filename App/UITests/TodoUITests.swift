@@ -120,6 +120,26 @@ final class TodoUITests: XCTestCase {
         attach("pad-inspector")
     }
 
+    /// iPad: the text size moving into the accessibility range swaps the detail from the inspector into a sheet (and back).
+    /// The open task must survive that. The system's Dynamic Type audit is the real size sweep available to a UI test.
+    func testPadDetailStaysOpenAcrossTextSizeChange() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        openSeededDetail()
+        try app.performAccessibilityAudit(for: .dynamicType) { _ in true }
+        XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 10), "detail still open after the text size sweep")
+        attach("pad-detail-after-size-sweep")
+        app.buttons["Fertig"].tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" still closes the detail")
+    }
+
+    private func openSeededDetail() {
+        let first = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Zahnarzttermin' OR label CONTAINS 'Angebote'")).firstMatch
+        if !first.waitForExistence(timeout: 15) { XCTFail("HIERARCHY " + String(app.debugDescription.prefix(5000))) }
+        XCTAssertTrue(first.exists)
+        first.tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 5))
+    }
+
     /// Runs the audit and prints every issue (type, element label, description); fails on all of them.
     private func audit(_ name: String) throws {
         // Let presentation animations (sheet, inspector) and keyboard transitions finish: the audit reads mid-flight frames otherwise.
@@ -132,8 +152,7 @@ final class TodoUITests: XCTestCase {
             if issue.element == nil, issue.auditType.rawValue == 2 /* element detection */, self.app.keyboards.firstMatch.exists { return true }
             // "Für dich" scrolls beneath the translucent floating tab bar; a section header that happens to sit under the
             // glass is reported as unattributed text (no element, no frame). Depends on the scroll position, not on our views.
-            // Same in the card detail: the row below the visible area sits under the translucent message bar at the bottom.
-            if name == "feed" || name == "detail", issue.element == nil, issue.auditType.rawValue == 2 { return true }
+            if name == "feed", issue.element == nil, issue.auditType.rawValue == 2 { return true }
             report.append("[\(name)] \(issue.auditType.rawValue) | \(issue.element?.label ?? "-") | \(issue.element?.elementType.rawValue ?? 0) | \(issue.element?.frame.debugDescription ?? "-") | \(issue.detailedDescription)")
             return true
         }
@@ -158,12 +177,9 @@ final class TodoUITests: XCTestCase {
     }
 
     func testAccessibilityAuditDetail() throws {
-        let first = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Zahnarzttermin' OR label CONTAINS 'Angebote'")).firstMatch
-        if !first.waitForExistence(timeout: 15) { XCTFail("HIERARCHY " + String(app.debugDescription.prefix(5000))) }
-        XCTAssertTrue(first.exists)
-        first.tap()
-        XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 5))
+        openSeededDetail()
         try audit("detail")
+        XCTAssertTrue(app.buttons["Fertig"].waitForExistence(timeout: 10), "the audit examined the detail, which is still open")
     }
 
     // MARK: Navigation variant A (four tabs)
