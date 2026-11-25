@@ -9118,6 +9118,466 @@
           }
         }
       }
+    },
+    "activity.plan_written": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan geschrieben"
+          }
+        }
+      }
+    },
+    "activity.plan_approved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan freigegeben"
+          }
+        }
+      }
+    },
+    "activity.plan_changes_requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen am Plan verlangt"
+          }
+        }
+      }
+    },
+    "activity.pipeline_step": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline-Schritt gemeldet"
+          }
+        }
+      }
+    },
+    "cc.update.planWritten": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan geschrieben"
+          }
+        }
+      }
+    },
+    "cc.update.planApproved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan freigegeben"
+          }
+        }
+      }
+    },
+    "cc.update.planChanges": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen am Plan verlangt"
+          }
+        }
+      }
+    },
+    "cc.update.pipelineStep": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline-Schritt gemeldet"
+          }
+        }
+      }
+    },
+    "now.event.plan.written": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan geschrieben"
+          }
+        }
+      }
+    },
+    "now.event.plan.approved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan freigegeben"
+          }
+        }
+      }
+    },
+    "now.event.plan.changes_requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen am Plan verlangt"
+          }
+        }
+      }
+    },
+    "now.event.pipeline.step": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline-Schritt gemeldet"
+          }
+        }
+      }
+    },
+    "pipeline.plan.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan"
+          }
+        }
+      }
+    },
+    "pipeline.plan.version %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %lld"
+          }
+        }
+      }
+    },
+    "pipeline.plan.state.proposed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf dich"
+          }
+        }
+      }
+    },
+    "pipeline.plan.state.approved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freigegeben"
+          }
+        }
+      }
+    },
+    "pipeline.plan.state.changes_requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verlangt"
+          }
+        }
+      }
+    },
+    "pipeline.plan.approve": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan freigeben"
+          }
+        }
+      }
+    },
+    "pipeline.plan.changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen"
+          }
+        }
+      }
+    },
+    "pipeline.plan.commentPlaceholder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was soll sich ändern?"
+          }
+        }
+      }
+    },
+    "pipeline.plan.sendChanges": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen senden"
+          }
+        }
+      }
+    },
+    "pipeline.plan.showAll": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ganzen Plan zeigen"
+          }
+        }
+      }
+    },
+    "pipeline.plan.showLess": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weniger zeigen"
+          }
+        }
+      }
+    },
+    "pipeline.plan.approvedBy %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freigegeben von %@"
+          }
+        }
+      }
+    },
+    "pipeline.plan.changesBy %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verlangt von %@"
+          }
+        }
+      }
+    },
+    "pipeline.steps.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline"
+          }
+        }
+      }
+    },
+    "pipeline.step.planner": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planung"
+          }
+        }
+      }
+    },
+    "pipeline.step.approval": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freigabe"
+          }
+        }
+      }
+    },
+    "pipeline.step.developer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umsetzung"
+          }
+        }
+      }
+    },
+    "pipeline.step.validation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validierung"
+          }
+        }
+      }
+    },
+    "pipeline.step.tester": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test"
+          }
+        }
+      }
+    },
+    "pipeline.step.review": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review"
+          }
+        }
+      }
+    },
+    "pipeline.state.pending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offen"
+          }
+        }
+      }
+    },
+    "pipeline.state.running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft"
+          }
+        }
+      }
+    },
+    "pipeline.state.waiting": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf Freigabe"
+          }
+        }
+      }
+    },
+    "pipeline.state.changes_requested": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verlangt"
+          }
+        }
+      }
+    },
+    "pipeline.state.done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erledigt"
+          }
+        }
+      }
+    },
+    "pipeline.state.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "pipeline.state.skipped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übersprungen"
+          }
+        }
+      }
+    },
+    "plan.error.comment": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitte schreibe, was geändert werden soll."
+          }
+        }
+      }
+    },
+    "plan.error.invalidComment": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Kommentar ist zu lang oder ungültig."
+          }
+        }
+      }
+    },
+    "plan.error.changed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Plan wurde inzwischen geändert. Bitte sieh ihn dir noch einmal an."
+          }
+        }
+      }
+    },
+    "plan.error.decided": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Plan ist schon entschieden."
+          }
+        }
+      }
+    },
+    "plan.error.none": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu dieser Karte gibt es keinen Plan."
+          }
+        }
+      }
+    },
+    "plan.error.own": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Agent kann seinen eigenen Plan nicht freigeben."
+          }
+        }
+      }
+    },
+    "plan.error.notAllowed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dafür fehlt die Vollmacht."
+          }
+        }
+      }
     }
   }
 }

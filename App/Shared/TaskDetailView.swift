@@ -24,6 +24,9 @@ final class TaskDetailModel {
     /// Prerequisites and the milestone of the card (read only); empty while offline or on servers without them.
     var dependencies: [TodoTask] = []
     var milestone: MilestoneWithTasks?
+    /// Plan, steps and log of the card (contract pipeline 1.0.0); nil on a server without it, or while offline.
+    var pipeline: TaskPipeline?
+    var pipelineBusy = false
 
     init(task: TodoTask) {
         self.task = task
@@ -82,6 +85,30 @@ final class TaskDetailModel {
         if let deps, deps != dependencies { dependencies = deps }
         let mine = stones?.milestone(of: task.id)
         if mine != milestone { milestone = mine }
+    }
+
+    /// Failures (older server, offline) just leave the card out.
+    func loadPipeline(_ app: AppModel) async {
+        guard let client = app.client, let fresh = try? await client.taskPipelineIfAvailable(taskID: task.id) else { return }
+        if pipeline != fresh { pipeline = fresh }
+    }
+
+    /// Approves the shown plan version or asks for changes; the server refuses a version that is no longer current (`plan_changed`).
+    func decidePlan(_ decision: PlanDecision, comment: String?, _ app: AppModel) async {
+        guard let client = app.client, !pipelineBusy, let version = pipeline?.plan?.version else { return }
+        pipelineBusy = true; defer { pipelineBusy = false }
+        do {
+            pipeline = try await client.decidePlan(taskID: task.id, decision: decision, version: version, comment: comment)
+            Haptics.success()
+            if let items = try? await client.activity(taskID: task.id, limit: 30).items, items != activity { activity = items }
+        } catch let error as PlanDecisionError {
+            app.noticeKey = AppModel.key(for: error)
+            if error == .planChanged || error == .planNotPending || error == .noPlan { await loadPipeline(app) }
+        } catch let error where PlanDecisionError(error) != nil {
+            app.noticeKey = AppModel.key(for: PlanDecisionError(error)!)
+            await loadPipeline(app)
+        } catch { await app.handle(error) }
+        await app.refreshCommandSummary()
     }
 
     func answer(_ question: Question, with text: String, _ app: AppModel) async {
@@ -163,6 +190,7 @@ final class TaskDetailModel {
             loaded = true
             await loadSubtasks(app)
             await loadLinks(app)
+            await loadPipeline(app)
         } catch APIError.transport {
             offlineFallback(app, meta)
         } catch { await app.handle(error) }
@@ -185,6 +213,7 @@ final class TaskDetailModel {
             app.restoreReviewUndo(from: context.review)
         }
         await loadLinks(app)
+        await loadPipeline(app)
     }
 
     /// Offline: show the cached planning/labels with the unsent edits on top.
@@ -311,6 +340,9 @@ struct TaskDetailView: View {
                                      onAnswer: { q, text in Task { await model.answer(q, with: text, app) } },
                                      onDecide: { d, note in Task { await model.decide(d, note: note, app) } },
                                      onChoose: { variantID in Task { await model.decide(.accept, note: nil, variantID: variantID, app) } })
+                }
+                if PipelineCard.hasContent(model.pipeline), let pipeline = model.pipeline {
+                    PipelineCard(pipeline: pipeline, busy: model.pipelineBusy) { d, comment in Task { await model.decidePlan(d, comment: comment, app) } }
                 }
                 // Classic projects keep the short to-do detail; criteria still show once a card has some.
                 if model.loaded, management || !model.criteria.isEmpty {
@@ -835,6 +867,10 @@ struct TaskDetailView: View {
     case "criterion.created": Text("activity.criterion_created")
     case "criterion.updated": Text("activity.criterion_updated")
     case "criterion.deleted": Text("activity.criterion_deleted")
+    case "plan.written": Text("activity.plan_written")
+    case "plan.approved": Text("activity.plan_approved")
+    case "plan.changes_requested": Text("activity.plan_changes_requested")
+    case "pipeline.step": Text("activity.pipeline_step")
     default: Text(verbatim: kind)
     }
 }

@@ -113,6 +113,10 @@ enum CommandFormat {
         case "task.released": Text("cc.update.released")
         case "task.created": Text("cc.update.created")
         case "task.status_changed": Text("cc.update.status")
+        case "plan.written": Text("cc.update.planWritten")
+        case "plan.approved": Text("cc.update.planApproved")
+        case "plan.changes_requested": Text("cc.update.planChanges")
+        case "pipeline.step": Text("cc.update.pipelineStep")
         default: Text(verbatim: kind)
         }
     }
@@ -121,6 +125,7 @@ enum CommandFormat {
         if kind.hasPrefix("question") { return "questionmark.bubble" }
         if kind.hasPrefix("review") { return "eye" }
         if kind.hasPrefix("progress") { return "chart.bar" }
+        if PipelineActivity.isPipelineKind(kind) { return "list.clipboard" }
         if kind.hasPrefix("build") { return "photo" }
         if kind.hasPrefix("task.claim") || kind.hasPrefix("agent") { return "bolt" }
         return "circle.dotted"

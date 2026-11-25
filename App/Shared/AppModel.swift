@@ -909,6 +909,19 @@ final class AppModel {
         }
     }
 
+    /// Texts for a refused plan decision (contract pipeline 1.0.0).
+    static func key(for error: PlanDecisionError) -> String {
+        switch error {
+        case .commentRequired: "plan.error.comment"
+        case .invalidComment: "plan.error.invalidComment"
+        case .planChanged: "plan.error.changed"
+        case .planNotPending: "plan.error.decided"
+        case .noPlan: "plan.error.none"
+        case .ownPlan: "plan.error.own"
+        case .notAllowed: "plan.error.notAllowed"
+        }
+    }
+
     static func key(for error: Error) -> String {
         switch error as? APIError {
         case .unauthorized: "error.loginFailed"

@@ -14,7 +14,7 @@ SCREENS = {  # screen view -> file
     "CalendarDetailSheet": "CalendarDetail.swift", "SearchView": "SearchView.swift", "TeamsView": "TeamsView.swift",
     "FeedView": "FeedView.swift", "SettingsView": "TodoApp.swift", "QuickAddSheet": "QuickAddSheet.swift",
     "ActivityView": "ServerViews.swift", "AgentsView": "ServerViews.swift", "ProjectCommentsView": "ServerViews.swift",
-    "ReviewVariantsView": "ReviewVariantsView.swift", "ConversationView": "ConversationView.swift",
+    "ReviewVariantsView": "ReviewVariantsView.swift", "ConversationView": "ConversationView.swift", "PipelineCard": "PipelineCard.swift",
 }
 marker = re.compile(r"^#Preview|^(?:@MainActor )?(?:private |fileprivate )?(?:struct|func) \w*(?:Preview|Gallery|Host|preview)\w*", re.M)
 missing = []

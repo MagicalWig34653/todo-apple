@@ -502,6 +502,9 @@ enum OverviewNowSample {
             pendingReviews: [OverviewOpenItem(taskID: t4, taskTitle: "Kalender Stufe A", text: "Schedule-API fertig", createdAt: ago(3600))],
             recentActivity: [
                 OverviewEvent(taskID: t1, taskTitle: "Passkey-Anmeldung absichern", kind: "progress.posted", createdAt: ago(120)),
+                OverviewEvent(taskID: t1, taskTitle: "Passkey-Anmeldung absichern", kind: "plan.approved", createdAt: ago(300)),
+                OverviewEvent(taskID: t1, taskTitle: "Passkey-Anmeldung absichern", kind: "pipeline.step", createdAt: ago(420)),
+                OverviewEvent(taskID: t3, taskTitle: "Runner-Bindings", kind: "plan.written", createdAt: ago(600)),
                 OverviewEvent(taskID: t3, taskTitle: "Runner-Bindings", kind: "question.asked", createdAt: ago(720)),
                 OverviewEvent(taskID: t4, taskTitle: "Kalender Stufe A", kind: "zukunft.neu", createdAt: ago(3600))]),
         OverviewProject(
