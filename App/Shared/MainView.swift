@@ -166,33 +166,42 @@ struct SplitLayout: View {
                 SidebarScreen(item: model.selection)
             }
             .safeAreaInset(edge: .bottom) { SyncStatusBar() }
-            #if os(macOS)
-            .modifier(inspector)
-            #endif
+            .modifier(DetailInspector(placed: !isPad, shows: showsInspector))
         }
         // iPad: on the split view, not on its detail column. There the column's navigation bar (full width, large title)
         // lay on top of the inspector panel and swallowed taps on its upper part: one tap did not focus the title.
-        #if os(iOS)
-        .modifier(inspector)
-        #endif
+        .modifier(DetailInspector(placed: isPad, shows: showsInspector))
     }
 
-    private var inspector: DetailInspector { DetailInspector(shows: showsInspector) }
+    /// Constant per device, so the branch in `DetailInspector` never changes view identity.
+    private var isPad: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        false
+        #endif
+    }
 }
 
 /// The open task (`model.path.last`) beside the list.
 private struct DetailInspector: ViewModifier {
+    /// False: this is not the place for the inspector on this device, the content stays untouched.
+    let placed: Bool
     let shows: Bool
     @Environment(AppModel.self) private var model
 
     func body(content: Content) -> some View {
-        content.inspector(isPresented: Binding(get: { shows && model.path.last != nil }, set: { if !$0, !model.detailAsSheet { model.path = [] } })) {
-            // Empty while hidden: leftover content would keep its bar buttons behind the sheet (and load the task twice).
-            if shows, let task = model.path.last {
-                NavigationStack { TaskDetailView(task: task) }
-                    .id(task.id)
-                    .inspectorColumnWidth(min: InspectorMetrics.min, ideal: InspectorMetrics.ideal, max: InspectorMetrics.max)
+        if placed {
+            content.inspector(isPresented: Binding(get: { shows && model.path.last != nil }, set: { if !$0, !model.detailAsSheet { model.path = [] } })) {
+                // Empty while hidden: leftover content would keep its bar buttons behind the sheet (and load the task twice).
+                if shows, let task = model.path.last {
+                    NavigationStack { TaskDetailView(task: task) }
+                        .id(task.id)
+                        .inspectorColumnWidth(min: InspectorMetrics.min, ideal: InspectorMetrics.ideal, max: InspectorMetrics.max)
+                }
             }
+        } else {
+            content
         }
     }
 }
