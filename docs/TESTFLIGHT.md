@@ -160,3 +160,11 @@ Aus origin/main dcf9137 (sauber), Version 0.1.0, Team `J2DU2P47XW`, Build 261124
 - Testgruppen: interne Gruppe "ich" enthaelt den Build (`asc builds groups list`), `internalBuildState IN_BETA_TESTING`; extern `READY_FOR_BETA_SUBMISSION`, keine externe Gruppe vorhanden (zuweisbar, sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt).
 - "Was testen" (`de-DE`) per `asc builds test-notes create` gesetzt und per `view` gelesen: Stapel pro Projekt, Zusammenfassungszeile, "Spaeter"-Kopie im selben Stapel.
 - Nicht geprueft: Geraetetest (Lino); die Zusammenfassungszeile auf dem Sperrbildschirm ist im Simulator nicht sichtbar.
+
+## Upload Stand 61d7126 (2026-11-25, nur iOS, Karte 5DD1AED0 Plan-Freigabe und Pipeline-Status)
+Aus `t3/testflight-pipeline` = origin/main 61d7126 (sauber), Version 0.1.0, Team `J2DU2P47XW`, Build 2611251650. Archiv mit `xcodebuild archive` (Release, `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`), Export mit `destination=upload` ausschliesslich ueber `~/Development/orchestrator/tools/testflight-upload.sh` nach Tor-Freigabe (`upload-tor.py pruefen` durch das Brain, Bilder vom Brain gesichtet; `gueltig` Exit 0; Nachweis `runtime/nachweise/todolino-apple-2611251650.json`).
+- iOS: Build 2611251650, "Upload succeeded", EXPORT SUCCEEDED, Exit 0 (17:17), Build-ID in App Store Connect `0e224f6a-54b9-413e-96f7-7feed49d9db3`, Verarbeitung `VALID`; `usesNonExemptEncryption=false` am Build (Exportkonformitaet beantwortet).
+- Upload-Pruefungen: Icon (`AppIcon`, `Assets.car`) im Archiv; `ITSAppUsesNonExemptEncryption=false` im Archiv; `aps-environment` im Archiv `development`, im Distribution-Log fuer den Export `production`; System-PATH gegen Homebrew-rsync (testflight-upload.sh); `Signing.local.xcconfig` im Worktree.
+- Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`), `internalBuildState IN_BETA_TESTING`; extern `READY_FOR_BETA_SUBMISSION`, keine externe Gruppe vorhanden (zuweisbar, sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt).
+- "Was testen" (`de-DE`) per `asc builds test-notes create` gesetzt und per `view` gelesen (wortgleich zur Vorlage, 1183 Zeichen).
+- macOS nicht hochgeladen. Nicht geprueft: Geraetetest (Lino).
