@@ -72,8 +72,11 @@ struct MainView: View {
         .onChange(of: model.feedPlanning, initial: true) { _, _ in meta.adoptFeed(model) }
         .onChange(of: model.feedLabels, initial: true) { _, _ in meta.adoptFeed(model) }
         .onChange(of: model.metaFromFeed) { _, _ in meta.adoptFeed(model) }
+        .onChange(of: detailAsSheet, initial: true) { _, new in model.detailAsSheet = new }
         // Compact width: task detail as a sheet. Regular width (iPad, Mac): inspector column in `SplitLayout`.
-        .sheet(item: Binding(get: { detailAsSheet ? model.path.last : nil }, set: { if $0 == nil { model.path = [] } })) { task in
+        // Only a dismissal of the presentation in use closes the task: a text size change swaps sheet and inspector, and
+        // the one that goes away must not take the open task with it.
+        .sheet(item: Binding(get: { detailAsSheet ? model.path.last : nil }, set: { if $0 == nil, model.detailAsSheet { model.path = [] } })) { task in
             NavigationStack { TaskDetailView(task: task) }
                 .environment(model).environment(meta)
                 // Sheets do not inherit the root tint; without this, bordered buttons in the detail turned system blue.
@@ -148,6 +151,9 @@ struct SplitLayout: View {
     @ScaledMetric(relativeTo: .body) private var sidebarIdeal = SidebarMetrics.columnIdeal
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// False while `MainView` shows the detail as a sheet instead (iPad with accessibility text sizes).
+    private var showsInspector: Bool { !(isIOS && typeSize.isAccessibilitySize) }
+
     var body: some View {
         NavigationSplitView {
             SidebarList(linking: false)
@@ -160,8 +166,9 @@ struct SplitLayout: View {
                 SidebarScreen(item: model.selection)
             }
             .safeAreaInset(edge: .bottom) { SyncStatusBar() }
-            .inspector(isPresented: Binding(get: { model.path.last != nil && !(isIOS && typeSize.isAccessibilitySize) }, set: { if !$0 { model.path = [] } })) {
-                if let task = model.path.last {
+            .inspector(isPresented: Binding(get: { showsInspector && model.path.last != nil }, set: { if !$0, !model.detailAsSheet { model.path = [] } })) {
+                // Empty while hidden: leftover content would keep its bar buttons behind the sheet (and load the task twice).
+                if showsInspector, let task = model.path.last {
                     NavigationStack { TaskDetailView(task: task) }
                         .id(task.id)
                         .inspectorColumnWidth(min: InspectorMetrics.min, ideal: InspectorMetrics.ideal, max: InspectorMetrics.max)

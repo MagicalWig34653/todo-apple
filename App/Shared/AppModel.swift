@@ -60,6 +60,10 @@ final class AppModel {
     var newProjectRequests = 0
     /// Detail navigation path (task details pushed on the detail stack).
     var path: [TodoTask] = []
+    /// True while the open task is shown as a sheet (compact width, iPad accessibility text sizes), false for the inspector.
+    /// Written by `MainView`. The presentation bindings read it here, live: SwiftUI reports a dismissal only after the
+    /// animation, to a closure that still sees the text size of an older body.
+    @ObservationIgnored var detailAsSheet = false
     /// Confirmation request a tapped push notification wants to bring up in "Für dich"; the feed scrolls to its card and
     /// clears this once the request was found, or after a refresh without it (`FeedView.resolveConfirmationFocus`).
     var confirmationFocus: UUID?

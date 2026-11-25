@@ -145,7 +145,11 @@ final class TodoUITests: XCTestCase {
         // Let presentation animations (sheet, inspector) and keyboard transitions finish: the audit reads mid-flight frames otherwise.
         _ = XCTWaiter.wait(for: [XCTestExpectation(description: "settle")], timeout: 2)
         var report: [String] = []
-        try app.performAccessibilityAudit { issue in
+        // Two passes: the text size audits resize the whole app (on the iPad that swaps inspector and sheet). Element
+        // detection compares a screenshot with the element tree and reports visible texts as inaccessible when the screen is
+        // rebuilt under it, so everything but the size audits runs first, on the unchanged screen.
+        let textSize: XCUIAccessibilityAuditType = [.dynamicType, .textClipped]
+        let handle: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
             // Keyboard internals are not ours; contrast/Dynamic-Type findings are recorded as attachments (open items in docs/HIG-AUDIT.md).
             if issue.element?.elementType == .keyboard || issue.detailedDescription.contains("TUIPrediction") { return true }
             // iPad's full software keyboard draws key caps the audit cannot attribute to an element (no element, text nodes only).
@@ -156,6 +160,8 @@ final class TodoUITests: XCTestCase {
             report.append("[\(name)] \(issue.auditType.rawValue) | \(issue.element?.label ?? "-") | \(issue.element?.elementType.rawValue ?? 0) | \(issue.element?.frame.debugDescription ?? "-") | \(issue.detailedDescription)")
             return true
         }
+        try app.performAccessibilityAudit(for: XCUIAccessibilityAuditType.all.subtracting(textSize), handle)
+        try app.performAccessibilityAudit(for: textSize, handle)
         let soft: Set<UInt64> = [XCUIAccessibilityAuditType.contrast.rawValue, XCUIAccessibilityAuditType.textClipped.rawValue, XCUIAccessibilityAuditType.dynamicType.rawValue]
         let hard = report.filter { r in !soft.contains { r.hasPrefix("[\(name)] \($0) ") } }
         let att = XCTAttachment(string: report.joined(separator: "\n")); att.lifetime = .keepAlways; add(att)
