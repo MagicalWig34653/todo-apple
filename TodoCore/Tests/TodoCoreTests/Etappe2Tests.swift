@@ -63,6 +63,18 @@ final class Etappe2Tests: XCTestCase {
         XCTAssertEqual(result.planning.priority, 1)
     }
 
+    /// Read-modify-write of one planning value (card A18F3FF7): the rule goes back exactly as the server sent it.
+    func testSetPlanningSendsBackTheNewAndUnknownRuleFields() async throws {
+        let rule = #"{"frequency":"monthly","interval":1,"timeZone":"UTC","monthDay":31,"basis":"completion","later":{"a":[1]}}"#
+        reply(#"{"task":\#(taskJSON(tid)),"position":0,"dueAt":"2026-10-31T08:00:00Z","priority":0,"recurrence":\#(rule),"reminders":[]}"#)
+        var data = try await client.planning(taskID: tid).planning
+        data.priority = 3
+        _ = try await client.setPlanning(taskID: tid, data)
+        XCTAssertEqual(last.httpMethod, "PUT")
+        let sent = try XCTUnwrap(body(last)["recurrence"] as? NSDictionary)
+        XCTAssertEqual(sent, try XCTUnwrap(JSONSerialization.jsonObject(with: Data(rule.utf8)) as? NSDictionary))
+    }
+
     func testLabelsAndTaskLabels() async throws {
         let lid = UUID()
         reply(#"{"items":[{"id":"\#(lid)","name":"Home","version":1}],"nextCursor":"n1"}"#)
