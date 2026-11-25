@@ -11,6 +11,11 @@ Globale Planung bleibt ausschließlich im Hauptrepository. Dieser Checkpoint bes
 
 Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des parallel entwickelten Serververtrags. Lokale Pfade werden nicht an `RunnerServer` übergeben. Bei unklarer Prozessidentität nach Neustart keine PID-Signale und kein automatischer Neustart; expliziter Abgleich bleibt erforderlich.
 
+## iPad-Detail-Audit 25.11.2026 (Karte ADD2CA8B)
+- [x] Rot reproduziert, Ursache belegt, Fix und Test (f3ff1ed, e18de52), 12 Laeufe in Folge gruen; Details: STATUS, Nachtrag 25.11.
+- [ ] Eigene Karte CDDE2F5C: `BrainUITests/test1_ConsentRecordSendAndAnswer` wackelt (schon auf 7d5aef8).
+- Keine API-/Servermigration, kein TestFlight, Hauptrepo unveraendert.
+
 ## Review-Fixes 17.11.2026 – Befund 1
 - Branch `codex/review-fixes`; Ziel: Review 1–9, hoch zuerst. Bestätigt: unveränderlicher Client, Origin-getrennte Keychain-Einträge und Generation vor Login-Veröffentlichung; Recovery ebenfalls gebunden. Alte ungebundene Tokens werden bewusst nicht migriert (erneute Anmeldung nötig). macOS-XCTest-Target ergänzt.
 - Regressionstest zuerst geschrieben, danach minimaler Fix; ausschließlich statisch gelesen. Auf Nutzeranweisung keine Builds, Tests, Netzaufrufe oder Pushes. Keine eigenen Jobs gestartet. Prozessinventar wegen Sandbox nicht lesbar.
