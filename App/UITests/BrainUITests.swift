@@ -183,15 +183,19 @@ final class BrainUITests: XCTestCase {
         let reply = try Data(contentsOf: Self.fixtures.appending(path: "voice-reply.m4a"))
         backend.answer(job, replyAudio: reply, transcript: "Hallo Brain, was steht heute an?", replyText: "Heute stehen zwei Aufgaben an.")
 
-        // The open screen picks it up by itself (polling, no pull needed).
-        XCTAssertTrue(app.staticTexts["Heute stehen zwei Aufgaben an."].waitForExistence(timeout: 20), "answer text")
+        // The open screen picks it up by itself (polling, no pull needed). The thread of the shared test account keeps the
+        // answers of earlier runs, so the fixed texts below may already be on screen: the waiting state is what tells that
+        // THIS answer has arrived ("processing" goes away when a later message of the brain exists).
+        XCTAssertTrue(el("brain.processing").waitForNonExistence(timeout: 20), "answer arrived (waiting state gone)")
+        XCTAssertTrue(app.staticTexts["Heute stehen zwei Aufgaben an."].waitForExistence(timeout: 5), "answer text")
         XCTAssertTrue(app.staticTexts["Hallo Brain, was steht heute an?"].exists, "transcript of the recording")
-        XCTAssertFalse(el("brain.processing").exists)
         shot("t16-answer")
 
         // Play the answer (muted by the debug hook): download, then play; the button says "Anhalten" while it runs.
+        // The server deletes the recording once it is processed (retention), so only the brain's answers carry a play
+        // button now; the newest one sits at the bottom of the thread.
         let plays = app.buttons.matching(identifier: "brain.play")
-        XCTAssertGreaterThanOrEqual(plays.count, 2)
+        XCTAssertGreaterThanOrEqual(plays.count, 1, "play button of the answer")
         plays.element(boundBy: plays.count - 1).tap()
         XCTAssertTrue(app.buttons["Anhalten"].waitForExistence(timeout: 10), "playback started")
         shot("t16-playing")

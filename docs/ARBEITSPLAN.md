@@ -13,7 +13,7 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 
 ## iPad-Detail-Audit 25.11.2026 (Karte ADD2CA8B)
 - [x] Rot reproduziert, Ursache belegt, Fix und Test (f3ff1ed, e18de52), 12 Laeufe in Folge gruen; Details: STATUS, Nachtrag 25.11.
-- [ ] Eigene Karte CDDE2F5C: `BrainUITests/test1_ConsentRecordSendAndAnswer` wackelt (schon auf 7d5aef8).
+- [x] Karte CDDE2F5C: `BrainUITests/test1_ConsentRecordSendAndAnswer` wackelte (Testfehler: Aufnahme-Audio wird serverseitig geloescht, feste Antworttexte aus frueheren Laeufen); behoben, 10 von 10 Laeufe gruen.
 - Keine API-/Servermigration, kein TestFlight, Hauptrepo unveraendert.
 
 ## Review-Fixes 17.11.2026 – Befund 1
