@@ -166,13 +166,32 @@ struct SplitLayout: View {
                 SidebarScreen(item: model.selection)
             }
             .safeAreaInset(edge: .bottom) { SyncStatusBar() }
-            .inspector(isPresented: Binding(get: { showsInspector && model.path.last != nil }, set: { if !$0, !model.detailAsSheet { model.path = [] } })) {
-                // Empty while hidden: leftover content would keep its bar buttons behind the sheet (and load the task twice).
-                if showsInspector, let task = model.path.last {
-                    NavigationStack { TaskDetailView(task: task) }
-                        .id(task.id)
-                        .inspectorColumnWidth(min: InspectorMetrics.min, ideal: InspectorMetrics.ideal, max: InspectorMetrics.max)
-                }
+            #if os(macOS)
+            .modifier(inspector)
+            #endif
+        }
+        // iPad: on the split view, not on its detail column. There the column's navigation bar (full width, large title)
+        // lay on top of the inspector panel and swallowed taps on its upper part: one tap did not focus the title.
+        #if os(iOS)
+        .modifier(inspector)
+        #endif
+    }
+
+    private var inspector: DetailInspector { DetailInspector(shows: showsInspector) }
+}
+
+/// The open task (`model.path.last`) beside the list.
+private struct DetailInspector: ViewModifier {
+    let shows: Bool
+    @Environment(AppModel.self) private var model
+
+    func body(content: Content) -> some View {
+        content.inspector(isPresented: Binding(get: { shows && model.path.last != nil }, set: { if !$0, !model.detailAsSheet { model.path = [] } })) {
+            // Empty while hidden: leftover content would keep its bar buttons behind the sheet (and load the task twice).
+            if shows, let task = model.path.last {
+                NavigationStack { TaskDetailView(task: task) }
+                    .id(task.id)
+                    .inspectorColumnWidth(min: InspectorMetrics.min, ideal: InspectorMetrics.ideal, max: InspectorMetrics.max)
             }
         }
     }

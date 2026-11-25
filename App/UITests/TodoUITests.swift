@@ -302,6 +302,11 @@ final class TodoUITests: XCTestCase {
         let stamp = " Tipp\(Int(Date().timeIntervalSince1970) % 100000)"
         field.typeText(stamp)
         XCTAssertTrue(((field.value as? String) ?? "").contains(stamp.trimmingCharacters(in: .whitespaces)), "typed into the title (now \"\(field.value as? String ?? "nil")\")")
+        attach("titel-3-getippt")
+        // The panel makes room by hiding the sidebar in portrait; closing it brings the sidebar back.
+        app.buttons["Fertig"].tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" closes the detail")
+        XCTAssertTrue(app.staticTexts["Steuerzentrale"].waitForExistence(timeout: 5), "sidebar back after closing the detail")
     }
 
     /// iPad: text typed into the detail but not sent (title, note, subtask, label, message) is still there after the swap
