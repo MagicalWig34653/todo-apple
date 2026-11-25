@@ -117,6 +117,19 @@ final class RecurrenceUITests: XCTestCase {
         }
     }
 
+    /// iPad: the detail is a small centred sheet at large text, so the chips can sit under the message field although they are
+    /// inside the window. Drags the sheet in small steps until the last day ends above that field and can be tapped.
+    private func scrollSheetToLastWeekday() {
+        let composer = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'chat.field.'")).firstMatch
+        let window = app.windows.firstMatch
+        for _ in 0..<12 where !(weekday(7).isHittable && weekday(7).frame.maxY < composer.frame.minY - 16) {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.58))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.50)))
+        }
+        XCTAssertTrue(weekday(7).isHittable, "last weekday can be tapped at large text")
+        XCTAssertLessThan(weekday(7).frame.maxY, composer.frame.minY, "last weekday above the message field")
+    }
+
     private func expectValue(_ id: String, contains text: String, file: StaticString = #filePath, line: UInt = #line) {
         let e = element(id)
         let shows = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", text), object: e)
@@ -259,6 +272,7 @@ final class RecurrenceUITests: XCTestCase {
                 try helper("/appearance/light")
                 try helper("/size/accessibility-extra-large")
                 reveal(weekday(1))
+                if UIDevice.current.userInterfaceIdiom == .pad { scrollSheetToLastWeekday() }
                 try await shot("\(kind)-grosse-schrift-light")
                 for day in 1...7 { XCTAssertTrue(weekday(day).exists, "weekday \(day) at large text") }
                 try helper("/appearance/dark")
