@@ -446,6 +446,7 @@ struct TaskDetailView: View {
             if pickingDate { datePickerRow }
             divider
             repeatRow
+            if let rule = model.planning.recurrence { recurrenceDetails(rule) }
             divider
             reminderRow
             divider
@@ -526,7 +527,64 @@ struct TaskDetailView: View {
             } label: {
                 if let rule { Text(verbatim: RepeatText.text(rule)).fontWeight(.medium) } else { Text("repeat.none") }
             }
+            .accessibilityIdentifier("task.repeat.menu")
         }
+    }
+
+    /// The parts of a rule that depend on it: weekdays (weekly), day of the month (monthly) and what it counts from.
+    @ViewBuilder private func recurrenceDetails(_ rule: RecurrenceRule) -> some View {
+        if rule.frequency == .weekly {
+            WeekdayPicker(selected: Set(rule.weekdays ?? [])) { day in editRule { $0.toggle(weekday: day) } }
+                .padding(.bottom, Space.s)
+        }
+        if rule.frequency == .monthly {
+            divider
+            monthDayRow(rule)
+        }
+        divider
+        basisRow(rule)
+    }
+
+    private func monthDayRow(_ rule: RecurrenceRule) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            propertyRow("calendar.circle", .tileTeal, "task.repeat.monthDay") {
+                Menu {
+                    Picker("task.repeat.monthDay", selection: Binding(get: { rule.monthDay }, set: { day in editRule { $0.set(monthDay: day) } })) {
+                        Text("repeat.monthDay.due").tag(Int?.none)
+                        ForEach(1...31, id: \.self) { day in Text(verbatim: "\(day).").tag(Int?.some(day)) }
+                    }
+                    .pickerStyle(.inline).labelsHidden()
+                } label: {
+                    if let day = rule.monthDay { Text(verbatim: "\(day).").fontWeight(.medium) } else { Text("repeat.monthDay.due") }
+                }
+                .accessibilityIdentifier("task.repeat.monthDay")
+            }
+            // Not every month has these days.
+            if let day = rule.monthDay, day > 28 {
+                Text("repeat.monthDay.hint").font(.caption).foregroundStyle(Color.textSecondary)
+                    .padding(.leading, iconSide + Space.m).padding(.bottom, Space.s)
+                    .accessibilityIdentifier("task.repeat.monthEnd")
+            }
+        }
+    }
+
+    private func basisRow(_ rule: RecurrenceRule) -> some View {
+        let basis = rule.basis ?? .due
+        return propertyRow("arrow.turn.down.right", .tileTeal, "task.repeat.basis") {
+            Menu {
+                ForEach([RecurrenceRule.Basis.due, .completion], id: \.self) { b in
+                    Button { editRule { $0.set(basis: b) } } label: { Label(Self.basisKey(b), systemImage: basis == b ? "checkmark" : "calendar") }
+                }
+            } label: {
+                // A value from a newer server is shown as it is (and kept until another one is picked).
+                if basis == .due || basis == .completion { Text(Self.basisKey(basis)).fontWeight(.medium) } else { Text(verbatim: basis.rawValue) }
+            }
+            .accessibilityIdentifier("task.repeat.basis")
+        }
+    }
+
+    private static func basisKey(_ basis: RecurrenceRule.Basis) -> LocalizedStringKey {
+        basis == .completion ? "repeat.basis.completion" : "repeat.basis.due"
     }
 
     private static func repeatKey(_ f: RecurrenceRule.Frequency) -> LocalizedStringKey {
@@ -585,6 +643,7 @@ struct TaskDetailView: View {
                 }
             }
             .tint(.primary)
+            .accessibilityIdentifier("task.priority.menu")
         }
     }
 
@@ -716,9 +775,21 @@ struct TaskDetailView: View {
     }
 
     private func setRecurrence(_ f: RecurrenceRule.Frequency?) {
+        // An existing rule keeps what still fits the new frequency (end, basis, fields of newer servers).
+        let rule = f.map { model.planning.recurrence?.changing(frequency: $0) ?? RecurrenceRule(frequency: $0) }
+        guard rule != model.planning.recurrence else { return }
         Haptics.select()
-        model.planning.recurrence = f.map { RecurrenceRule(frequency: $0) }
+        model.planning.recurrence = rule
         if f != nil, model.planning.dueAt == nil { model.planning.dueAt = DueFormat.today() }
+        Task { await model.savePlanning(app); await meta.refresh(app) }
+    }
+
+    private func editRule(_ change: (inout RecurrenceRule) -> Void) {
+        guard var rule = model.planning.recurrence else { return }
+        change(&rule)
+        guard rule != model.planning.recurrence else { return }
+        Haptics.select()
+        model.planning.recurrence = rule
         Task { await model.savePlanning(app); await meta.refresh(app) }
     }
 

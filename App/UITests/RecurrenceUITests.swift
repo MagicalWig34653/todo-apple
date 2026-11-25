@@ -104,7 +104,7 @@ final class RecurrenceUITests: XCTestCase {
         control.tap()
         let item = app.collectionViews.buttons[entry].firstMatch
         for _ in 0..<12 where !(item.exists && item.isHittable) {
-            let list = app.collectionViews.containing(.button, identifier: "1.").firstMatch
+            let list = app.collectionViews.containing(NSPredicate(format: "label MATCHES %@", "[0-9]+[.]")).firstMatch
             if list.exists { list.swipeUp(velocity: .slow) } else { _ = item.waitForExistence(timeout: 1) }
         }
         XCTAssertTrue(item.exists, "entry \(entry) in \(menu)", file: file, line: line)
@@ -147,7 +147,7 @@ final class RecurrenceUITests: XCTestCase {
         XCTAssertFalse(weekday(2).isSelected)
 
         expectValue("task.repeat.basis", contains: "Fälligkeit")
-        pick("task.repeat.basis", "Erledigung")
+        pick("task.repeat.basis", "Ab Erledigung")
         try await expectRule(card.id, "basis completion, weekdays kept") { $0["basis"] as? String == "completion" && $0["weekdays"] as? [Int] == [1, 4] }
 
         // Closed and opened again: the app shows what is stored.
@@ -177,7 +177,7 @@ final class RecurrenceUITests: XCTestCase {
         expectValue("task.repeat.monthDay", contains: "31.")
         XCTAssertTrue(element("task.repeat.monthEnd").waitForExistence(timeout: 5), "hint: short months are shortened")
 
-        pick("task.repeat.basis", "Fälligkeit")
+        pick("task.repeat.basis", "Ab Fälligkeit")
         try await expectRule(card.id, "default basis is not stored") { $0["basis"] == nil && $0["monthDay"] as? Int == 31 }
         pick("task.repeat.monthDay", "Wie Fälligkeit")
         try await expectRule(card.id, "no day of the month") { $0["monthDay"] == nil && $0["frequency"] as? String == "monthly" }
@@ -192,7 +192,7 @@ final class RecurrenceUITests: XCTestCase {
         openCard(card.title)
         XCTAssertTrue(weekday(2).waitForExistence(timeout: 10))
         XCTAssertTrue(weekday(2).isSelected && weekday(5).isSelected)
-        pick("task.priority.menu", "Hoch")
+        pick("task.priority.menu", "Priorität 1")
         for _ in 0..<40 {
             if try await storedPlanning(card.id)["priority"] as? Int == 3 { break }
             try await Task.sleep(for: .milliseconds(500))

@@ -4162,6 +4162,76 @@
         }
       }
     },
+    "task.repeat.weekdays": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wochentage"
+          }
+        }
+      }
+    },
+    "task.repeat.monthDay": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stichtag"
+          }
+        }
+      }
+    },
+    "task.repeat.basis": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächster Termin"
+          }
+        }
+      }
+    },
+    "repeat.monthDay.due": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie Fälligkeit"
+          }
+        }
+      }
+    },
+    "repeat.monthDay.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hat ein Monat weniger Tage, gilt sein letzter Tag."
+          }
+        }
+      }
+    },
+    "repeat.basis.due": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ab Fälligkeit"
+          }
+        }
+      }
+    },
+    "repeat.basis.completion": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ab Erledigung"
+          }
+        }
+      }
+    },
     "task.repeat": {
       "localizations": {
         "de": {
