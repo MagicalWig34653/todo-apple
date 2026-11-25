@@ -178,6 +178,48 @@ final class TodoUITests: XCTestCase {
         if let title { XCTAssertEqual(element("task.title").value as? String, title, "\(context): same task", file: file, line: line) }
     }
 
+    // The detail's scroll view, found by any of its fields (off-screen ones are not in the accessibility tree).
+    private var detailScroll: XCUIElement {
+        app.scrollViews.containing(NSPredicate(format: "identifier IN {'task.title', 'task.description', 'subtask.add', 'label.new'}")).firstMatch
+    }
+
+    /// `isHittable` is false for the title (a text field with a scroll indicator child), so visibility is by frame.
+    private func visible(_ field: XCUIElement) -> Bool {
+        let window = app.windows.firstMatch.frame
+        return field.exists && field.frame.minY > 90 && (field.isHittable || field.frame.maxY < window.maxY - 100)
+    }
+
+    private func reveal(_ field: XCUIElement) {
+        for _ in 0..<8 where !visible(field) { detailScroll.swipeUp(velocity: .slow) }
+        for _ in 0..<8 where !visible(field) { detailScroll.swipeDown(velocity: .slow) }
+    }
+
+    private func hasFocus(_ field: XCUIElement) -> Bool { (field.value(forKey: "hasKeyboardFocus") as? Bool) == true }
+
+    private func focus(_ field: XCUIElement) {
+        reveal(field)
+        for _ in 0..<3 where !hasFocus(field) {
+            field.tap()
+            _ = XCTWaiter.wait(for: [XCTestExpectation(description: "focus")], timeout: 0.8)
+        }
+    }
+
+    /// Types into a field of the open detail without sending or submitting it.
+    private func typeDraft(_ id: String, _ text: String) {
+        let field = element(id)
+        reveal(field)
+        focus(field)
+        XCTAssertTrue(hasFocus(field), "\(id) has keyboard focus")
+        field.typeText(text)
+    }
+
+    private func assertDraft(_ id: String, contains text: String, _ context: String, file: StaticString = #filePath, line: UInt = #line) {
+        let field = element(id)
+        reveal(field)
+        XCTAssertTrue(field.exists, "\(context): \(id) exists", file: file, line: line)
+        XCTAssertTrue(((field.value as? String) ?? "").contains(text), "\(context): unsent \(id) kept (now \"\(field.value as? String ?? "nil")\")", file: file, line: line)
+    }
+
     private func seededTitle() -> String { (element("task.title").value as? String) ?? "" }
 
     /// iPad landscape: sheet and inspector swap the same way, the open task survives both directions and "Fertig" still closes it.
@@ -216,13 +258,22 @@ final class TodoUITests: XCTestCase {
         try restoreSystemSizeAfterTest()
         openSeededDetail()
         let title = seededTitle()
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "panel settled")], timeout: 2)
+        let stamp = Int(Date().timeIntervalSince1970) % 100000
+        // Only the message field: it sits in the bar below the scroll view, so checking it needs no scrolling. Scrolling the
+        // detail after a burst once left the app without an "animations complete" notification for over 15 minutes (not
+        // reproduced in two follow-up runs, see docs/STATUS.md).
+        let drafts = [("chat.field", "Zeile\(stamp)")]
+        for (id, text) in drafts { typeDraft(id, text) }
         attach("1-vorher-schnell-inspector")
         let flips = Array(repeating: ["large", SystemSize.axLargest.rawValue], count: 6).flatMap { $0 }   // 12 changes, ends on the largest
         try helperCall("/burst/\(flips.joined(separator: ","))?gap=0")
         assertDetailOpen("burst ends large text", title: title)
+        for (id, text) in drafts { assertDraft(id, contains: text, "burst ends large text") }
         attach("2-waehrend-schnell-sheet")
         try helperCall("/burst/\((flips + ["large"]).joined(separator: ","))?gap=0")  // 13 changes, ends on normal
         assertDetailOpen("burst ends normal", title: title)
+        for (id, text) in drafts { assertDraft(id, contains: text, "burst ends normal") }
         attach("3-nachher-schnell-inspector")
         // Slower, but still inside the animation: the threshold size against normal with 120 ms between changes.
         let slow = Array(repeating: ["large", SystemSize.axThreshold.rawValue], count: 5).flatMap { $0 }
@@ -230,6 +281,7 @@ final class TodoUITests: XCTestCase {
         assertDetailOpen("slow burst ends threshold", title: title)
         try helperCall("/burst/\((slow + ["large"]).joined(separator: ","))?gap=120")
         assertDetailOpen("slow burst ends normal", title: title)
+        for (id, text) in drafts { assertDraft(id, contains: text, "slow burst ends normal") }
         app.buttons["Fertig"].tap()
         XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" still closes the detail")
     }
@@ -246,25 +298,6 @@ final class TodoUITests: XCTestCase {
             ("task.title", " Titel\(stamp)"), ("task.description", "Notiz\(stamp)"),
             ("subtask.add", "Unter\(stamp)"), ("label.new", "Etikett\(stamp)"), ("chat.field", "Nachricht\(stamp)"),
         ]
-        // The detail's scroll view, found by any of its fields (off-screen ones are not in the accessibility tree).
-        let detailScroll = app.scrollViews.containing(NSPredicate(format: "identifier IN {'task.title', 'task.description', 'subtask.add', 'label.new'}")).firstMatch
-        // `isHittable` is false for the title (a text field with a scroll indicator child), so visibility is by frame.
-        func visible(_ field: XCUIElement) -> Bool {
-            let window = app.windows.firstMatch.frame
-            return field.exists && field.frame.minY > 90 && field.frame.maxY < window.height - 100
-        }
-        func reveal(_ field: XCUIElement) {
-            for _ in 0..<8 where !visible(field) { detailScroll.swipeUp(velocity: .slow) }
-            for _ in 0..<8 where !visible(field) { detailScroll.swipeDown(velocity: .slow) }
-        }
-        func hasFocus(_ field: XCUIElement) -> Bool { (field.value(forKey: "hasKeyboardFocus") as? Bool) == true }
-        func focus(_ field: XCUIElement) {
-            reveal(field)
-            for _ in 0..<3 where !hasFocus(field) {
-                field.tap()
-                _ = XCTWaiter.wait(for: [XCTestExpectation(description: "focus")], timeout: 0.8)
-            }
-        }
         for draft in drafts {
             let field = element(draft.id)
             XCTAssertTrue(field.waitForExistence(timeout: 10), "\(draft.id) exists")
@@ -281,13 +314,7 @@ final class TodoUITests: XCTestCase {
             field.typeText(draft.text)   // no Return: nothing is sent or submitted
         }
         func assertDrafts(_ context: String) {
-            for draft in drafts {
-                let field = element(draft.id)
-                reveal(field)
-                XCTAssertTrue(field.exists, "\(context): \(draft.id) exists")
-                XCTAssertTrue(((field.value as? String) ?? "").contains(draft.text.trimmingCharacters(in: .whitespaces)),
-                              "\(context): unsent \(draft.id) kept (now \"\(field.value as? String ?? "nil")\")")
-            }
+            for draft in drafts { assertDraft(draft.id, contains: draft.text.trimmingCharacters(in: .whitespaces), context) }
         }
         attach("1-vorher-eingabe-inspector")
         try setSystemSize(.axLargest)

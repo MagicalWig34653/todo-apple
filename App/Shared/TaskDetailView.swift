@@ -361,13 +361,33 @@ struct TaskDetailView: View {
             }
         }
         .task {
+            restoreDrafts()
             let initialTitle = title, initialDescription = text
             await model.load(app, meta: meta)
             let merged = model.initialText(title: title, description: text, initialTitle: initialTitle, initialDescription: initialDescription)
             title = merged.title; text = merged.description
         }
         .onChange(of: app.reviewUndoGeneration) { _, _ in Task { await model.loadSubtasks(app) } }
-        .onDisappear { saveText() }
+        .onChange(of: newSubtask) { _, new in keepDraft(\.subtask, new) }
+        .onChange(of: newLabel) { _, new in keepDraft(\.label, new) }
+        .onChange(of: model.chat.draft) { _, new in keepDraft(\.message, new) }
+        .onDisappear {
+            saveText()
+            // Closed (or another task opened) rather than rebuilt for a text size change: the open task is gone from the path.
+            if app.path.last?.id != model.task.id { app.detailDrafts[model.task.id] = nil }
+        }
+    }
+
+    /// Unsent input survives the rebuild when a text size change swaps inspector and sheet (see `AppModel.DetailDraft`).
+    private func keepDraft(_ field: WritableKeyPath<AppModel.DetailDraft, String>, _ value: String) {
+        var draft = app.detailDrafts[model.task.id] ?? AppModel.DetailDraft()
+        draft[keyPath: field] = value
+        app.detailDrafts[model.task.id] = draft.isEmpty ? nil : draft
+    }
+
+    private func restoreDrafts() {
+        guard let draft = app.detailDrafts[model.task.id] else { return }
+        newSubtask = draft.subtask; newLabel = draft.label; model.chat.draft = draft.message
     }
 
     private var breadcrumb: some View {

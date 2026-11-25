@@ -64,6 +64,13 @@ final class AppModel {
     /// Written by `MainView`. The presentation bindings read it here, live: SwiftUI reports a dismissal only after the
     /// animation, to a closure that still sees the text size of an older body.
     @ObservationIgnored var detailAsSheet = false
+    /// Unsent input of an open task detail (new subtask, new label, message), by task id. A text size change swaps inspector
+    /// and sheet and rebuilds the detail, which would drop what is typed but not sent. Removed when the task is closed.
+    struct DetailDraft: Equatable {
+        var subtask = "", label = "", message = ""
+        var isEmpty: Bool { subtask.isEmpty && label.isEmpty && message.isEmpty }
+    }
+    @ObservationIgnored var detailDrafts: [UUID: DetailDraft] = [:]
     /// Confirmation request a tapped push notification wants to bring up in "Für dich"; the feed scrolls to its card and
     /// clears this once the request was found, or after a refresh without it (`FeedView.resolveConfirmationFocus`).
     var confirmationFocus: UUID?
