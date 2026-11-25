@@ -107,6 +107,9 @@ final class TodoUITests: XCTestCase {
 
     private func attach(_ name: String) {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
+        // The simulator's own framebuffer too (in `<scratch>/shots` when run through scripts/ui-tests.sh): rotated iPad
+        // screenshots from XCUITest are cropped.
+        if ProcessInfo.processInfo.environment["TODO_UITEST_HELPER"] != nil { try? helperCall("/shot/\(name)") }
     }
 
     /// iPad: opening a task shows the detail (inspector next to the list; in narrow portrait the system presents it as a panel); screenshots are kept as attachments.
@@ -130,6 +133,171 @@ final class TodoUITests: XCTestCase {
         attach("pad-detail-after-size-sweep")
         app.buttons["Fertig"].tap()
         XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" still closes the detail")
+    }
+
+    // MARK: iPad detail across system text size changes (card 30B568CF): landscape, fast toggling, unsent input
+
+    private enum SystemSize: String {
+        case normal = "large", axThreshold = "accessibility-medium", axLargest = "accessibility-extra-extra-extra-large"
+    }
+
+    /// Asks `scripts/sim-text-size-helper.py` (host side, started by `scripts/ui-tests.sh`) to change the simulator's
+    /// preferred content size category: the real system change, while the app runs.
+    private func helperCall(_ path: String) throws {
+        guard let base = ProcessInfo.processInfo.environment["TODO_UITEST_HELPER"], let url = URL(string: base + path) else {
+            throw XCTSkip("TODO_UITEST_HELPER not set (run through scripts/ui-tests.sh)")
+        }
+        final class Box: @unchecked Sendable { var status = 0 }
+        let box = Box(), done = expectation(description: "helper \(path)")
+        URLSession.shared.dataTask(with: url) { _, response, _ in box.status = (response as? HTTPURLResponse)?.statusCode ?? 0; done.fulfill() }.resume()
+        wait(for: [done], timeout: 90)
+        XCTAssertEqual(box.status, 200, "helper call \(path)")
+    }
+
+    /// Sets the system text size now and puts it back to normal when the test ends (the simulator keeps it otherwise).
+    private func setSystemSize(_ size: SystemSize) throws {
+        try helperCall("/size/\(size.rawValue)")
+    }
+
+    private func restoreSystemSizeAfterTest() throws {
+        try setSystemSize(.normal)
+        addTeardownBlock { try? self.helperCall("/size/\(SystemSize.normal.rawValue)") }
+    }
+
+    /// By identifier prefix: the message field is "chat.field.<kind>".
+    private func element(_ id: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", id)).firstMatch
+    }
+
+    /// The detail is open exactly once: one "Fertig" (a second bar behind a sheet was the earlier symptom) and the title field.
+    private func assertDetailOpen(_ context: String, title: String? = nil, file: StaticString = #filePath, line: UInt = #line) {
+        let predicate = NSPredicate(format: "count == 1")
+        let single = XCTNSPredicateExpectation(predicate: predicate, object: app.buttons.matching(identifier: "Fertig"))
+        XCTAssertEqual(XCTWaiter.wait(for: [single], timeout: 15), .completed, "\(context): exactly one \"Fertig\" (count \(app.buttons.matching(identifier: "Fertig").count))", file: file, line: line)
+        XCTAssertTrue(element("task.title").waitForExistence(timeout: 10), "\(context): task title field", file: file, line: line)
+        if let title { XCTAssertEqual(element("task.title").value as? String, title, "\(context): same task", file: file, line: line) }
+    }
+
+    private func seededTitle() -> String { (element("task.title").value as? String) ?? "" }
+
+    /// iPad landscape: sheet and inspector swap the same way, the open task survives both directions and "Fertig" still closes it.
+    func testPadDetailStaysOpenAcrossTextSizeChangeLandscape() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        try restoreSystemSizeAfterTest()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
+        let landscape = NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: landscape, object: nil)], timeout: 10), .completed, "landscape")
+        openSeededDetail()
+        let title = seededTitle()
+        XCTAssertFalse(title.isEmpty)
+        assertDetailOpen("landscape, before", title: title)
+        attach("1-vorher-quer-inspector")
+        try setSystemSize(.axLargest)
+        assertDetailOpen("landscape, accessibility size", title: title)
+        attach("2-waehrend-quer-sheet")
+        try setSystemSize(.normal)
+        assertDetailOpen("landscape, back to normal", title: title)
+        attach("3-nachher-quer-inspector")
+        // And once more through the smallest accessibility size (the swap threshold).
+        try setSystemSize(.axThreshold)
+        assertDetailOpen("landscape, threshold size", title: title)
+        try setSystemSize(.normal)
+        assertDetailOpen("landscape, back again", title: title)
+        app.buttons["Fertig"].tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" still closes the detail")
+    }
+
+    /// iPad: the text size flips back and forth faster than the sheet/inspector animation; the open task must survive
+    /// whatever size the burst ends on, with exactly one detail on screen.
+    func testPadDetailStaysOpenAcrossRapidTextSizeToggling() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        try restoreSystemSizeAfterTest()
+        openSeededDetail()
+        let title = seededTitle()
+        attach("1-vorher-schnell-inspector")
+        let flips = Array(repeating: ["large", SystemSize.axLargest.rawValue], count: 6).flatMap { $0 }   // 12 changes, ends on the largest
+        try helperCall("/burst/\(flips.joined(separator: ","))?gap=0")
+        assertDetailOpen("burst ends large text", title: title)
+        attach("2-waehrend-schnell-sheet")
+        try helperCall("/burst/\((flips + ["large"]).joined(separator: ","))?gap=0")  // 13 changes, ends on normal
+        assertDetailOpen("burst ends normal", title: title)
+        attach("3-nachher-schnell-inspector")
+        // Slower, but still inside the animation: the threshold size against normal with 120 ms between changes.
+        let slow = Array(repeating: ["large", SystemSize.axThreshold.rawValue], count: 5).flatMap { $0 }
+        try helperCall("/burst/\(slow.joined(separator: ","))?gap=120")
+        assertDetailOpen("slow burst ends threshold", title: title)
+        try helperCall("/burst/\((slow + ["large"]).joined(separator: ","))?gap=120")
+        assertDetailOpen("slow burst ends normal", title: title)
+        app.buttons["Fertig"].tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" still closes the detail")
+    }
+
+    /// iPad: text typed into the detail but not sent (title, note, subtask, label, message) is still there after the swap
+    /// to the sheet and back; title and note are also saved by the view disappearing.
+    func testPadDetailKeepsUnsentInputAcrossTextSizeChange() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        try restoreSystemSizeAfterTest()
+        openSeededDetail()
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "panel settled")], timeout: 2)
+        let stamp = Int(Date().timeIntervalSince1970) % 100000
+        let drafts: [(id: String, text: String)] = [
+            ("task.title", " Titel\(stamp)"), ("task.description", "Notiz\(stamp)"),
+            ("subtask.add", "Unter\(stamp)"), ("label.new", "Etikett\(stamp)"), ("chat.field", "Nachricht\(stamp)"),
+        ]
+        // The detail's scroll view, found by any of its fields (off-screen ones are not in the accessibility tree).
+        let detailScroll = app.scrollViews.containing(NSPredicate(format: "identifier IN {'task.title', 'task.description', 'subtask.add', 'label.new'}")).firstMatch
+        // `isHittable` is false for the title (a text field with a scroll indicator child), so visibility is by frame.
+        func visible(_ field: XCUIElement) -> Bool {
+            let window = app.windows.firstMatch.frame
+            return field.exists && field.frame.minY > 90 && field.frame.maxY < window.height - 100
+        }
+        func reveal(_ field: XCUIElement) {
+            for _ in 0..<8 where !visible(field) { detailScroll.swipeUp(velocity: .slow) }
+            for _ in 0..<8 where !visible(field) { detailScroll.swipeDown(velocity: .slow) }
+        }
+        func hasFocus(_ field: XCUIElement) -> Bool { (field.value(forKey: "hasKeyboardFocus") as? Bool) == true }
+        func focus(_ field: XCUIElement) {
+            reveal(field)
+            for _ in 0..<3 where !hasFocus(field) {
+                field.tap()
+                _ = XCTWaiter.wait(for: [XCTestExpectation(description: "focus")], timeout: 0.8)
+            }
+        }
+        for draft in drafts {
+            let field = element(draft.id)
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "\(draft.id) exists")
+            if draft.id == "task.title" {
+                // Taps and a double tap on the title do not focus it (3 of 3 fresh launches, iPad Pro 13", iOS 27.0); a long
+                // press does. Observation for the card, not investigated further.
+                let gestures: [() -> Void] = [{ field.tap() }, { field.tap() }, { field.doubleTap() }, { field.press(forDuration: 0.6) }]
+                for gesture in gestures where !hasFocus(field) {
+                    gesture()
+                    _ = XCTWaiter.wait(for: [XCTestExpectation(description: "focus")], timeout: 0.8)
+                }
+            } else { focus(field) }
+            XCTAssertTrue(hasFocus(field), "\(draft.id) has keyboard focus")
+            field.typeText(draft.text)   // no Return: nothing is sent or submitted
+        }
+        func assertDrafts(_ context: String) {
+            for draft in drafts {
+                let field = element(draft.id)
+                reveal(field)
+                XCTAssertTrue(field.exists, "\(context): \(draft.id) exists")
+                XCTAssertTrue(((field.value as? String) ?? "").contains(draft.text.trimmingCharacters(in: .whitespaces)),
+                              "\(context): unsent \(draft.id) kept (now \"\(field.value as? String ?? "nil")\")")
+            }
+        }
+        attach("1-vorher-eingabe-inspector")
+        try setSystemSize(.axLargest)
+        assertDetailOpen("typed, accessibility size")
+        attach("2-waehrend-eingabe-sheet")
+        assertDrafts("accessibility size")
+        try setSystemSize(.normal)
+        assertDetailOpen("typed, back to normal")
+        attach("3-nachher-eingabe-inspector")
+        assertDrafts("back to normal")
     }
 
     private func openSeededDetail() {

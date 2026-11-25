@@ -402,10 +402,12 @@ struct TaskDetailView: View {
                     .strikethrough(model.task.isDone)
                     .foregroundStyle(model.task.isDone ? Color.textSecondary : Color.primary)
                     .onSubmit(saveText)
+                    .accessibilityIdentifier("task.title")
                 HStack(alignment: .top, spacing: Space.s) {
                     Image(systemName: "text.alignleft").font(.footnote).foregroundStyle(Color.textSecondary).padding(.top, Space.xs)
                     TextField(accessible: "task.description", text: $text, axis: .vertical)
                         .font(.body).foregroundStyle(Color.textSecondary).lineLimit(1...12)
+                        .accessibilityIdentifier("task.description")
                 }
                 HStack(spacing: Space.s) {
                     AuditTimeText(date: model.context?.task.createdAt ?? model.task.createdAt, label: "time.created", identifier: "audit.created")
@@ -581,7 +583,7 @@ struct TaskDetailView: View {
                     }
                 }
             }
-            TextField(accessible: "label.new", text: $newLabel).font(.footnote).onSubmit {
+            TextField(accessible: "label.new", text: $newLabel).font(.footnote).accessibilityIdentifier("label.new").onSubmit {
                 let name = newLabel; newLabel = ""
                 Task { await model.createLabel(name, app); await meta.refresh(app) }
             }
@@ -624,7 +626,7 @@ struct TaskDetailView: View {
             }
             HStack(spacing: Space.s) {
                 Image(systemName: "plus").font(.footnote.weight(.semibold)).foregroundStyle(Color.brand).scaledSquare(24, relativeTo: .footnote)
-                TextField(accessible: "subtask.add", text: $newSubtask).font(.subheadline).submitLabel(.done).onSubmit {
+                TextField(accessible: "subtask.add", text: $newSubtask).font(.subheadline).submitLabel(.done).accessibilityIdentifier("subtask.add").onSubmit {
                     let t = newSubtask; newSubtask = ""
                     Task { await model.addSubtask(t, app); await meta.refresh(app) }
                 }
