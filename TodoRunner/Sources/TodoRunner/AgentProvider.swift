@@ -80,5 +80,5 @@ public extension AgentProvider {
 
 public enum RunnerError: Error, Equatable {
     case alreadyOpen, unapprovedFolder, invalidConfiguration, spawn(Int32)
-    case unknownProcess, invalidResult, timedOut, stopped, sessionMismatch, missingToken
+    case unknownProcess, invalidResult, timedOut, stopped, sessionMismatch, missingToken, unknownProgram
 }

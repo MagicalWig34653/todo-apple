@@ -80,8 +80,9 @@ public struct URLSessionRunnerServer: RunnerServer {
     private struct Empty: Encodable {}
     private struct Gen: Encodable { var generation: Int }
 
-    private func send<R: Decodable>(_ method: String, _ path: String) async throws -> R {
-        try await Self.perform(session: session, baseURL: baseURL, token: token, method: method, path: path, body: Optional<Empty>.none)
+    private func send<R: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = []) async throws -> R {
+        try await Self.perform(session: session, baseURL: baseURL, token: token, method: method, path: path, query: query,
+                               body: Optional<Empty>.none)
     }
 
     private func send<R: Decodable>(_ method: String, _ path: String, body: some Encodable) async throws -> R {
@@ -89,8 +90,10 @@ public struct URLSessionRunnerServer: RunnerServer {
     }
 
     private static func perform<R: Decodable>(session: URLSession, baseURL: URL, token: String?, method: String,
-                                              path: String, body: (some Encodable)?) async throws -> R {
-        var request = URLRequest(url: baseURL.appending(path: path), timeoutInterval: 30)
+                                              path: String, query: [URLQueryItem] = [], body: (some Encodable)?) async throws -> R {
+        var url = baseURL.appending(path: path)
+        if !query.isEmpty { url.append(queryItems: query) }
+        var request = URLRequest(url: url, timeoutInterval: 30)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
@@ -122,12 +125,14 @@ public struct URLSessionRunnerServer: RunnerServer {
     }
 
     public func bindings() async throws -> [Binding] { try await send("GET", "/v1/runner/bindings") }
-    public func jobs() async throws -> [Job] { try await send("GET", "/v1/runner/jobs") }
+    /// Opts into pipeline jobs; an older server ignores the parameter.
+    private static let pipeline = [URLQueryItem(name: "pipeline", value: "1")]
+    public func jobs() async throws -> [Job] { try await send("GET", "/v1/runner/jobs", query: Self.pipeline) }
     public func detail(jobID: UUID) async throws -> JobDetail {
         try await send("GET", "/v1/runner/jobs/\(jobID.uuidString.lowercased())")
     }
     public func claim(jobID: UUID) async throws -> Run {
-        try await send("POST", "/v1/runner/jobs/\(jobID.uuidString.lowercased())/claim")
+        try await send("POST", "/v1/runner/jobs/\(jobID.uuidString.lowercased())/claim", query: Self.pipeline)
     }
     public func runs() async throws -> [Run] { try await send("GET", "/v1/runner/runs") }
     public func heartbeat(runID: UUID, generation: Int) async throws -> Run {
@@ -153,9 +158,12 @@ public struct URLSessionRunnerServer: RunnerServer {
         return try await write(runID, "submit", Body(generation: generation, result: result))
     }
     public func submitStep(runID: UUID, generation: Int, result: RunResult, outcome: PipelineOutcome, plan: String?) async throws -> Run {
-        throw RunnerServerError.invalidResponse
+        struct Body: Encodable { var generation: Int; var result: RunResult; var outcome: PipelineOutcome; var plan: String? }
+        return try await write(runID, "submit", Body(generation: generation, result: result, outcome: outcome, plan: plan))
     }
-    public func hold(jobID: UUID, reason: String) async throws -> Job { throw RunnerServerError.invalidResponse }
+    public func hold(jobID: UUID, reason: String) async throws -> Job {
+        try await send("POST", "/v1/runner/jobs/\(jobID.uuidString.lowercased())/hold", body: ["reason": reason])
+    }
     public func stop(runID: UUID, generation: Int) async throws -> Run {
         try await write(runID, "stop", Gen(generation: generation))
     }

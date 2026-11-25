@@ -7,8 +7,7 @@ public actor ClaudeProcessAdapter: AgentProvider {
     private let executable: URL
     private let scratch: URL
     private let environment: [String: String]
-    private var children: Set<Int32> = []
-    private var interruptions: [Int32: RunnerError] = [:]
+    private let supervisor = ProcessSupervisor()
     private var tails: [Int32: StreamTail] = [:]
 
     public init(executable: URL, scratch: URL, environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -16,6 +15,25 @@ public actor ClaudeProcessAdapter: AgentProvider {
     }
 
     static let outputSchema = #"{"type":"object","properties":{"text":{"type":"string"},"question":{"type":"string"},"options":{"type":"array","items":{"type":"string"}}},"required":["text"]}"#
+    /// Pipeline steps require additional structured fields (planner: `plan`; tester and review: `verdict`).
+    static func outputSchema(for step: PipelineStep?) -> String {
+        let field: (name: String, schema: String)? = switch step {
+        case .planner: ("plan", #"{"type":"string"}"#)
+        case .tester, .review: ("verdict", #"{"type":"string","enum":["passed","failed"]}"#)
+        default: nil
+        }
+        guard let field else { return outputSchema }
+        return outputSchema
+            .replacingOccurrences(of: #""properties":{"#, with: #""properties":{"\#(field.name)":\#(field.schema),"#)
+            .replacingOccurrences(of: #""required":["text"]"#, with: #""required":["text","\#(field.name)"]"#)
+    }
+
+    /// Model and effort come from the server: only plain identifiers, never something that reads as another flag.
+    static func isAgentValue(_ value: String) -> Bool {
+        !value.isEmpty && !value.hasPrefix("-")
+            && value.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "._:/-".unicodeScalars.contains($0)) }
+    }
+
     static let systemPrompt = "Answer with a concise summary in the structured text field. If you need a human decision, put exactly one question in the question field (optionally with answer options in options) and stop working. Never commit, push or deploy. If Todo MCP tools are available in this session, call get_manual once at the start and follow it; if they are not available, continue without it. Never put secrets, tokens or passwords into answers, questions or files."
 
     /// Exposed for tests: the exact CLI arguments.
@@ -27,12 +45,15 @@ public actor ClaudeProcessAdapter: AgentProvider {
          "--permission-mode", "dontAsk",
          "--max-turns", String(request.maxTurns),
          "--tools", request.allowedTools.map { String($0.prefix(while: { $0 != "(" })) }.joined(separator: ","),
-         "--json-schema", outputSchema,
+         "--json-schema", outputSchema(for: request.step),
          "--append-system-prompt", systemPrompt,
          "--strict-mcp-config", "--mcp-config", #"{"mcpServers":{}}"#]
+            + [("--model", request.model), ("--effort", request.effort)].flatMap { flag, value in
+                value.flatMap { isAgentValue($0) ? [flag, $0] : nil } ?? []
+            }
     }
 
-    public func start(_ request: AgentRequest) throws -> ProcessReference {
+    public func start(_ request: AgentRequest) async throws -> ProcessReference {
         guard request.maxTurns > 0, request.timeout > 0,
               !request.allowedTools.isEmpty, request.allowedTools.allSatisfy({ !$0.isEmpty }) else {
             throw RunnerError.invalidConfiguration
@@ -42,55 +63,14 @@ public actor ClaudeProcessAdapter: AgentProvider {
         let token = UUID().uuidString
         let output = scratch.appendingPathComponent(token + ".stdout")
         let error = scratch.appendingPathComponent(token + ".stderr")
-        let pid = try Self.spawn(executable: executable, arguments: [executable.path] + Self.arguments(for: request),
-                                 environment: environment, folder: request.folder, output: output, error: error)
-        children.insert(pid)
+        let pid = try await supervisor.spawn(executable: executable, arguments: [executable.path] + Self.arguments(for: request),
+                                             environment: environment, folder: request.folder, output: output, errorOutput: error)
         return ProcessReference(pid: pid, startTime: Self.startTime(of: pid) ?? 0, outputPath: output.path,
                                 sessionID: request.sessionID, deadline: Date().addingTimeInterval(request.timeout))
     }
 
-    private nonisolated static func spawn(executable: URL, arguments: [String], environment: [String: String],
-                                          folder: URL, output: URL, error: URL) throws -> Int32 {
-        var actions: posix_spawn_file_actions_t?
-        var attributes: posix_spawnattr_t?
-        posix_spawn_file_actions_init(&actions)
-        posix_spawnattr_init(&attributes)
-        defer { posix_spawn_file_actions_destroy(&actions); posix_spawnattr_destroy(&attributes) }
-        for status in [
-            posix_spawn_file_actions_addchdir_np(&actions, folder.path),
-            posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0),
-            posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, output.path, O_CREAT | O_WRONLY | O_TRUNC, 0o600),
-            posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, error.path, O_CREAT | O_WRONLY | O_TRUNC, 0o600),
-            posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT)),
-            posix_spawnattr_setpgroup(&attributes, 0),
-        ] { guard status == 0 else { throw RunnerError.spawn(status) } }
-        let argv = arguments.map { strdup($0) } + [nil]
-        let envp = environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
-        defer { argv.forEach { free($0) }; envp.forEach { free($0) } }
-        var pid: pid_t = 0
-        let status = argv.withUnsafeBufferPointer { args in
-            envp.withUnsafeBufferPointer { env in
-                posix_spawn(&pid, executable.path, &actions, &attributes, args.baseAddress!, env.baseAddress!)
-            }
-        }
-        guard status == 0 else { throw RunnerError.spawn(status) }
-        return pid
-    }
-
     /// Process start time (seconds since epoch) from the kernel, nil if the PID does not exist.
-    static func startTime(of pid: Int32) -> Double? {
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.stride
-        guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0, size > 0, info.kp_proc.p_pid == pid else { return nil }
-        let t = info.kp_proc.p_un.__p_starttime
-        return Double(t.tv_sec) + Double(t.tv_usec) / 1_000_000
-    }
-
-    private func isAlive(_ process: ProcessReference) -> Bool {
-        guard let start = Self.startTime(of: process.pid) else { return false }
-        return process.startTime == 0 || abs(start - process.startTime) < 0.01
-    }
+    static func startTime(of pid: Int32) -> Double? { ProcessSupervisor.startTime(of: pid) }
 
     /// New tool steps since the last call, read from the stream-json output file. Never throws; best effort.
     public func drainProgress(_ process: ProcessReference) async -> [ProgressEvent] {
@@ -102,54 +82,22 @@ public actor ClaudeProcessAdapter: AgentProvider {
     }
 
     public func wait(for process: ProcessReference) async throws -> AgentResult {
-        // The timeout counts awake time only: systemUptime stands still while the Mac sleeps,
-        // so a night in sleep mode does not kill a run on wake.
-        let limit = ProcessInfo.processInfo.systemUptime + max(0, process.deadline.timeIntervalSinceNow)
-        let ours = children.contains(process.pid)
-        var status: Int32 = 0
-        var reaped = false
-        while true {
-            if ours {
-                let waited = waitpid(process.pid, &status, WNOHANG)
-                if waited == process.pid { reaped = true; break }
-                if waited < 0 && errno != EINTR { break }
-            } else if !isAlive(process) { break }
-            if Task.isCancelled { kill(-process.pid, SIGKILL); interruptions[process.pid] = interruptions[process.pid] ?? .stopped }
-            if ProcessInfo.processInfo.systemUptime >= limit, interruptions[process.pid] == nil {
-                interruptions[process.pid] = .timedOut
-                kill(-process.pid, SIGKILL)
-            }
-            // Never leave the loop on cancellation before the process is reaped.
-            try? await Task.sleep(for: .milliseconds(30))
-        }
-        children.remove(process.pid)
-        tails[process.pid] = nil
-        let interruption = interruptions.removeValue(forKey: process.pid)
+        let status: Int32?
         let output = URL(fileURLWithPath: process.outputPath)
         defer {
+            tails[process.pid] = nil
             try? FileManager.default.removeItem(at: output)
             try? FileManager.default.removeItem(atPath: process.outputPath.replacingOccurrences(of: ".stdout", with: ".stderr"))
         }
-        if let interruption { throw interruption }
-        let exitStatus: Int32 = reaped ? ((status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f)) : 0
+        status = try await supervisor.exitStatus(of: process)
         let data = (try? Data(contentsOf: output)) ?? Data()
-        return try Self.parse(data, sessionID: process.sessionID, exitStatus: exitStatus)
+        // An adopted process (runner restart) has no exit status; the result file decides.
+        return try Self.parse(data, sessionID: process.sessionID, exitStatus: status ?? 0)
     }
 
-    public func stop(_ process: ProcessReference) {
-        // Only signal a process whose identity is verified (guards PID reuse).
-        guard isAlive(process), getpgid(process.pid) == process.pid else { return }
-        interruptions[process.pid] = .stopped
-        // SIGKILL on the group: an ignored SIGTERM must not leave tool subprocesses alive.
-        kill(-process.pid, SIGKILL)
-    }
+    public func stop(_ process: ProcessReference) async { await supervisor.stop(process) }
 
-    public func reconcile(_ process: ProcessReference) -> ProcessObservation {
-        if children.contains(process.pid) { return .running }
-        guard let start = Self.startTime(of: process.pid) else { return .exited }
-        if process.startTime == 0 { return .uncertain }
-        return abs(start - process.startTime) < 0.01 ? .running : .exited
-    }
+    public func reconcile(_ process: ProcessReference) async -> ProcessObservation { await supervisor.reconcile(process) }
 
     public static func parse(_ data: Data, sessionID: UUID, exitStatus: Int32) throws -> AgentResult {
         struct Envelope: Decodable {
@@ -157,7 +105,7 @@ public actor ClaudeProcessAdapter: AgentProvider {
             var result: String?
             var is_error: Bool
             var structured_output: Structured?
-            struct Structured: Decodable { var text: String?; var question: String?; var options: [String]? }
+            struct Structured: Decodable { var text: String?; var question: String?; var options: [String]?; var plan: String?; var verdict: String? }
         }
         // Plain `json` output is one object; `stream-json` is JSON lines whose last `result` line is the same object.
         let decoder = JSONDecoder()
@@ -175,6 +123,7 @@ public actor ClaudeProcessAdapter: AgentProvider {
         let question = envelope.structured_output?.question.flatMap { $0.isEmpty ? nil : $0 }
         return AgentResult(text: envelope.structured_output?.text ?? envelope.result ?? "", question: question,
                            options: question == nil ? [] : (envelope.structured_output?.options ?? []),
-                           exitStatus: exitStatus, isError: envelope.is_error || exitStatus != 0)
+                           exitStatus: exitStatus, isError: envelope.is_error || exitStatus != 0,
+                           plan: envelope.structured_output?.plan, verdict: envelope.structured_output?.verdict)
     }
 }

@@ -80,6 +80,9 @@ public actor Runner {
     private var progressSent: [UUID: Date] = [:]
     private var wakeGraceUntil: Date?
     private var activityHeld = false
+    /// Budget decision of the current tick (outer nil = not asked yet), so that one tick runs the command at most once.
+    private var tickBudget: String??
+    private var heldLogged: [UUID: String] = [:]
 
     public init(server: any RunnerServer, provider: any AgentProvider, store: LocalStateStore,
                 allowlist: FolderAllowlist, settings: RunnerSettings = RunnerSettings(),
@@ -130,8 +133,23 @@ public actor Runner {
     private func adopt(_ id: UUID, _ remote: Run) {
         mutate(id) {
             guard $0.phase != .leaseLost else { return }
+            let step = $0.job.pipelineStep
             $0.generation = remote.generation; $0.leaseUntil = remote.leaseUntil; $0.job = remote.job
+            // The step decides which kind of process the run owns; it never changes during a run.
+            $0.job.pipelineStep = remote.job.pipelineStep ?? step
         }
+    }
+
+    // MARK: Processes (agent or local command)
+
+    private func isCommand(_ run: LocalRun) -> Bool { run.job.pipelineStep == .validation }
+
+    private func halt(_ process: ProcessReference, of run: LocalRun) async {
+        if isCommand(run) { await executor.stop(process) } else { await provider.stop(process) }
+    }
+
+    private func observe(_ process: ProcessReference, of run: LocalRun) async -> ProcessObservation {
+        isCommand(run) ? await executor.reconcile(process) : await provider.reconcile(process)
     }
 
     // MARK: Loop
@@ -142,6 +160,7 @@ public actor Runner {
         guard !ticking else { return }
         ticking = true
         defer { ticking = false }
+        tickBudget = nil
         if !startupDone || !startupPending.isEmpty { try await reconcileAtStart() }
         for id in runs.keys.sorted(by: { $0.uuidString < $1.uuidString }) { await service(id) }
         if claim { try await claimNext() }
@@ -193,7 +212,7 @@ public actor Runner {
             guard let local = runs[id], local.phase != .closed else { startupPending.remove(id); continue }
             guard let current = remote[id] else {
                 // Server no longer lists the run: finished or cancelled elsewhere.
-                if let process = local.process { await provider.stop(process) }
+                if let process = local.process { await halt(process, of: local) }
                 mutate(id) { $0.phase = .closed; $0.process = nil; $0.outbox = []; $0.note = "Run is no longer open on the server." }
                 startupPending.remove(id); continue
             }
@@ -211,7 +230,7 @@ public actor Runner {
         adopt(id, remote)
         guard var local = runs[id] else { return true }
         if local.phase == .needsReconciliation || local.phase == .leaseLost { return true }
-        let observation: ProcessObservation = if let p = local.process { await provider.reconcile(p) } else { .exited }
+        let observation: ProcessObservation = if let p = local.process { await observe(p, of: local) } else { .exited }
         let expired = now >= remote.leaseUntil
         if observation == .uncertain {
             mutate(id) { $0.phase = .needsReconciliation; $0.note = "Process identity cannot be verified; folder stays reserved. Verify, then run `release`." }
@@ -219,7 +238,7 @@ public actor Runner {
         }
         if remote.job.state == .cancelled {
             mutate(id) { $0.stopRequested = true }
-            if let p = local.process { await provider.stop(p) }
+            if let p = local.process { await halt(p, of: local) }
             mutate(id) { $0.process = nil; $0.outbox = [.stop]; $0.afterOutbox = .closed }
             if expired { await loseLease(id, reason: "Cancelled while lease had expired.") } else { await flushOutbox(id) }
             return true
@@ -251,11 +270,7 @@ public actor Runner {
                 return true
             }
             if expired { await loseLease(id, reason: "Process ended while lease had expired.") }
-            else {
-                let outcome: Result<AgentResult, Error>
-                do { outcome = .success(try await provider.wait(for: process)) } catch { outcome = .failure(error) }
-                await processEnded(id, outcome)
-            }
+            else { await collect(id, process, command: isCommand(local)) }
         case .resuming:
             if remote.job.state == .waitingForAnswer {
                 mutate(id) { $0.phase = .waitingForAnswer; $0.deliveredQuestions = [] }
@@ -307,7 +322,7 @@ public actor Runner {
         guard let grace = wakeGraceUntil, now < grace, let run = runs[id] else { return .lost }
         let observation: ReconcileObservation
         if let process = run.process {
-            guard await provider.reconcile(process) == .running else { return .lost }
+            guard await observe(process, of: run) == .running else { return .lost }
             observation = .alive
         } else if run.phase == .waitingForAnswer, run.outbox.isEmpty {
             observation = .paused
@@ -326,7 +341,7 @@ public actor Runner {
 
     /// Streams tool steps from the agent output to the board, summarised and throttled.
     private func pumpProgress(_ id: UUID) async {
-        guard let run = runs[id], run.phase == .running, let process = run.process, run.outbox.isEmpty,
+        guard let run = runs[id], run.phase == .running, !isCommand(run), let process = run.process, run.outbox.isEmpty,
               !run.stopRequested else { return }
         var aggregate = progressState[id] ?? ProgressAggregator()
         aggregate.add(await provider.drainProgress(process))
@@ -345,7 +360,7 @@ public actor Runner {
         // A heartbeat can be in flight while the result is published (actor reentrancy): the server then answers
         // 410 run_ended for a run this runner already closed cleanly. Nothing to fence or confirm.
         guard let phase = runs[id]?.phase, phase != .closed else { return }
-        if let process = runs[id]?.process { await provider.stop(process) }
+        if let run = runs[id], let process = run.process { await halt(process, of: run) }
         // A human stop reports 410 "local stop required": confirm it instead of treating it as lost.
         if let list = try? await server.runs(), let remote = list.first(where: { $0.id == id }),
            remote.job.state == .cancelled, remote.generation == runs[id]?.generation, now < remote.leaseUntil {
@@ -359,7 +374,7 @@ public actor Runner {
     private func cancelByServer(_ id: UUID) async {
         guard let run = runs[id], !run.stopRequested else { return }
         mutate(id) { $0.stopRequested = true }
-        if let process = run.process { await provider.stop(process) }
+        if let process = run.process { await halt(process, of: run) }
         else {
             mutate(id) { $0.outbox = [.stop]; $0.afterOutbox = .closed }
             await flushOutbox(id)
@@ -370,15 +385,15 @@ public actor Runner {
     /// except the final reconcile(stopped) confirmation.
     private func loseLease(_ id: UUID, reason: String) async {
         mutate(id) { $0.phase = .leaseLost; $0.outbox = []; $0.afterOutbox = nil; $0.note = "Ownership lost: \(reason)" }
-        if let process = runs[id]?.process { await provider.stop(process) }
+        if let run = runs[id], let process = run.process { await halt(process, of: run) }
         await confirmLeaseLoss(id)
     }
 
     private func confirmLeaseLoss(_ id: UUID) async {
         guard let run = runs[id], run.phase == .leaseLost else { return }
         if let process = run.process {
-            await provider.stop(process)
-            guard await provider.reconcile(process) == .exited else { return }
+            await halt(process, of: run)
+            guard await observe(process, of: run) == .exited else { return }
             mutate(id) { $0.process = nil }
         }
         do {
@@ -438,10 +453,18 @@ public actor Runner {
             guard let binding = bindings.first(where: { $0.id == job.bindingID }),
                   let folder = try? allowlist.folder(for: binding.repositoryKey),
                   !busy.contains(folder.path) else { continue }
+            // Validation starts no agent and costs no tokens; everything else needs the budget's consent.
+            if job.pipelineStep != .validation, let reason = await budgetRefusal() {
+                await hold(job, reason: reason)
+                continue
+            }
             let claimed: Run
             do { claimed = try await server.claim(jobID: job.id) }
             catch let error as RunnerServerError where error.isOwnershipLoss || error == .notFound { continue }
-            let local = LocalRun(runID: claimed.id, job: claimed.job, repositoryKey: binding.repositoryKey, folder: folder.path,
+            heldLogged[job.id] = nil
+            var claimedJob = claimed.job
+            claimedJob.pipelineStep = claimedJob.pipelineStep ?? job.pipelineStep
+            let local = LocalRun(runID: claimed.id, job: claimedJob, repositoryKey: binding.repositoryKey, folder: folder.path,
                                  sessionID: UUID(), generation: claimed.generation, leaseUntil: claimed.leaseUntil,
                                  phase: .claimed, process: nil, contextRevision: claimed.job.taskRevision,
                                  note: "Claimed; nothing launched yet.")
@@ -452,10 +475,75 @@ public actor Runner {
         }
     }
 
+    // MARK: Budget brake
+
+    /// Why no agent may be started or resumed right now, nil if allowed. Fails closed: any doubt about a configured
+    /// budget command forbids. Its output stays on this Mac; only these fixed texts reach the server.
+    private func budgetRefusal() async -> String? {
+        if let known = tickBudget { return known }
+        let reason = await askBudget().map { "Kontingent-Bremse: " + $0 }
+        tickBudget = .some(reason)
+        return reason
+    }
+
+    private func askBudget() async -> String? {
+        let argv: [String]
+        do {
+            guard let configured = try commands.budget() else { return nil }
+            argv = configured
+        } catch { return "Budget-Befehl nicht lesbar" }
+        let scratch = store.directory.appendingPathComponent("budget-output", isDirectory: true)
+        let name = UUID().uuidString
+        let output = scratch.appendingPathComponent(name + ".stdout"), errors = scratch.appendingPathComponent(name + ".stderr")
+        defer { for file in [output, errors] { try? FileManager.default.removeItem(at: file) } }
+        do {
+            let process = try await executor.start(CommandRequest(argv: argv, folder: store.directory, output: output,
+                                                                  errorOutput: errors, timeout: settings.budgetTimeout))
+            let result = try await executor.wait(for: process)
+            guard let code = result.exitCode, code == 0 else { return "Budget-Befehl fehlgeschlagen" }
+            return Self.budgetVerdict((try? Data(contentsOf: output)) ?? Data())
+        } catch RunnerError.timedOut {
+            return "Budget-Befehl hat das Zeitlimit überschritten"
+        } catch {
+            return "Budget-Befehl nicht ausführbar"
+        }
+    }
+
+    /// Reads `{"allowed": Bool}` and/or `{"ampel": String}`; nil only for a readable answer that does not forbid.
+    static func budgetVerdict(_ data: Data) -> String? {
+        struct Answer: Decodable { var allowed: Bool?; var ampel: String? }
+        guard let answer = try? JSONDecoder().decode(Answer.self, from: data), answer.allowed != nil || answer.ampel != nil else {
+            return "Budget-Ausgabe unlesbar"
+        }
+        if answer.ampel?.lowercased() == "rot" { return "Ampel rot" }
+        return answer.allowed == false ? "Budget nicht freigegeben" : nil
+    }
+
+    /// Best effort: an older server has no hold endpoint, and the job may be gone meanwhile.
+    private func hold(_ job: Job, reason: String) async {
+        if heldLogged[job.id] != reason {
+            heldLogged[job.id] = reason
+            settings.log("Auftrag \(job.id.uuidString.prefix(8).lowercased()) zurückgestellt. \(reason)")
+        }
+        guard job.progress != reason else { return }
+        _ = try? await server.hold(jobID: job.id, reason: reason)
+    }
+
+    // MARK: Launch
+
     private func beginLaunch(_ id: UUID) async {
-        guard let run = runs[id], run.phase == .claimed else { return }
+        guard let run = runs[id], run.phase == .claimed, run.outbox.isEmpty else { return }
+        if isCommand(run) { await launchValidation(id); return }
         guard let detail = try? await server.detail(jobID: run.job.id) else { return }
-        await launch(id, prompt: Self.prompt(for: detail, answers: []), resume: false)
+        // Planner and developer continue an earlier session of this execution, but only one this runner ran in this folder.
+        var resume = false
+        if let step = run.job.pipelineStep, step == .planner || step == .developer,
+           let session = detail.pipeline?.resumeSessionReference.flatMap({ UUID(uuidString: $0) }),
+           runs.values.contains(where: { $0.runID != id && $0.sessionID == session && $0.folder == run.folder && !isCommand($0) }) {
+            mutate(id) { $0.sessionID = session }
+            resume = true
+        }
+        await launch(id, detail: detail, answers: [], resume: resume)
     }
 
     static func prompt(for detail: JobDetail, answers: [Question]) -> String {
@@ -463,10 +551,14 @@ public actor Runner {
             "Task: \(detail.task.title) (task revision \(detail.task.version), released at revision \(detail.job.taskRevision))",
             detail.task.description,
             "Scope: \(detail.job.scope)",
-            detail.job.mode == .clarify
-                ? "Mode: clarify. Do not modify any file. Identify what is unclear and ask or summarise."
-                : "Mode: implement. Make the changes within the scope. Do not commit, push or deploy.",
         ]
+        if let pipeline = detail.pipeline {
+            lines += stepLines(pipeline)
+        } else {
+            lines.append(detail.job.mode == .clarify
+                ? "Mode: clarify. Do not modify any file. Identify what is unclear and ask or summarise."
+                : "Mode: implement. Make the changes within the scope. Do not commit, push or deploy.")
+        }
         lines.append("If Todo MCP tools are available in this session, call get_manual first and follow it for progress notes and questions; otherwise continue without it.")
         if !answers.isEmpty {
             lines.append("Answers to your earlier questions:")
@@ -475,47 +567,166 @@ public actor Runner {
         return lines.joined(separator: "\n")
     }
 
-    private func launch(_ id: UUID, prompt: String, resume: Bool) async {
-        guard let run = runs[id] else { return }
-        let folder: URL
-        do {
-            guard let approved = try allowlist.folder(for: run.repositoryKey), approved.path == run.folder else { throw RunnerError.unapprovedFolder }
-            folder = approved
-        } catch {
-            mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Folder no longer approved; not started." }
+    private static func stepLines(_ context: PipelineContext) -> [String] {
+        let verdict = "Set the structured field `verdict` to \"passed\" only if everything holds, otherwise to \"failed\", and explain why in `text`."
+        let instruction = switch context.step {
+        case .planner: "Pipeline step: planner. Do not modify any file. Write the implementation plan as Markdown (at most 20000 characters), in the language of the task, into the structured field `plan`, and a short summary into `text`."
+        case .developer: "Pipeline step: developer. Implement the plan within the scope. Do not commit, push or deploy."
+        case .tester: "Pipeline step: tester. Check the change against the task and the plan; you may add or adjust tests. Do not commit, push or deploy. " + verdict
+        case .review: "Pipeline step: review. Do not modify any file. Review the change against the task and the plan. " + verdict
+        case .validation: "Pipeline step: validation."
+        }
+        var lines = [instruction]
+        if let plan = context.planBody, !plan.isEmpty {
+            let title = context.step == .planner ? "Previous plan" : "Plan"
+            lines.append("\(title)\(context.planVersion.map { " (version \($0))" } ?? ""):\n\(plan)")
+        }
+        if let feedback = context.feedback, !feedback.isEmpty { lines.append("Feedback to take into account:\n\(feedback)") }
+        return lines
+    }
+
+    /// The approved folder of the run, or nil after reporting the run as failed.
+    private func approvedFolder(_ id: UUID) async -> URL? {
+        guard let run = runs[id] else { return nil }
+        if let approved = try? allowlist.folder(for: run.repositoryKey), approved.path == run.folder { return approved }
+        mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Folder no longer approved; not started." }
+        await flushOutbox(id)
+        return nil
+    }
+
+    private func launch(_ id: UUID, detail: JobDetail, answers: [Question], resume: Bool) async {
+        guard let run = runs[id], let folder = await approvedFolder(id) else { return }
+        let step = run.job.pipelineStep
+        if step != nil, detail.pipeline?.step != step {
+            mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Pipeline context missing; not started." }
             await flushOutbox(id); return
         }
         mutate(id) { $0.phase = .launching; $0.note = "Launch intent persisted; never replayed automatically." }
-        let tools = run.job.mode == .clarify ? settings.clarifyTools : settings.implementTools
-        let request = AgentRequest(sessionID: run.sessionID, folder: folder, prompt: prompt, resume: resume,
-                                   allowedTools: tools, maxTurns: settings.maxTurns, timeout: settings.timeout)
+        let readOnly = step.map { $0 != .developer && $0 != .tester } ?? (run.job.mode == .clarify)
+        func checked(_ value: String?) -> String? {
+            guard let value, ClaudeProcessAdapter.isAgentValue(value) else {
+                if value != nil { settings.log("Ungültiger Modell- oder Aufwandswert vom Server ignoriert.") }
+                return nil
+            }
+            return value
+        }
+        let request = AgentRequest(sessionID: run.sessionID, folder: folder, prompt: Self.prompt(for: detail, answers: answers),
+                                   resume: resume, allowedTools: readOnly ? settings.clarifyTools : settings.implementTools,
+                                   maxTurns: settings.maxTurns, timeout: settings.timeout, step: step,
+                                   model: checked(detail.pipeline?.model), effort: checked(detail.pipeline?.effort))
         let process: ProcessReference
         do { process = try await provider.start(request) }
         catch {
             mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Provider start failed: \(error)" }
             await flushOutbox(id); return
         }
+        await started(id, process, progress: resume ? "Agent resumed." : "Agent started.")
+    }
+
+    /// Validation: the locally configured command in the approved folder. No agent, no tokens.
+    private func launchValidation(_ id: UUID) async {
+        guard let run = runs[id], let folder = await approvedFolder(id) else { return }
+        guard let command = try? commands.validation(for: run.repositoryKey) else {
+            await finishValidation(id, .failed, "Kein Validierungsbefehl auf dem Runner eingerichtet (`todo-runner validation <Ordner> -- <Programm>`).")
+            return
+        }
+        mutate(id) { $0.phase = .launching; $0.note = "Launch intent persisted; never replayed automatically." }
+        let output = store.directory.appendingPathComponent("validation-output", isDirectory: true)
+            .appendingPathComponent(run.repositoryKey.uuidString.lowercased() + ".log")
+        let process: ProcessReference
+        do {
+            process = try await executor.start(CommandRequest(argv: command.argv, folder: folder, output: output, timeout: command.timeout))
+        } catch {
+            settings.log("Validierungsbefehl nicht gestartet: \(error)")
+            await finishValidation(id, .failed, "Validierungsbefehl konnte nicht gestartet werden (Details im Runner-Log).")
+            return
+        }
+        await started(id, process, progress: "Validierung gestartet.")
+    }
+
+    /// Publishes a validation result. Without a process the run counts as `claimed`, so a restart only resends it.
+    private func finishValidation(_ id: UUID, _ outcome: PipelineOutcome, _ summary: String) async {
+        mutate(id) {
+            if $0.phase == .launching { $0.phase = .claimed }
+            $0.outbox = [.submitStep(RunResult(summary: summary, limitations: ["Die Befehlsausgabe bleibt auf dem Runner."]),
+                                     outcome: outcome, plan: nil)]
+            $0.afterOutbox = .closed
+            $0.note = summary
+        }
+        await flushOutbox(id)
+    }
+
+    private func started(_ id: UUID, _ process: ProcessReference, progress: String) async {
         mutate(id) { $0.process = process }
         guard let after = runs[id], after.phase == .launching else {
             // Stopped or fenced while spawning: kill; the watcher reaps and reports nothing for a fenced run.
-            await provider.stop(process)
+            if let run = runs[id] { await halt(process, of: run) }
             watch(id, process); return
         }
-        mutate(id) { $0.phase = .running; $0.note = "Agent process running." }
+        mutate(id) { $0.phase = .running; $0.note = isCommand($0) ? "Validation command running." : "Agent process running." }
         watch(id, process)
         if let r = runs[id] {
             progressSent[id] = now
-            _ = try? await server.progress(runID: id, generation: r.generation, text: resume ? "Agent resumed." : "Agent started.")
+            _ = try? await server.progress(runID: id, generation: r.generation, text: progress)
         }
     }
 
     private func watch(_ id: UUID, _ process: ProcessReference) {
-        guard watchers[id] == nil else { return }
-        let provider = self.provider
+        guard watchers[id] == nil, let run = runs[id] else { return }
+        let command = isCommand(run)
+        let provider = self.provider, executor = self.executor
+        // Wait without holding the runner: a restarted runner must be able to take over the state folder.
         watchers[id] = Task { [weak self] in
+            if command {
+                let outcome: Result<CommandResult, Error>
+                do { outcome = .success(try await executor.wait(for: process)) } catch { outcome = .failure(error) }
+                await self?.commandEnded(id, process, outcome)
+            } else {
+                let outcome: Result<AgentResult, Error>
+                do { outcome = .success(try await provider.wait(for: process)) } catch { outcome = .failure(error) }
+                await self?.processEnded(id, outcome)
+            }
+        }
+    }
+
+    /// Waits for the process to end and publishes what it produced (startup adoption).
+    private func collect(_ id: UUID, _ process: ProcessReference, command: Bool) async {
+        if command {
+            let outcome: Result<CommandResult, Error>
+            do { outcome = .success(try await executor.wait(for: process)) } catch { outcome = .failure(error) }
+            await commandEnded(id, process, outcome)
+        } else {
             let outcome: Result<AgentResult, Error>
             do { outcome = .success(try await provider.wait(for: process)) } catch { outcome = .failure(error) }
-            await self?.processEnded(id, outcome)
+            await processEnded(id, outcome)
+        }
+    }
+
+    private func commandEnded(_ id: UUID, _ process: ProcessReference, _ outcome: Result<CommandResult, Error>) async {
+        watchers[id] = nil
+        progressSent[id] = nil
+        guard let run = runs[id] else { return }
+        mutate(id) { $0.process = nil }
+        guard run.phase == .running || run.phase == .launching else { return }
+        if run.stopRequested {
+            mutate(id) { $0.outbox = [.stop]; $0.afterOutbox = .closed; $0.note = "Process ended; publishing result." }
+            await flushOutbox(id); return
+        }
+        switch outcome {
+        case .success(let result):
+            let seconds = Int(result.duration.rounded())
+            switch result.exitCode {
+            case 0?: await finishValidation(id, .passed, "Validierung bestanden: Exit-Code 0 nach \(seconds) s.")
+            case let code?: await finishValidation(id, .failed, "Validierung fehlgeschlagen: Exit-Code \(code) nach \(seconds) s.")
+            case nil:
+                await finishValidation(id, .failed, "Validierung ohne Ergebnis: Exit-Code unbekannt (Runner während des Laufs neu gestartet). Bitte wiederholen.")
+            }
+        case .failure(RunnerError.timedOut):
+            let seconds = Int(process.deadline.timeIntervalSince1970 - process.startTime)
+            await finishValidation(id, .failed, "Validierung abgebrochen: Zeitlimit nach \(max(0, seconds)) s überschritten.")
+        case .failure:
+            mutate(id) { $0.outbox = [.fail]; $0.afterOutbox = .closed; $0.note = "Validation command did not finish; publishing failure." }
+            await flushOutbox(id)
         }
     }
 
@@ -541,8 +752,14 @@ public actor Runner {
                                                      nextStep: "Waiting for human answer: \(question)")),
                               .question(prompt: question, options: options)]
                     after = .waitingForAnswer
+                } else if let step = run.job.pipelineStep {
+                    let (verdict, plan, summary) = Self.stepResult(step, result)
+                    outbox = [.checkpoint(Checkpoint(contextRevision: run.contextRevision, sessionReference: reference,
+                                                     nextStep: "Pipeline step \(step.rawValue) finished.")),
+                              .submitStep(RunResult(summary: Self.serverText(summary), limitations: [Self.limitation(run.job.mode)]),
+                                          outcome: verdict, plan: plan)]
                 } else {
-                    let limitation = run.job.mode == .clarify ? "Clarification only; no files changed." : "Runner did not execute checks itself."
+                    let limitation = Self.limitation(run.job.mode)
                     outbox = [.checkpoint(Checkpoint(contextRevision: run.contextRevision, sessionReference: reference,
                                                      nextStep: "Awaiting human review.")),
                               .submit(RunResult(summary: Self.serverText(result.text), limitations: [limitation]))]
@@ -551,6 +768,32 @@ public actor Runner {
         }
         mutate(id) { $0.outbox = outbox; $0.afterOutbox = after; $0.note = "Process ended; publishing result." }
         await flushOutbox(id)
+    }
+
+    private static func limitation(_ mode: JobMode) -> String {
+        mode == .clarify ? "Clarification only; no files changed." : "Runner did not execute checks itself."
+    }
+
+    /// Maps the agent's structured answer to the step outcome. A missing plan or verdict never counts as passed.
+    static func stepResult(_ step: PipelineStep, _ result: AgentResult) -> (PipelineOutcome, String?, String) {
+        switch step {
+        case .planner:
+            guard let plan = result.plan, !plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return (.failed, nil, "Der Planer lieferte keinen Plan.\n" + result.text)
+            }
+            guard plan.count <= 20000 else {
+                return (.failed, nil, "Der Plan ist länger als 20000 Zeichen und wurde nicht übernommen.\n" + result.text)
+            }
+            return (.passed, plan, result.text)
+        case .tester, .review:
+            switch result.verdict {
+            case "passed": return (.passed, nil, result.text)
+            case "failed": return (.failed, nil, result.text)
+            default: return (.failed, nil, "Kein Urteil (verdict) geliefert.\n" + result.text)
+            }
+        case .developer, .validation:
+            return (.passed, nil, result.text)
+        }
     }
 
     /// The server rejects blank text and anything over 4000 characters (400); an oversized or empty agent answer
@@ -567,7 +810,11 @@ public actor Runner {
         guard !detail.questions.isEmpty, !detail.questions.contains(where: { $0.answer == nil }) else { return }
         let fresh = detail.questions.filter { !run.deliveredQuestions.contains($0.id) }
         guard !fresh.isEmpty, runs[id]?.phase == .waitingForAnswer else { return }
-        let prompt = Self.prompt(for: detail, answers: fresh)
+        if let reason = await budgetRefusal() {
+            mutate(id) { $0.note = reason + "; Fortsetzen zurückgestellt." }
+            return
+        }
+        guard runs[id]?.phase == .waitingForAnswer else { return }
         mutate(id) { $0.phase = .resuming; $0.deliveredQuestions += fresh.map(\.id) }
         do { adopt(id, try await server.resume(runID: id, generation: run.generation)) }
         catch let error as RunnerServerError where error.isOwnershipLoss {
@@ -576,7 +823,7 @@ public actor Runner {
             mutate(id) { $0.phase = .waitingForAnswer; $0.deliveredQuestions.removeAll { id in fresh.contains { $0.id == id } } }
             lastError = "Resume deferred: \(error)"; return
         }
-        await launch(id, prompt: prompt, resume: true)
+        await launch(id, detail: detail, answers: fresh, resume: true)
     }
 
     // MARK: Operator actions
@@ -586,7 +833,7 @@ public actor Runner {
         guard let run = runs[id], run.phase != .closed else { throw RunnerError.invalidConfiguration }
         guard run.phase != .needsReconciliation else { throw RunnerError.unknownProcess }
         mutate(id) { $0.stopRequested = true }
-        if let process = run.process { await provider.stop(process) }
+        if let process = run.process { await halt(process, of: run) }
         else if run.phase != .leaseLost {
             mutate(id) { $0.outbox = [.stop]; $0.afterOutbox = .closed }
             await flushOutbox(id)
@@ -596,7 +843,7 @@ public actor Runner {
     /// Operator confirms that no agent process of an ambiguous run exists; frees the server's repository seat.
     public func release(runID id: UUID) async throws {
         guard let run = runs[id], run.phase == .needsReconciliation else { throw RunnerError.invalidConfiguration }
-        if let process = run.process, await provider.reconcile(process) != .exited { throw RunnerError.unknownProcess }
+        if let process = run.process, await observe(process, of: run) != .exited { throw RunnerError.unknownProcess }
         _ = try await server.reconcile(runID: id, generation: run.generation, observation: .stopped)
         mutate(id) { $0.phase = .closed; $0.process = nil; $0.note = "Released by operator after verification." }
     }

@@ -411,8 +411,9 @@ actor RecordingExecutor: CommandExecutor {
 }
 
 @Suite(.serialized) struct PipelineCLITests {
+    let secrets = MemorySecretStore()
     private func cli(_ w: PipelineWorld, _ output: CLITests.Output) -> RunnerCLI {
-        RunnerCLI(context: CLITests().context(w.f, output, server: w.server))
+        RunnerCLI(context: CLITests().context(w.f, output, server: w.server, secrets: secrets))
     }
 
     @Test func validationCommandIsStoredLocallyAndCleared() async throws {

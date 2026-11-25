@@ -130,6 +130,9 @@ public struct RunnerCLI: Sendable {
       doctor                             Einrichtung prüfen (claude-CLI, Kopplung, Server, Ordner)
       launchd-plist [--label L]          LaunchAgent-Plist ausgeben (wird nicht installiert)
       release <Lauf-UUID>                Unklaren Lauf nach manueller Prüfung freigeben
+      validation <Repository-UUID|Ordner> [--timeout Sekunden] -- <Programm> [Argumente…]
+                                         Validierungsbefehl der Pipeline lokal speichern (ohne Shell; --clear entfernt ihn)
+      budget -- <Programm> [Argumente…]  Kontingent-Bremse: JSON-Befehl vor jedem Agentenstart (--clear entfernt sie)
       voice-setup [--model M]            Sprach-Engine einrichten: lädt das WhisperKit-Modell EINMALIG herunter (einziger Netzzugriff dieser Art)
       voice-setup --http <URL>           Externe Engine auf Loopback (z. B. VoiceStudio) nutzen; API-Key aus TODO_RUNNER_VOICE_KEY
       voice-status                       Sprach-Fähigkeit prüfen (Modell, deutsche Stimme)
@@ -148,6 +151,7 @@ public struct RunnerCLI: Sendable {
         case RunnerError.alreadyOpen: return "Ein anderer Runner nutzt diesen Zustandsordner bereits."
         case RunnerError.invalidConfiguration: return "Ungültige Eingabe oder Konfiguration. `todo-runner` ohne Argumente zeigt die Hilfe."
         case RunnerError.unapprovedFolder: return "Ordner existiert nicht oder ist kein freigegebener Ordner."
+        case RunnerError.unknownProgram: return "Programm nicht gefunden. Bitte den vollständigen Pfad angeben."
         case RunnerError.unknownProcess: return "Der Prozess des Laufs ist nicht eindeutig beendet; Freigabe nicht möglich."
         case DecodingError.dataCorrupted, DecodingError.keyNotFound: return "Konfigurationsdatei ist beschädigt. Neu koppeln mit `todo-runner pair`."
         case SecretStoreError.keychain(let status): return "Schlüsselbund-Fehler (Status \(status))."
@@ -206,6 +210,8 @@ public struct RunnerCLI: Sendable {
             for binding in bindings {
                 context.out("\(binding.id.uuidString.lowercased())\t\(binding.repositoryKey.uuidString.lowercased())\t\(binding.label)")
             }
+        case "validation": try configureValidation(Array(args.dropFirst()))
+        case "budget": try configureBudget(Array(args.dropFirst()))
         case "status": try status(json: args.contains("--json"))
         case "run":
             let config = try loadConfig()
@@ -265,10 +271,95 @@ public struct RunnerCLI: Sendable {
         return 0
     }
 
+    // MARK: local commands
+
+    var commands: LocalCommands { LocalCommands(directory: context.directory) }
+
+    /// Bare program names are resolved now, so that a launchd runner with its short PATH starts the same program.
+    private func resolved(_ program: String) throws -> String {
+        guard !program.contains("/") else { return program }
+        guard let path = ProcessCommandExecutor.search(program, path: context.environment["PATH"]) else { throw RunnerError.unknownProgram }
+        return path
+    }
+
+    private func configureValidation(_ args: [String]) throws {
+        guard let target = args.first else { throw RunnerError.invalidConfiguration }
+        var command: LocalCommand?
+        if Array(args.dropFirst()) != ["--clear"] {
+            guard let separator = args.firstIndex(of: "--"), separator >= 1, separator + 1 < args.count else { throw RunnerError.invalidConfiguration }
+            var timeout = LocalCommands.defaultValidationTimeout
+            let options = Array(args[1..<separator])
+            if !options.isEmpty {
+                guard options.count == 2, options[0] == "--timeout", let seconds = Double(options[1]), seconds > 0, seconds.isFinite else {
+                    throw RunnerError.invalidConfiguration
+                }
+                timeout = seconds
+            }
+            var argv = Array(args[(separator + 1)...])
+            argv[0] = try resolved(argv[0])
+            command = LocalCommand(argv: argv, timeout: timeout)
+        }
+        let entries = try allowlist.entries()
+        let key: UUID
+        if let id = UUID(uuidString: target) {
+            guard entries[id] != nil else { throw RunnerError.unapprovedFolder }
+            key = id
+        } else {
+            let path = FolderAllowlist.canonical(URL(fileURLWithPath: target)).path
+            guard let entry = entries.first(where: { $0.value == path }) else { throw RunnerError.unapprovedFolder }
+            key = entry.key
+        }
+        try commands.setValidation(command, for: key)
+        context.out(command == nil ? "Validierungsbefehl entfernt." : "Validierungsbefehl lokal gespeichert (verlässt diesen Mac nicht).")
+    }
+
+    private func configureBudget(_ args: [String]) throws {
+        if args == ["--clear"] {
+            try commands.setBudget(nil)
+            context.out("Kontingent-Bremse entfernt.")
+            return
+        }
+        guard args.first == "--", args.count > 1 else { throw RunnerError.invalidConfiguration }
+        var argv = Array(args.dropFirst())
+        argv[0] = try resolved(argv[0])
+        // The command runs in the state folder; a relative program path means "relative to here".
+        if !argv[0].hasPrefix("/") { argv[0] = URL(fileURLWithPath: argv[0]).standardizedFileURL.path }
+        try commands.setBudget(argv)
+        context.out("Kontingent-Bremse lokal gespeichert. Argumente mit Pfaden bitte absolut angeben.")
+    }
+
+    private static func commandText(_ command: LocalCommand) -> String {
+        "\(command.argv.joined(separator: " ")) (Zeitlimit \(Int(command.timeout.rounded(.up))) s)"
+    }
+
+    private func commandChecks(entries: [UUID: String]) -> [DoctorCheck] {
+        var checks: [DoctorCheck] = []
+        func executable(_ program: String, in folder: String?) -> Bool {
+            let path = program.hasPrefix("/") ? program : (folder ?? context.directory.path) + "/" + program
+            return FileManager.default.isExecutableFile(atPath: path)
+        }
+        do {
+            if let argv = try commands.budget() {
+                checks.append(DoctorCheck(level: executable(argv.first ?? "", in: nil) ? .ok : .warning, title: "Kontingent-Bremse",
+                                          detail: argv.joined(separator: " ")))
+            }
+            for (key, command) in try commands.validations().sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+                let folder = entries[key]
+                let usable = folder != nil && executable(command.argv.first ?? "", in: folder)
+                checks.append(DoctorCheck(level: usable ? .ok : .warning, title: "Validierung",
+                                          detail: "\(folder ?? key.uuidString.lowercased()): \(Self.commandText(command))"))
+            }
+        } catch {
+            checks.append(DoctorCheck(level: .error, title: "Befehle",
+                                      detail: "commands.json ist beschädigt; Agentenaufträge werden bei eingerichteter Bremse nicht angenommen."))
+        }
+        return checks
+    }
+
     // MARK: status
 
     static func line(_ run: LocalRun) -> String {
-        "\(run.runID.uuidString.prefix(8).lowercased())  \(phaseText(run.phase))  \(run.job.mode.rawValue)  \(URL(fileURLWithPath: run.folder).lastPathComponent)  \(run.note)"
+        "\(run.runID.uuidString.prefix(8).lowercased())  \(phaseText(run.phase))  \(run.job.pipelineStep?.rawValue ?? run.job.mode.rawValue)  \(URL(fileURLWithPath: run.folder).lastPathComponent)  \(run.note)"
     }
 
     static func phaseText(_ phase: RunPhase) -> String {
@@ -301,6 +392,12 @@ public struct RunnerCLI: Sendable {
         let open = runs.filter { $0.phase != .closed }
         context.out("Freigegebene Ordner: \((try? allowlist.entries().count) ?? 0). Offene Läufe: \(open.count), beendet: \(runs.count - open.count).")
         open.forEach { context.out("  " + Self.line($0)) }
+        if let budget = try commands.budget() { context.out("Kontingent-Bremse: \(budget.joined(separator: " "))") }
+        let entries = (try? allowlist.entries()) ?? [:]
+        for (key, command) in try commands.validations().sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            let name = entries[key].map { URL(fileURLWithPath: $0).lastPathComponent } ?? key.uuidString.lowercased()
+            context.out("Validierung (\(name)): \(Self.commandText(command))")
+        }
     }
 
     // MARK: doctor
@@ -360,6 +457,8 @@ public struct RunnerCLI: Sendable {
         for binding in bindings where entries[binding.repositoryKey] == nil {
             add(.warning, "Binding", "\"\(binding.label)\" hat keinen freigegebenen Ordner; Aufträge dafür werden nicht angenommen.")
         }
+
+        checks += commandChecks(entries: entries)
 
         // Voice (optional)
         if VoiceConfig.exists(in: context.directory), let voiceConfig = try? VoiceConfig.load(from: context.directory),
