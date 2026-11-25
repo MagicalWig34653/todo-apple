@@ -2,18 +2,113 @@ import Foundation
 
 // MARK: Planning (contracts/planning-ext.yaml)
 
+/// `PUT` replaces the whole rule, so everything the server sent goes back to it: fields this build does not know are kept
+/// in `unknownFields` (contract planning-ext 1.3.0, card A18F3FF7). nil fields are not sent.
 public struct RecurrenceRule: Codable, Sendable, Equatable {
     public enum Frequency: String, Codable, Sendable, CaseIterable { case daily, weekly, monthly }
+
+    /// What the next date counts from. Not an enum: a value from a newer server must survive a round trip.
+    public struct Basis: RawRepresentable, Codable, Sendable, Hashable {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let due = Basis(rawValue: "due")
+        public static let completion = Basis(rawValue: "completion")
+    }
+
     public var frequency: Frequency
     public var interval: Int
     public var timeZone: String
     public var until: Date?
+    /// ISO weekdays, 1 = Monday ... 7 = Sunday; weekly rules only.
+    public var weekdays: [Int]?
+    /// nil = `due`.
+    public var basis: Basis?
+    /// 1 ... 31, short months take their last day; monthly rules only.
+    public var monthDay: Int?
+    public var unknownFields: [String: JSONValue]
 
-    public init(frequency: Frequency, interval: Int = 1, timeZone: String = TimeZone.current.identifier, until: Date? = nil) {
+    public init(
+        frequency: Frequency, interval: Int = 1, timeZone: String = TimeZone.current.identifier, until: Date? = nil,
+        weekdays: [Int]? = nil, basis: Basis? = nil, monthDay: Int? = nil, unknownFields: [String: JSONValue] = [:]
+    ) {
         self.frequency = frequency
         self.interval = interval
         self.timeZone = timeZone
         self.until = until
+        self.weekdays = weekdays
+        self.basis = basis
+        self.monthDay = monthDay
+        self.unknownFields = unknownFields
+    }
+
+    /// The rule after another frequency was picked: what still fits stays. The interval counted the old unit and resets.
+    public func changing(frequency new: Frequency) -> RecurrenceRule {
+        guard new != frequency else { return self }
+        var rule = self
+        rule.frequency = new
+        rule.interval = 1
+        if new != .weekly { rule.weekdays = nil }
+        if new != .monthly { rule.monthDay = nil }
+        return rule
+    }
+
+    /// Switches one weekday of a weekly rule; the list stays sorted and is never empty.
+    public mutating func toggle(weekday: Int) {
+        guard frequency == .weekly, (1...7).contains(weekday) else { return }
+        var days = Set(weekdays ?? [])
+        if days.remove(weekday) == nil { days.insert(weekday) }
+        weekdays = days.isEmpty ? nil : days.sorted()
+    }
+
+    /// `due` is the default and is not sent, so plain rules stay as they were.
+    public mutating func set(basis new: Basis) { basis = new == .due ? nil : new }
+
+    /// nil = the day follows the due date. Values outside 1 ... 31 are ignored.
+    public mutating func set(monthDay new: Int?) {
+        guard frequency == .monthly else { return }
+        if let new, !(1...31).contains(new) { return }
+        monthDay = new
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case frequency, interval, timeZone, until, weekdays, basis, monthDay }
+
+    private struct AnyKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        frequency = try c.decode(Frequency.self, forKey: .frequency)
+        interval = try c.decode(Int.self, forKey: .interval)
+        timeZone = try c.decode(String.self, forKey: .timeZone)
+        until = try c.decodeIfPresent(Date.self, forKey: .until)
+        weekdays = try c.decodeIfPresent([Int].self, forKey: .weekdays)
+        basis = try c.decodeIfPresent(Basis.self, forKey: .basis)
+        monthDay = try c.decodeIfPresent(Int.self, forKey: .monthDay)
+        let all = try decoder.container(keyedBy: AnyKey.self)
+        var unknown: [String: JSONValue] = [:]
+        for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
+            unknown[key.stringValue] = try all.decode(JSONValue.self, forKey: key)
+        }
+        unknownFields = unknown
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var extra = encoder.container(keyedBy: AnyKey.self)
+        for (key, value) in unknownFields where CodingKeys(stringValue: key) == nil {
+            try extra.encode(value, forKey: AnyKey(stringValue: key))
+        }
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(frequency, forKey: .frequency)
+        try c.encode(interval, forKey: .interval)
+        try c.encode(timeZone, forKey: .timeZone)
+        try c.encodeIfPresent(until, forKey: .until)
+        try c.encodeIfPresent(weekdays, forKey: .weekdays)
+        try c.encodeIfPresent(basis, forKey: .basis)
+        try c.encodeIfPresent(monthDay, forKey: .monthDay)
     }
 }
 
