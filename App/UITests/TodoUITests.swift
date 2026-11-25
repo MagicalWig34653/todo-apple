@@ -309,6 +309,64 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Steuerzentrale"].waitForExistence(timeout: 5), "sidebar back after closing the detail")
     }
 
+    /// iPad portrait: with the detail open the panel never lies over the list, and the sidebar makes room for it
+    /// (card 1A952C26). Once the sidebar button had been used, the system kept the sidebar beside the open panel, also
+    /// after the next start of the app.
+    func testPadPortraitDetailNeverCoversList() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        XCUIDevice.shared.orientation = .portrait
+        let sidebarEntry = app.staticTexts["Steuerzentrale"].firstMatch
+        func tapSidebarButton() {
+            let button = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Seitenleiste'")).firstMatch
+            XCTAssertTrue(button.waitForExistence(timeout: 10), "sidebar button")
+            button.tap()
+            _ = XCTWaiter.wait(for: [XCTestExpectation(description: "sidebar settled")], timeout: 1.5)
+        }
+        // The user's own choice: hide the sidebar, show it again.
+        if !sidebarEntry.waitForExistence(timeout: 5) { tapSidebarButton() }
+        tapSidebarButton()
+        XCTAssertTrue(sidebarEntry.waitForNonExistence(timeout: 5), "sidebar hidden by its button")
+        tapSidebarButton()
+        XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 5), "sidebar shown by its button")
+
+        func openAndCheck(_ context: String) {
+            openSeededDetail()
+            _ = XCTWaiter.wait(for: [XCTestExpectation(description: "panel settled")], timeout: 1.5)
+            attach("pad-portrait-\(context)")
+            // "Fertig" is the leftmost control of the panel. The add button and "Auf heute legen" sit at the list's
+            // trailing edge: left of the panel only if the list got its own room.
+            let panelEdge = app.buttons["Fertig"].frame.minX
+            let add = app.buttons["quickAddButton"].frame
+            XCTAssertLessThanOrEqual(add.maxX, panelEdge, "\(context): add button under the panel (\(add))")
+            let move = app.buttons["Auf heute legen"].firstMatch
+            if move.exists { XCTAssertLessThanOrEqual(move.frame.maxX, panelEdge, "\(context): list header under the panel (\(move.frame))") }
+            XCTAssertFalse(sidebarEntry.exists, "\(context): sidebar still open beside list and panel")
+        }
+        func closeAndCheck(_ context: String) {
+            app.buttons["Fertig"].tap()
+            XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\(context): \"Fertig\" closes the detail")
+            XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 5), "\(context): sidebar back after closing")
+        }
+        XCTAssertLessThan(app.windows.firstMatch.frame.width, app.windows.firstMatch.frame.height, "portrait")
+        openAndCheck("first")
+        closeAndCheck("first")
+        openAndCheck("again")
+        // The sidebar button still brings the sidebar over the open detail, and the list is free again once it goes.
+        tapSidebarButton()
+        XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 5), "sidebar on request while the detail is open")
+        attach("pad-portrait-sidebar-on-request")
+        tapSidebarButton()
+        XCTAssertTrue(sidebarEntry.waitForNonExistence(timeout: 5), "sidebar hidden again")
+        XCTAssertLessThanOrEqual(app.buttons["quickAddButton"].frame.maxX, app.buttons["Fertig"].frame.minX, "list free after the sidebar went")
+        closeAndCheck("again")
+        // The choice survives a restart of the app.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 30))
+        openAndCheck("relaunch")
+        closeAndCheck("relaunch")
+    }
+
     /// iPad: text typed into the detail but not sent (title, note, subtask, label, message) is still there after the swap
     /// to the sheet and back; title and note are also saved by the view disappearing.
     func testPadDetailKeepsUnsentInputAcrossTextSizeChange() throws {
