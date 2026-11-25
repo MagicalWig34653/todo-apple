@@ -136,7 +136,11 @@ struct SyncStatusBar: View {
 
 // MARK: iPad / Mac: sidebar + detail
 
-private enum InspectorMetrics { static let min: CGFloat = 340, ideal: CGFloat = 420, max: CGFloat = 560 }
+private enum InspectorMetrics {
+    static let min: CGFloat = 340, ideal: CGFloat = 420, max: CGFloat = 560
+    /// Width the task list needs beside sidebar and panel; below that the sidebar makes room.
+    static let listMin: CGFloat = 360
+}
 
 struct SplitLayout: View {
     private var isIOS: Bool { #if os(iOS)
@@ -154,8 +158,19 @@ struct SplitLayout: View {
     /// False while `MainView` shows the detail as a sheet instead (iPad with accessibility text sizes).
     private var showsInspector: Bool { !(isIOS && typeSize.isAccessibilitySize) }
 
+    @State private var columns = NavigationSplitViewVisibility.automatic
+    /// What `columns` was before the open panel hid the sidebar; nil while nothing is hidden for the panel.
+    @State private var columnsBeforePanel: NavigationSplitViewVisibility?
+    @State private var width: CGFloat = 0
+
+    /// iPad: the open panel leaves no room for sidebar and list (portrait).
+    private var panelNeedsSidebarRoom: Bool {
+        isPad && showsInspector && model.path.last != nil && width > 0
+            && width < min(sidebarIdeal, 400) + InspectorMetrics.listMin + InspectorMetrics.ideal
+    }
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             SidebarList(linking: false)
                 .navigationTitle("app.title")
                 .navigationSplitViewColumnWidth(
@@ -168,12 +183,22 @@ struct SplitLayout: View {
             .safeAreaInset(edge: .bottom) { SyncStatusBar() }
             .modifier(DetailInspector(placed: !isPad, shows: showsInspector))
         }
-        // iPad: on the split view, not on its detail column. There the column's navigation bar (full width, large title)
-        // lay on top of the inspector panel and swallowed taps on its upper part: one tap did not focus the title.
-        .modifier(DetailInspector(placed: isPad, shows: showsInspector))
+        .modifier(PadDetailColumn(placed: isPad, shows: showsInspector,
+                                  width: width < InspectorMetrics.ideal + InspectorMetrics.listMin ? InspectorMetrics.min : InspectorMetrics.ideal))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onChange(of: panelNeedsSidebarRoom, initial: true) { _, needsRoom in
+            if needsRoom {
+                columnsBeforePanel = columns
+                columns = .detailOnly
+            } else if let before = columnsBeforePanel {
+                // Going back to `.automatic` leaves the sidebar hidden; name it.
+                columns = before == .automatic ? .all : before
+                columnsBeforePanel = nil
+            }
+        }
     }
 
-    /// Constant per device, so the branch in `DetailInspector` never changes view identity.
+    /// Constant per device, so the branches in `DetailInspector` and `PadDetailColumn` never change view identity.
     private var isPad: Bool {
         #if os(iOS)
         UIDevice.current.userInterfaceIdiom == .pad
@@ -183,7 +208,33 @@ struct SplitLayout: View {
     }
 }
 
-/// The open task (`model.path.last`) beside the list.
+/// iPad: the open task as a column of its own beside the whole split view, so the list is laid out next to it and can
+/// never lie under it. Not the system inspector: on the split view it lay over the list once the sidebar button had been
+/// used, and on the detail column that column's navigation bar swallowed taps on the panel's upper part.
+private struct PadDetailColumn: ViewModifier {
+    let placed: Bool
+    let shows: Bool
+    let width: CGFloat
+    @Environment(AppModel.self) private var model
+
+    func body(content: Content) -> some View {
+        if placed {
+            HStack(spacing: 0) {
+                content
+                if shows, let task = model.path.last {
+                    Divider().ignoresSafeArea()
+                    NavigationStack { TaskDetailView(task: task) }
+                        .id(task.id)
+                        .frame(width: width)
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Mac and wide iPhone: the open task (`model.path.last`) beside the list.
 private struct DetailInspector: ViewModifier {
     /// False: this is not the place for the inspector on this device, the content stays untouched.
     let placed: Bool

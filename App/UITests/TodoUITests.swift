@@ -317,9 +317,10 @@ final class TodoUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let sidebarEntry = app.staticTexts["Steuerzentrale"].firstMatch
         func tapSidebarButton() {
-            let button = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Seitenleiste'")).firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 10), "sidebar button")
-            button.tap()
+            let buttons = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Seitenleiste'"))
+            XCTAssertTrue(buttons.firstMatch.waitForExistence(timeout: 10), "sidebar button")
+            // With the sidebar over the list the list's own button lies underneath it: take the one on top.
+            (buttons.allElementsBoundByIndex.last { $0.isHittable } ?? buttons.firstMatch).tap()
             _ = XCTWaiter.wait(for: [XCTestExpectation(description: "sidebar settled")], timeout: 1.5)
         }
         // The user's own choice: hide the sidebar, show it again.
