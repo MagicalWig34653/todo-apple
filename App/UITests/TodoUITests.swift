@@ -286,6 +286,24 @@ final class TodoUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" still closes the detail")
     }
 
+    /// iPad: one tap on the title of the open detail focuses it, and typing goes into the title (card 9E107820).
+    func testPadSingleTapFocusesTitle() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        openSeededDetail()
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "panel settled")], timeout: 2)
+        let field = element("task.title")
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "title exists")
+        XCTAssertFalse(hasFocus(field), "title not focused before the tap")
+        attach("titel-1-vor-tipp")
+        field.tap()
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "focus")], timeout: 1.5)
+        attach("titel-2-nach-tipp")
+        XCTAssertTrue(hasFocus(field), "one tap focuses the title")
+        let stamp = " Tipp\(Int(Date().timeIntervalSince1970) % 100000)"
+        field.typeText(stamp)
+        XCTAssertTrue(((field.value as? String) ?? "").contains(stamp.trimmingCharacters(in: .whitespaces)), "typed into the title (now \"\(field.value as? String ?? "nil")\")")
+    }
+
     /// iPad: text typed into the detail but not sent (title, note, subtask, label, message) is still there after the swap
     /// to the sheet and back; title and note are also saved by the view disappearing.
     func testPadDetailKeepsUnsentInputAcrossTextSizeChange() throws {
@@ -301,15 +319,7 @@ final class TodoUITests: XCTestCase {
         for draft in drafts {
             let field = element(draft.id)
             XCTAssertTrue(field.waitForExistence(timeout: 10), "\(draft.id) exists")
-            if draft.id == "task.title" {
-                // Taps and a double tap on the title do not focus it (3 of 3 fresh launches, iPad Pro 13", iOS 27.0); a long
-                // press does. Observation for the card, not investigated further.
-                let gestures: [() -> Void] = [{ field.tap() }, { field.tap() }, { field.doubleTap() }, { field.press(forDuration: 0.6) }]
-                for gesture in gestures where !hasFocus(field) {
-                    gesture()
-                    _ = XCTWaiter.wait(for: [XCTestExpectation(description: "focus")], timeout: 0.8)
-                }
-            } else { focus(field) }
+            focus(field)
             XCTAssertTrue(hasFocus(field), "\(draft.id) has keyboard focus")
             field.typeText(draft.text)   // no Return: nothing is sent or submitted
         }
