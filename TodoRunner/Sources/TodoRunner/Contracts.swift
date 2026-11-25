@@ -11,6 +11,27 @@ public enum JobState: String, Codable, Sendable {
 
 public enum JobMode: String, Codable, Sendable { case clarify, implement }
 
+/// Step of a server pipeline execution (agents.yaml 1.3.0). Absent on manual jobs and against older servers.
+public enum PipelineStep: String, Codable, Sendable { case planner, developer, validation, tester, review }
+
+public enum PipelineOutcome: String, Codable, Sendable { case passed, failed }
+
+/// `GET /v1/runner/jobs/{id}` of a pipeline job. Carries texts and model names only, never commands or paths.
+public struct PipelineContext: Codable, Sendable, Equatable {
+    public var step: PipelineStep
+    public var planBody: String?
+    public var planVersion: Int?
+    public var feedback: String?
+    public var model: String?
+    public var effort: String?
+    public var resumeSessionReference: String?
+    public init(step: PipelineStep, planBody: String? = nil, planVersion: Int? = nil, feedback: String? = nil,
+                model: String? = nil, effort: String? = nil, resumeSessionReference: String? = nil) {
+        self.step = step; self.planBody = planBody; self.planVersion = planVersion; self.feedback = feedback
+        self.model = model; self.effort = effort; self.resumeSessionReference = resumeSessionReference
+    }
+}
+
 public struct Checkpoint: Codable, Sendable, Equatable {
     public var contextRevision: Int
     public var sessionReference: String
@@ -45,13 +66,17 @@ public struct Job: Codable, Sendable, Equatable {
     public var state: JobState
     public var progress: String
     public var result: RunResult?
+    public var pipelineStep: PipelineStep?
+    public var pipelineExecutionID: UUID?
     public init(id: UUID = UUID(), taskID: UUID = UUID(), projectID: UUID = UUID(), bindingID: UUID,
                 requestedBy: UUID = UUID(), previousJobID: UUID? = nil, taskRevision: Int = 1,
                 mode: JobMode = .implement, scope: String, state: JobState = .queued,
-                progress: String = "", result: RunResult? = nil) {
+                progress: String = "", result: RunResult? = nil,
+                pipelineStep: PipelineStep? = nil, pipelineExecutionID: UUID? = nil) {
         self.id = id; self.taskID = taskID; self.projectID = projectID; self.bindingID = bindingID
         self.requestedBy = requestedBy; self.previousJobID = previousJobID; self.taskRevision = taskRevision
         self.mode = mode; self.scope = scope; self.state = state; self.progress = progress; self.result = result
+        self.pipelineStep = pipelineStep; self.pipelineExecutionID = pipelineExecutionID
     }
 }
 
@@ -122,8 +147,9 @@ public struct JobDetail: Codable, Sendable, Equatable {
     public var task: TaskInfo
     public var questions: [Question]
     public var events: [JobEvent]
-    public init(job: Job, task: TaskInfo, questions: [Question] = [], events: [JobEvent] = []) {
-        self.job = job; self.task = task; self.questions = questions; self.events = events
+    public var pipeline: PipelineContext?
+    public init(job: Job, task: TaskInfo, questions: [Question] = [], events: [JobEvent] = [], pipeline: PipelineContext? = nil) {
+        self.job = job; self.task = task; self.questions = questions; self.events = events; self.pipeline = pipeline
     }
 }
 

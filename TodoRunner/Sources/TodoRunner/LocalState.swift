@@ -26,6 +26,7 @@ public enum OutboxStep: Codable, Sendable, Equatable {
     case checkpoint(Checkpoint)
     case question(prompt: String, options: [String])
     case submit(RunResult)
+    case submitStep(RunResult, outcome: PipelineOutcome, plan: String?)
     case fail
     case stop
 }

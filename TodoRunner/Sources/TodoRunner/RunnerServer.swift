@@ -35,6 +35,11 @@ public protocol RunnerServer: Sendable {
     func question(runID: UUID, generation: Int, prompt: String, options: [String]) async throws -> Run
     func resume(runID: UUID, generation: Int) async throws -> Run
     func submit(runID: UUID, generation: Int, result: RunResult) async throws -> Run
+    /// Result of a pipeline step: `outcome` is mandatory, `plan` accompanies a passed planner step.
+    func submitStep(runID: UUID, generation: Int, result: RunResult, outcome: PipelineOutcome, plan: String?) async throws -> Run
+    /// Explains on the board why a queued job of this device is not claimed.
+    @discardableResult
+    func hold(jobID: UUID, reason: String) async throws -> Job
     func stop(runID: UUID, generation: Int) async throws -> Run
     func fail(runID: UUID, generation: Int) async throws -> Run
     func reconcile(runID: UUID, generation: Int, observation: ReconcileObservation) async throws -> Run
@@ -147,6 +152,10 @@ public struct URLSessionRunnerServer: RunnerServer {
         struct Body: Encodable { var generation: Int; var result: RunResult }
         return try await write(runID, "submit", Body(generation: generation, result: result))
     }
+    public func submitStep(runID: UUID, generation: Int, result: RunResult, outcome: PipelineOutcome, plan: String?) async throws -> Run {
+        throw RunnerServerError.invalidResponse
+    }
+    public func hold(jobID: UUID, reason: String) async throws -> Job { throw RunnerServerError.invalidResponse }
     public func stop(runID: UUID, generation: Int) async throws -> Run {
         try await write(runID, "stop", Gen(generation: generation))
     }

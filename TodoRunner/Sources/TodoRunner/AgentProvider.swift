@@ -8,10 +8,16 @@ public struct AgentRequest: Sendable {
     public var allowedTools: [String]
     public var maxTurns: Int
     public var timeout: TimeInterval
+    /// Pipeline step (nil for manual jobs): selects the structured output the agent must deliver.
+    public var step: PipelineStep?
+    public var model: String?
+    public var effort: String?
     public init(sessionID: UUID, folder: URL, prompt: String, resume: Bool = false,
-                allowedTools: [String] = ["Read"], maxTurns: Int = 5, timeout: TimeInterval = 600) {
+                allowedTools: [String] = ["Read"], maxTurns: Int = 5, timeout: TimeInterval = 600,
+                step: PipelineStep? = nil, model: String? = nil, effort: String? = nil) {
         self.sessionID = sessionID; self.folder = folder; self.prompt = prompt; self.resume = resume
         self.allowedTools = allowedTools; self.maxTurns = maxTurns; self.timeout = timeout
+        self.step = step; self.model = model; self.effort = effort
     }
 }
 
@@ -37,9 +43,13 @@ public struct AgentResult: Codable, Sendable, Equatable {
     public var options: [String]
     public var exitStatus: Int32
     public var isError: Bool
-    public init(text: String, question: String? = nil, options: [String] = [], exitStatus: Int32 = 0, isError: Bool = false) {
+    /// Structured pipeline fields (planner: `plan`; tester and review: `verdict`).
+    public var plan: String?
+    public var verdict: String?
+    public init(text: String, question: String? = nil, options: [String] = [], exitStatus: Int32 = 0, isError: Bool = false,
+                plan: String? = nil, verdict: String? = nil) {
         self.text = text; self.question = question; self.options = options
-        self.exitStatus = exitStatus; self.isError = isError
+        self.exitStatus = exitStatus; self.isError = isError; self.plan = plan; self.verdict = verdict
     }
 }
 

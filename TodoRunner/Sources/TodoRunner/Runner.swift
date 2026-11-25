@@ -5,6 +5,8 @@ public struct RunnerSettings: Sendable {
     public var timeout: TimeInterval = 1800
     public var clarifyTools = ["Read", "Glob", "Grep"]
     public var implementTools = ["Read", "Glob", "Grep", "Edit", "Write"]
+    /// Time limit of the local budget command; exceeding it forbids new agent work.
+    public var budgetTimeout: TimeInterval = 30
     public var now: @Sendable () -> Date = { Date() }
     /// Minimum time between two progress messages of one run; tool steps in between are summarised.
     public var progressInterval: TimeInterval = 30
@@ -61,6 +63,8 @@ public actor Runner {
     private let provider: any AgentProvider
     private let store: LocalStateStore
     private let allowlist: FolderAllowlist
+    private let commands: LocalCommands
+    private let executor: any CommandExecutor
     private let settings: RunnerSettings
     private var runs: [UUID: LocalRun]
     private var watchers: [UUID: Task<Void, Never>] = [:]
@@ -78,9 +82,11 @@ public actor Runner {
     private var activityHeld = false
 
     public init(server: any RunnerServer, provider: any AgentProvider, store: LocalStateStore,
-                allowlist: FolderAllowlist, settings: RunnerSettings = RunnerSettings()) throws {
+                allowlist: FolderAllowlist, settings: RunnerSettings = RunnerSettings(),
+                commands: LocalCommands? = nil, executor: any CommandExecutor = ProcessCommandExecutor()) throws {
         self.server = server; self.provider = provider; self.store = store
         self.allowlist = allowlist; self.settings = settings
+        self.commands = commands ?? LocalCommands(directory: store.directory); self.executor = executor
         let loaded = try store.load()
         runs = Dictionary(uniqueKeysWithValues: loaded.map { ($0.runID, $0) })
         startupPending = Set(loaded.filter { $0.phase != .closed }.map(\.runID))
@@ -397,6 +403,8 @@ public actor Runner {
                 case .question(let prompt, let options):
                     remote = try await server.question(runID: id, generation: run.generation, prompt: prompt, options: options)
                 case .submit(let result): remote = try await server.submit(runID: id, generation: run.generation, result: result)
+                case .submitStep(let result, let outcome, let plan):
+                    remote = try await server.submitStep(runID: id, generation: run.generation, result: result, outcome: outcome, plan: plan)
                 case .fail: remote = try await server.fail(runID: id, generation: run.generation)
                 case .stop: remote = try await server.stop(runID: id, generation: run.generation)
                 }

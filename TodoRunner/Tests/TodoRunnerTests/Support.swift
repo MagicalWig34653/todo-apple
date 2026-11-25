@@ -42,6 +42,24 @@ actor FakeServer: RunnerServer {
     var asked: [(String, [String])] = []
     var checkpoints: [Checkpoint] = []
     var progressTexts: [String] = []
+    var pipelines: [UUID: PipelineContext] = [:]
+    var stepSubmissions: [(result: RunResult, outcome: PipelineOutcome, plan: String?)] = []
+    var holds: [(job: UUID, reason: String)] = []
+
+    func set(pipeline: PipelineContext, for jobID: UUID) { pipelines[jobID] = pipeline }
+    func submitStep(runID: UUID, generation: Int, result: RunResult, outcome: PipelineOutcome, plan: String?) async throws -> Run {
+        let r = try write("submitStep", runID, generation, state: outcome == .passed ? .succeeded : .failed, end: true)
+        stepSubmissions.append((result, outcome, plan))
+        return r
+    }
+    func hold(jobID: UUID, reason: String) async throws -> Job {
+        record("hold")
+        if let e = writeErrors["hold"] { throw e }
+        guard let i = jobs.firstIndex(where: { $0.id == jobID && $0.state == .queued }) else { throw RunnerServerError.conflict("job_not_queued") }
+        jobs[i].progress = reason
+        holds.append((jobID, reason))
+        return jobs[i]
+    }
 
     func add(job: Job, binding: Binding) { jobs.append(job); if !bindings.contains(where: { $0.id == binding.id }) { bindings.append(binding) } }
     func set(heartbeatError e: RunnerServerError?) { heartbeatError = e }
@@ -68,7 +86,7 @@ actor FakeServer: RunnerServer {
         record("detail")
         let job = jobs.first { $0.id == jobID } ?? runsByID.values.first { $0.job.id == jobID }!.job
         return JobDetail(job: job, task: TaskInfo(id: job.taskID, title: "Fix the thing", description: "Details here", version: job.taskRevision),
-                         questions: questions)
+                         questions: questions, pipeline: pipelines[jobID])
     }
     func claim(jobID: UUID) async throws -> Run {
         record("claim")
