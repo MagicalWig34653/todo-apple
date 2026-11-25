@@ -138,7 +138,7 @@ struct SyncStatusBar: View {
 
 private enum InspectorMetrics {
     static let min: CGFloat = 340, ideal: CGFloat = 420, max: CGFloat = 560
-    /// Width the task list needs beside sidebar and panel; below that the sidebar makes room.
+    /// Width the task list should keep beside the iPad's detail column; on narrower screens the column takes `min`.
     static let listMin: CGFloat = 360
 }
 
@@ -158,19 +158,11 @@ struct SplitLayout: View {
     /// False while `MainView` shows the detail as a sheet instead (iPad with accessibility text sizes).
     private var showsInspector: Bool { !(isIOS && typeSize.isAccessibilitySize) }
 
-    @State private var columns = NavigationSplitViewVisibility.automatic
-    /// What `columns` was before the open panel hid the sidebar; nil while nothing is hidden for the panel.
-    @State private var columnsBeforePanel: NavigationSplitViewVisibility?
+    /// Whole width, for the iPad's detail column.
     @State private var width: CGFloat = 0
 
-    /// iPad: the open panel leaves no room for sidebar and list (portrait).
-    private var panelNeedsSidebarRoom: Bool {
-        isPad && showsInspector && model.path.last != nil && width > 0
-            && width < min(sidebarIdeal, 400) + InspectorMetrics.listMin + InspectorMetrics.ideal
-    }
-
     var body: some View {
-        NavigationSplitView(columnVisibility: $columns) {
+        NavigationSplitView {
             SidebarList(linking: false)
                 .navigationTitle("app.title")
                 .navigationSplitViewColumnWidth(
@@ -186,16 +178,6 @@ struct SplitLayout: View {
         .modifier(PadDetailColumn(placed: isPad, shows: showsInspector,
                                   width: width < InspectorMetrics.ideal + InspectorMetrics.listMin ? InspectorMetrics.min : InspectorMetrics.ideal))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .onChange(of: panelNeedsSidebarRoom, initial: true) { _, needsRoom in
-            if needsRoom {
-                columnsBeforePanel = columns
-                columns = .detailOnly
-            } else if let before = columnsBeforePanel {
-                // Going back to `.automatic` leaves the sidebar hidden; name it.
-                columns = before == .automatic ? .all : before
-                columnsBeforePanel = nil
-            }
-        }
     }
 
     /// Constant per device, so the branches in `DetailInspector` and `PadDetailColumn` never change view identity.
@@ -209,8 +191,9 @@ struct SplitLayout: View {
 }
 
 /// iPad: the open task as a column of its own beside the whole split view, so the list is laid out next to it and can
-/// never lie under it. Not the system inspector: on the split view it lay over the list once the sidebar button had been
-/// used, and on the detail column that column's navigation bar swallowed taps on the panel's upper part.
+/// never lie under it; the narrower split view moves its sidebar out of the way by itself. Not the system inspector: on
+/// the split view it lay over the list once the sidebar button had been used, and on the detail column that column's
+/// navigation bar swallowed taps on the panel's upper part.
 private struct PadDetailColumn: ViewModifier {
     let placed: Bool
     let shows: Bool

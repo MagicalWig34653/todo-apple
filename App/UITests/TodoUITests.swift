@@ -359,13 +359,36 @@ final class TodoUITests: XCTestCase {
         tapSidebarButton()
         XCTAssertTrue(sidebarEntry.waitForNonExistence(timeout: 5), "sidebar hidden again")
         XCTAssertLessThanOrEqual(app.buttons["quickAddButton"].frame.maxX, app.buttons["Fertig"].frame.minX, "list free after the sidebar went")
-        closeAndCheck("again")
-        // The choice survives a restart of the app.
+        // Hidden by the button: whether it returns by itself is the system's business, the button must bring it.
+        app.buttons["Fertig"].tap()
+        XCTAssertTrue(app.buttons["Fertig"].waitForNonExistence(timeout: 5), "\"Fertig\" closes the detail")
+        if !sidebarEntry.waitForExistence(timeout: 3) { tapSidebarButton() }
+        XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 5), "sidebar available after closing")
+        // The same after a restart of the app.
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 30))
         openAndCheck("relaunch")
         closeAndCheck("relaunch")
+    }
+
+    /// iPad portrait: the sidebar is there at a fresh start, and quitting the app while the detail is open must not leave
+    /// it away at the next start; the panel hid it, not the user (card 1A952C26).
+    func testPadSidebarBackAfterQuitWithDetailOpen() throws {
+        try XCTSkipUnless(isPad(), "iPad only")
+        XCUIDevice.shared.orientation = .portrait
+        let sidebarEntry = app.staticTexts["Steuerzentrale"].firstMatch
+        XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 10), "sidebar at the start")
+        openSeededDetail()
+        XCTAssertTrue(sidebarEntry.waitForNonExistence(timeout: 5), "sidebar makes room for the panel")
+        // Give the system time to remember the layout, then quit from the home screen like a user.
+        XCUIDevice.shared.press(.home)
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "state saved")], timeout: 3)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["quickAddButton"].waitForExistence(timeout: 30))
+        attach("pad-sidebar-after-quit")
+        XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 10), "sidebar back at the next start")
     }
 
     /// iPad: text typed into the detail but not sent (title, note, subtask, label, message) is still there after the swap
