@@ -27,6 +27,7 @@ Vor Übergabe, Kontextwechsel oder Sessionende einen konsistenten Checkpoint sch
 - Vorhandene Änderungen erhalten; keine destruktiven Bereinigungen für einen sauberen Status.
 - Keine Secrets, Tokens, privaten Laufzeitdaten oder vollständigen Chats ins Repository.
 - Keine automatischen Pushes, Veröffentlichungen oder Deployments aus einer bloßen Implementierungsaufgabe ableiten.
+- Buildnummern sind fortlaufend, nie ein Datum: nur `scripts/build-number.sh` (über die TestFlight-Skripte) vergibt sie und committet `App/Config/Base.xcconfig`. Ablauf: docs/TESTFLIGHT.md, "Version und Buildnummern".
 - Routineentscheidungen selbst treffen; nur bei tatsächlich blockierenden Unklarheiten nachfragen.
 - Keine Subagenten oder parallelen Schreiber ohne expliziten Auftrag. Wenn später autorisiert: getrennte Worktrees und klare Dateiverantwortung.
 

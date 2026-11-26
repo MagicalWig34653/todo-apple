@@ -2,8 +2,10 @@
 // Local overrides (team ID, real bundle id prefix) go into Signing.local.xcconfig (gitignored).
 TODO_BUNDLE_ID_PREFIX = de.linolaske.todo
 DEVELOPMENT_TEAM =
-MARKETING_VERSION = 0.1.0
-CURRENT_PROJECT_VERSION = 1
+MARKETING_VERSION = 0.1.1
+// Last build number handed out (running counter, never a date). Raised and committed by scripts/build-number.sh; do not
+// lower it and do not add a trailing comment to the line.
+CURRENT_PROJECT_VERSION = 23
 // APNs: Debug (Xcode run) = development/sandbox, Release (TestFlight/App Store) = production. See docs/PUSH.md.
 APS_ENVIRONMENT = development
 APS_ENVIRONMENT[config=Release] = production

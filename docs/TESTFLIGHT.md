@@ -2,14 +2,26 @@
 
 Stand 27.10.2026. Dieses Repository bereitet den Build vor; Upload nur mit `TODO_UPLOAD=1`.
 
+## Version und Buildnummern (seit 26.11.2026, Karte ACCA073C)
+- Version `0.1.1` (`MARKETING_VERSION` in `App/Config/Base.xcconfig`).
+- Buildnummern laufen fortlaufend, **nie nach Datum**. `CURRENT_PROJECT_VERSION` in derselben Datei ist die zuletzt vergebene Nummer (Start 23 = Zahl der iOS-Builds unter 0.1.0, erster neuer Build 24). Ein Zaehler fuer iOS und macOS.
+- `scripts/build-number.sh current|next|pick`; die beiden Archivskripte rufen `pick` auf: mit `TODO_UPLOAD=1` oder `TODO_ARCHIVE_ONLY=1` wird die naechste Nummer reserviert und nur `Base.xcconfig` committet; `TODO_BUILD_NUMBER=<n>` nimmt eine schon vergebene Nummer (zweite Plattform desselben Stands, eine hoehere wird abgelehnt); sonst (Trockenlauf, `TODO_UNSIGNED=1`) die aktuelle ohne Commit.
+- Eine reservierte Nummer bleibt verbraucht, auch wenn Build oder Upload scheitern. Vor dem Reservieren auf dem aktuellen `main` stehen, den Zaehler-Commit sofort mit pushen (sonst vergibt ein anderer Checkout dieselbe Nummer) und vorher mit `asc builds list --app 6827512177 --paginate` gegenpruefen. `ExportOptions.plist` hat `manageAppVersionAndBuildNumber=false`: Xcode aendert die Nummer nie still, App Store Connect lehnt eine doppelte ab.
+- Test: `scripts/build-number-selftest.sh` (Wegwerf-Repo, `xcodegen`/`xcodebuild` als Stubs).
+
+### Upload ueber das Tor
+1. Archiv mit reservierter Nummer: `TODO_TEAM_ID=J2DU2P47XW TODO_ARCHIVE_ONLY=1 TODO_OUT_DIR=<Ordner ausserhalb von Documents> scripts/testflight-archive.sh` (Mac: `scripts/testflight-archive-mac.sh`).
+2. Nachweis nach `~/Development/orchestrator/runtime/nachweise/`, Freigabe durch das Brain (`upload-tor.py pruefen`).
+3. Export mit `destination=upload` ausschliesslich ueber `~/Development/orchestrator/tools/testflight-upload.sh <projekt> <build> <archiv> -- xcodebuild -exportArchive ...`.
+
 ## Was im Repo vorbereitet ist
-- `App/Config/Base.xcconfig`: `TODO_BUNDLE_ID_PREFIX` (`de.linolaske.todo`), `DEVELOPMENT_TEAM` (leer), `MARKETING_VERSION` 0.1.0, `CURRENT_PROJECT_VERSION` 1. Lokale Werte in `App/Config/Signing.local.xcconfig` (gitignored, Vorlage: `Signing.local.xcconfig.example`).
+- `App/Config/Base.xcconfig`: `TODO_BUNDLE_ID_PREFIX` (`de.linolaske.todo`), `DEVELOPMENT_TEAM` (leer), `MARKETING_VERSION` und `CURRENT_PROJECT_VERSION` (siehe oben). Lokale Werte in `App/Config/Signing.local.xcconfig` (gitignored, Vorlage: `Signing.local.xcconfig.example`).
 - Bundle-IDs: iOS = `<Prefix>` selbst (`de.linolaske.todo`), macOS `<Prefix>.mac`, watchOS `<Prefix>.watch` (project.yml). Team-ID `J2DU2P47XW` nur in der gitignorierten `Signing.local.xcconfig`.
 - `App/Shared/PrivacyInfo.xcprivacy`: kein Tracking, keine gesammelten Datentypen deklariert, Required-Reason-API UserDefaults (CA92.1, Server-Adresse). Vor Release gegen tatsaechliche Datennutzung (Server-Konto, Aufgabeninhalte) in App Store Connect "App-Datenschutz" abgleichen.
 - Exportcompliance: `ITSAppUsesNonExemptEncryption = NO` (nur Standard-HTTPS/System-Kryptografie). Bei Aenderung (eigene Kryptografie) neu bewerten.
 - Info.plist-Texte (deutsch): `NSFaceIDUsageDescription`, `NSLocalNetworkUsageDescription`. Kamera/Fotos/Mikrofon werden noch nicht genutzt, daher keine Texte; beim Screenshot-Upload ergaenzen.
 - `ExportOptions.plist`: Methode `app-store-connect`, Team-ID als Platzhalter `TEAM_ID_PLACEHOLDER` (das Skript setzt sie aus `TODO_TEAM_ID`).
-- `scripts/testflight-archive.sh`: xcodegen, `xcodebuild archive`, `-exportArchive`. Umgebung: `TODO_TEAM_ID` (Pflicht), optional `TODO_BUNDLE_PREFIX`, `TODO_BUILD_NUMBER`, `TODO_VERSION`, `TODO_OUT_DIR`. `TODO_UNSIGNED=1` archiviert nur unsigniert (Pruefung).
+- `scripts/testflight-archive.sh`: xcodegen, `xcodebuild archive`, `-exportArchive`. Umgebung: `TODO_TEAM_ID` (Pflicht), optional `TODO_BUNDLE_PREFIX`, `TODO_BUILD_NUMBER`, `TODO_VERSION`, `TODO_OUT_DIR`, `TODO_ARCHIVE_ONLY`. `TODO_UNSIGNED=1` archiviert nur unsigniert (Pruefung).
 - App-Icon: `project.yml` bindet `App/Icon` optional ein; das Skript setzt `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`, wenn `App/Icon/AppIcon.icon` (Icon Composer) existiert. Stand beim Erstellen: Ordner fehlte, Archiv ohne Icon (App Store Connect lehnt das ab). Pruefen, ob XcodeGen die `.icon`-Datei als Ressource aufnimmt.
 
 ## Associated Domains / Passkeys (aktiv)
@@ -34,13 +46,13 @@ Fertige Datei: `docs/aasa/apple-app-site-association` (Team `J2DU2P47XW`, appID 
 2. Erledigt: App-ID `de.linolaske.todo` angelegt (siehe oben). Im Developer-Portal pruefen, dass Capability "Associated Domains" an der App-ID aktiv ist.
 3. App Store Connect: App-Eintrag mit dieser Bundle-ID anlegen; Datenschutz-Angaben und Exportcompliance beantworten; interne Tester einladen.
 4. Domain + Passkeys: Domain/RP-ID festlegen (HTTPS), `https://<domain>/.well-known/apple-app-site-association` ausliefern, JSON ohne Dateiendung, `Content-Type: application/json`, Inhalt siehe `docs/aasa/apple-app-site-association`; Entitlement aktivieren (siehe oben). Server muss HTTPS bieten (der lokale `NSAllowsLocalNetworking`-Ausnahmepfad reicht fuer TestFlight nicht fuer entfernte Server).
-5. Build: `TODO_TEAM_ID=... TODO_BUILD_NUMBER=<fortlaufend> scripts/testflight-archive.sh`. Jede Uploadrunde braucht eine neue Build-Nummer.
+5. Build: siehe "Version und Buildnummern"; die Nummer vergibt das Skript.
 6. Upload (manuell): Transporter.app mit der IPA aus `build/testflight/export`, oder `xcrun altool --upload-app -f <ipa> -t ios --apiKey <KEY> --apiIssuer <ISSUER>` (API-Key aus App Store Connect; nicht ins Repo). `notarytool` ist nur fuer macOS-Notarisierung, nicht fuer TestFlight.
 7. Nach der Verarbeitung Build in TestFlight dem Testteam zuweisen.
 
 ## Upload (27.10.2026, erfolgreich)
-`TODO_TEAM_ID=J2DU2P47XW TODO_UPLOAD=1 TODO_OUT_DIR=/private/tmp/tfout TODO_BUILD_NUMBER=$(date +%y%m%d%H%M) scripts/testflight-archive.sh` setzt im Export `destination=upload` (PlistBuddy) und laedt ueber das in Xcode angemeldete Konto hoch (kein Passwort/API-Key noetig). Ergebnis: Version 0.1.0, Build 2610271206, "Upload succeeded", Delivery UUID `76573aed-cc05-4e99-bbfa-e425d8429ce4`, keine Warnungen/Fehler in den Distribution-Logs, App-Icon (Icon Composer) im Archiv. Es gibt dabei keine lokale IPA (`export/` bleibt leer).
-Offen in App Store Connect: Verarbeitung abwarten (Mail/TestFlight-Tab), Build interner Testgruppe zuweisen; fuer externe Tester Beta-App-Pruefungsinfos ausfuellen. Jede weitere Runde braucht eine neue Build-Nummer (Zeitstempel reicht).
+`scripts/testflight-archive.sh` mit `TODO_UPLOAD=1` (damals noch mit Datumsnummer von Hand, seit 26.11.2026 abgeschafft) setzt im Export `destination=upload` (PlistBuddy) und laedt ueber das in Xcode angemeldete Konto hoch (kein Passwort/API-Key noetig). Ergebnis: Version 0.1.0, Build 2610271206, "Upload succeeded", Delivery UUID `76573aed-cc05-4e99-bbfa-e425d8429ce4`, keine Warnungen/Fehler in den Distribution-Logs, App-Icon (Icon Composer) im Archiv. Es gibt dabei keine lokale IPA (`export/` bleibt leer).
+Offen in App Store Connect: Verarbeitung abwarten (Mail/TestFlight-Tab), Build interner Testgruppe zuweisen; fuer externe Tester Beta-App-Pruefungsinfos ausfuellen. Jede weitere Runde braucht eine neue Build-Nummer (seit 26.11.2026 fortlaufend, siehe oben).
 
 ## macOS (27.10.2026)
 `TODO_TEAM_ID=J2DU2P47XW TODO_ARCHIVE_ONLY=1 TODO_OUT_DIR=/private/tmp/claude-501/tfmac scripts/testflight-archive-mac.sh` archiviert `Todo-macOS` signiert (`-allowProvisioningUpdates`) und registriert dabei die App-ID `de.linolaske.todo.mac`. Ergebnis: ARCHIVE SUCCEEDED, Entitlements enthalten `webcredentials:todo.linolaske.de`, App-Sandbox, `network.client`, `files.user-selected.read-only`. Ohne `TODO_ARCHIVE_ONLY` folgt `-exportArchive` (Methode `app-store-connect`); `TODO_UPLOAD=1` laedt hoch, braucht aber einen macOS-App-Eintrag in App Store Connect (Bundle-ID `de.linolaske.todo.mac`) und wurde NICHT ausgefuehrt. Die AASA-Datei enthaelt die Mac-App-ID bereits. Fuer Mac-Distribution ausserhalb des App Store waere zusaetzlich Developer-ID-Signierung und Notarisierung noetig (nicht eingerichtet).
