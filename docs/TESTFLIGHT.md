@@ -7,6 +7,7 @@ Stand 27.10.2026. Dieses Repository bereitet den Build vor; Upload nur mit `TODO
 - Buildnummern laufen fortlaufend, **nie nach Datum**. `CURRENT_PROJECT_VERSION` in derselben Datei ist die zuletzt vergebene Nummer (Start 23 = Zahl der iOS-Builds unter 0.1.0, erster neuer Build 24). Ein Zaehler fuer iOS und macOS.
 - `scripts/build-number.sh current|next|pick`; die beiden Archivskripte rufen `pick` auf: mit `TODO_UPLOAD=1` oder `TODO_ARCHIVE_ONLY=1` wird die naechste Nummer reserviert und nur `Base.xcconfig` committet; `TODO_BUILD_NUMBER=<n>` nimmt eine schon vergebene Nummer (zweite Plattform desselben Stands, eine hoehere wird abgelehnt); sonst (Trockenlauf, `TODO_UNSIGNED=1`) die aktuelle ohne Commit.
 - Eine reservierte Nummer bleibt verbraucht, auch wenn Build oder Upload scheitern. Vor dem Reservieren auf dem aktuellen `main` stehen, den Zaehler-Commit sofort mit pushen (sonst vergibt ein anderer Checkout dieselbe Nummer) und vorher mit `asc builds list --app 6827512177 --paginate` gegenpruefen. `ExportOptions.plist` hat `manageAppVersionAndBuildNumber=false`: Xcode aendert die Nummer nie still, App Store Connect lehnt eine doppelte ab.
+- Mac-Regel (Probe 26.11.2026): App Store Connect hat macOS 0.1.1 (24) angenommen (`VALID`), obwohl unter 0.1.0 schon 2611172211 lag. Der Mac nutzt also denselben Zaehler wie iOS; beide Plattformen eines Stands duerfen dieselbe Nummer tragen. Belegt ist das nur fuer den Wechsel auf eine neue Version: unter 0.1.0 nichts mehr hochladen; lehnt Apple je eine Mac-Nummer ab, Fehlertext hier festhalten und die Regel neu waehlen.
 - Test: `scripts/build-number-selftest.sh` (Wegwerf-Repo, `xcodegen`/`xcodebuild` als Stubs).
 
 ### Upload ueber das Tor
@@ -180,3 +181,11 @@ Aus `t3/testflight-pipeline` = origin/main 61d7126 (sauber), Version 0.1.0, Team
 - Testgruppen: interne Gruppe "ich" (alle Builds) enthaelt den Build (`asc builds groups list`), `internalBuildState IN_BETA_TESTING`; extern `READY_FOR_BETA_SUBMISSION`, keine externe Gruppe vorhanden (zuweisbar, sobald Lino Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt eintraegt).
 - "Was testen" (`de-DE`) per `asc builds test-notes create` gesetzt und per `view` gelesen (wortgleich zur Vorlage, 1183 Zeichen).
 - macOS nicht hochgeladen. Nicht geprueft: Geraetetest (Lino).
+
+## Upload Stand 7038534 / fe9b300 (2026-11-26, iOS und macOS, Version 0.1.1 (24), Karte ACCA073C)
+Erster Upload mit fortlaufender Nummer. Archive ueber die Skripte (`TODO_ARCHIVE_ONLY=1`; iOS aus 7038534, Mac aus fe9b300, App-Code gleich), Nachweise `runtime/nachweise/todolino-apple-24` und `todolino-apple-mac-24`, Freigabe durch das Brain 16:47, Export mit `destination=upload` ueber `tools/testflight-upload.sh`. Vorher per `asc builds list`: 24 auf beiden Plattformen frei.
+- iOS: "Upload succeeded" 16:49, EXPORT SUCCEEDED, Build-ID `f7686946-12d5-4c4a-a91a-04a0048b6561`, `VALID`.
+- macOS: "Upload succeeded" 16:51, EXPORT SUCCEEDED, Build-ID `6ef1ea6c-ef28-443f-83af-51c6598447f9`, `VALID`.
+- Beide: interne Gruppe "ich" enthaelt den Build, `internalBuildState IN_BETA_TESTING`; extern `READY_FOR_BETA_SUBMISSION`, keine externe Gruppe, nichts zur Pruefung eingereicht; `usesNonExemptEncryption=false`. "Was testen" (`de-DE`) je Plattform gesetzt und gelesen (Texte im Nachweisordner).
+- Distribution-Log: `aps-environment` production im Export (Archiv development, wie bisher); die ERROR-Zeile "CDUploaderStateInfoResumeFilePath" ist die bekannte harmlose.
+- Kein App-Store-Release. Nicht geprueft: Geraetetest (Lino), Mac-Oberflaeche.
