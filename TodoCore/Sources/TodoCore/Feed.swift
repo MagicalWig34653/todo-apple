@@ -125,8 +125,8 @@ public struct FeedConfirmationCard: Sendable, Equatable {
 struct DecidedConfirmation: Sendable, Equatable {
     let item: FeedConfirmation
     let result: ActionRequest
-    /// Index among the confirmation cards when it was decided; it is shown there again (card B6D004D4).
-    let position: Int
+    /// The cards shown above it when it was decided; it is shown below them again (card B6D004D4).
+    let above: [UUID]
 }
 
 /// The paged feed state: page 1 replaces everything, later pages append (deduplicated by post id).
@@ -165,26 +165,26 @@ public struct FeedState: Sendable, Equatable {
     private var decided: [DecidedConfirmation] = []
 
     /// Records the outcome of a confirmation decided here; it leaves the pending list and shows its result instead.
-    /// The cards shown above this one.
+    /// The cards shown above this one; capture it before the request, a refetch may drop the card before the answer is there.
     public func cardsAbove(confirmationID id: UUID) -> [UUID] {
         Array(confirmationCards.map(\.item.id).prefix { $0 != id })
     }
 
     /// The card keeps its place, so its outcome stays where the person looked.
     public mutating func decide(_ item: FeedConfirmation, result: ActionRequest, below above: [UUID]? = nil) {
-        let cards = confirmationCards
-        let position = cards.firstIndex { $0.item.id == item.id } ?? cards.count
+        let above = above ?? cardsAbove(confirmationID: item.id)
         decided.removeAll { $0.item.id == item.id }
-        decided.append(DecidedConfirmation(item: item, result: result, position: position))
+        decided.append(DecidedConfirmation(item: item, result: result, above: above))
         remove(confirmationID: item.id)
     }
 
-    /// Pending confirmations plus the ones decided here (outcome line), each decided card where it stood when decided.
+    /// Pending confirmations plus the ones decided here (outcome line), each of those below the cards that were above it.
     public var confirmationCards: [FeedConfirmationCard] {
         let done = Set(decided.map(\.item.id))
         var cards = confirmations.filter { !done.contains($0.id) }.map { FeedConfirmationCard(item: $0, result: nil) }
-        for d in decided.sorted(by: { $0.position < $1.position }) {
-            cards.insert(FeedConfirmationCard(item: d.item, result: d.result), at: min(d.position, cards.count))
+        for d in decided {
+            let index = cards.lastIndex { d.above.contains($0.item.id) }.map { $0 + 1 } ?? 0
+            cards.insert(FeedConfirmationCard(item: d.item, result: d.result), at: index)
         }
         return cards
     }

@@ -27,9 +27,10 @@ final class FeedModel {
         guard let client = app.client, !deciding.contains(item.id) else { return }
         deciding.insert(item.id)
         defer { deciding.remove(item.id) }
+        let above = state.cardsAbove(confirmationID: item.id)
         do {
             let result = confirm ? try await client.confirmActionRequest(item.id) : try await client.rejectActionRequest(item.id)
-            state.decide(item, result: result)
+            state.decide(item, result: result, below: above)
             if result.state == .executed { Haptics.success() }
         } catch APIError.conflict { errorKey = "feed.error.alreadyHandled"
         } catch APIError.server(410, _) { errorKey = "confirm.done.expired"
