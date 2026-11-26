@@ -4,7 +4,7 @@ import XCTest
 /// (it used to jump to the top, above the visible part). Real app against a real backend with at least three pending
 /// confirmation requests of the signed-in account (`LiveWelle3Tests.testSeedConfirmationRequests`). Rejects one request per
 /// run, which other tests still need: runs only with `TODO_UITEST_DECIDE=1`. Env: `TODO_UITEST_SERVER`, `TODO_UITEST_TOKEN`;
-/// optional `TODO_TOUR_LOOK` (`dunkel` = dark) and `TODO_TOUR_OUT` (directory for the before/after PNGs).
+/// optional `TODO_TOUR_LOOK` (`dunkel` = dark) and `TODO_TOUR_OUT` (directory for the before/during/after PNGs).
 final class ConfirmationOrderUITests: XCTestCase {
     private var server = "", token = "", out: String?, dark = false
     private var summaries: [String] = []
@@ -70,11 +70,14 @@ final class ConfirmationOrderUITests: XCTestCase {
         let second = before[1]
         let card = cards.allElementsBoundByIndex.first { $0.frame.contains(header(app, second).frame) }
         try XCTUnwrap(card, "card of \(second)").buttons["confirm.reject"].tap()
+        // For the picture sequence only: shows the busy card when the server answers slowly, otherwise already the outcome.
+        Thread.sleep(forTimeInterval: 0.5)
+        shot("2-waehrend")
 
         let outcome = app.descendants(matching: .any)["confirm.outcome"].firstMatch
         XCTAssertTrue(outcome.waitForExistence(timeout: 20), "rejected outcome")
         Thread.sleep(forTimeInterval: 2)
-        shot("2-nachher")
+        shot("3-nachher")
 
         XCTAssertEqual(shownOrder(app), before, "the decided card stays in its place")
         let window = app.windows.firstMatch.frame

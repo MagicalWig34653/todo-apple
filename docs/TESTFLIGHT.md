@@ -23,7 +23,7 @@ Stand 27.10.2026. Dieses Repository bereitet den Build vor; Upload nur mit `TODO
 - Info.plist-Texte (deutsch): `NSFaceIDUsageDescription`, `NSLocalNetworkUsageDescription`. Kamera/Fotos/Mikrofon werden noch nicht genutzt, daher keine Texte; beim Screenshot-Upload ergaenzen.
 - `ExportOptions.plist`: Methode `app-store-connect`, Team-ID als Platzhalter `TEAM_ID_PLACEHOLDER` (das Skript setzt sie aus `TODO_TEAM_ID`).
 - `scripts/testflight-archive.sh`: xcodegen, `xcodebuild archive`, `-exportArchive`. Umgebung: `TODO_TEAM_ID` (Pflicht), optional `TODO_BUNDLE_PREFIX`, `TODO_BUILD_NUMBER`, `TODO_VERSION`, `TODO_OUT_DIR`, `TODO_ARCHIVE_ONLY`. `TODO_UNSIGNED=1` archiviert nur unsigniert (Pruefung).
-- App-Icon: `project.yml` bindet `App/Icon` optional ein; das Skript setzt `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`, wenn `App/Icon/AppIcon.icon` (Icon Composer) existiert. Stand beim Erstellen: Ordner fehlte, Archiv ohne Icon (App Store Connect lehnt das ab). Pruefen, ob XcodeGen die `.icon`-Datei als Ressource aufnimmt.
+- App-Icon "Bausteine" (seit 26.11.2026, Karte 950D1506): `App/Icon/AppIcon.icon` ist eine unveraenderte Kopie von `design/icon/Todo.icon` aus dem Hauptrepo (einzige Quelle; Aenderungen dort, dann `UEBERGABE-APPLE.md` folgen). `project.yml` bindet es in iOS, macOS und watchOS ein (`ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`). Pruefung: `scripts/check-icon.py [--render-dir <Ordner>] [--app <gebaute .app>]` (Paket, Targets, `ictool`-Render, gebaute Bundles; headless).
 
 ## Associated Domains / Passkeys (aktiv)
 `App/Config/Todo.entitlements` (`webcredentials:todo.linolaske.de`) ist ueber `CODE_SIGN_ENTITLEMENTS` in `project.yml` fuer Todo-iOS und Todo-macOS eingebunden. Die RP-ID/Passkey-Domain ist `todo.linolaske.de`.
