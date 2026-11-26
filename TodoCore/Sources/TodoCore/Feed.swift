@@ -125,6 +125,8 @@ public struct FeedConfirmationCard: Sendable, Equatable {
 struct DecidedConfirmation: Sendable, Equatable {
     let item: FeedConfirmation
     let result: ActionRequest
+    /// Index among the confirmation cards when it was decided; it is shown there again (card B6D004D4).
+    let position: Int
 }
 
 /// The paged feed state: page 1 replaces everything, later pages append (deduplicated by post id).
@@ -163,16 +165,23 @@ public struct FeedState: Sendable, Equatable {
     private var decided: [DecidedConfirmation] = []
 
     /// Records the outcome of a confirmation decided here; it leaves the pending list and shows its result instead.
+    /// The card keeps its place, so its outcome stays where the person looked.
     public mutating func decide(_ item: FeedConfirmation, result: ActionRequest) {
-        decided.append(DecidedConfirmation(item: item, result: result))
+        let cards = confirmationCards
+        let position = cards.firstIndex { $0.item.id == item.id } ?? cards.count
+        decided.removeAll { $0.item.id == item.id }
+        decided.append(DecidedConfirmation(item: item, result: result, position: position))
         remove(confirmationID: item.id)
     }
 
-    /// Pending confirmations plus the ones decided here (outcome line), in feed order.
+    /// Pending confirmations plus the ones decided here (outcome line), each decided card where it stood when decided.
     public var confirmationCards: [FeedConfirmationCard] {
         let done = Set(decided.map(\.item.id))
-        return decided.map { FeedConfirmationCard(item: $0.item, result: $0.result) }
-            + confirmations.filter { !done.contains($0.id) }.map { FeedConfirmationCard(item: $0, result: nil) }
+        var cards = confirmations.filter { !done.contains($0.id) }.map { FeedConfirmationCard(item: $0, result: nil) }
+        for d in decided.sorted(by: { $0.position < $1.position }) {
+            cards.insert(FeedConfirmationCard(item: d.item, result: d.result), at: min(d.position, cards.count))
+        }
+        return cards
     }
 
     public var isEmpty: Bool { loaded && needsYou.isEmpty && confirmations.isEmpty && posts.isEmpty }
