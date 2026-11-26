@@ -165,8 +165,13 @@ public struct FeedState: Sendable, Equatable {
     private var decided: [DecidedConfirmation] = []
 
     /// Records the outcome of a confirmation decided here; it leaves the pending list and shows its result instead.
+    /// The cards shown above this one.
+    public func cardsAbove(confirmationID id: UUID) -> [UUID] {
+        Array(confirmationCards.map(\.item.id).prefix { $0 != id })
+    }
+
     /// The card keeps its place, so its outcome stays where the person looked.
-    public mutating func decide(_ item: FeedConfirmation, result: ActionRequest) {
+    public mutating func decide(_ item: FeedConfirmation, result: ActionRequest, below above: [UUID]? = nil) {
         let cards = confirmationCards
         let position = cards.firstIndex { $0.item.id == item.id } ?? cards.count
         decided.removeAll { $0.item.id == item.id }

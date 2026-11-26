@@ -44,4 +44,26 @@ final class FeedConfirmationOrderTests: XCTestCase {
         state.replace(with: page([]))
         XCTAssertEqual(state.confirmationCards.map(\.item.id), [a, b, c])
     }
+
+    /// A live refresh may drop the card before the answer to the decision is there.
+    func testRefetchBeforeTheAnswerKeepsThePlace() {
+        var state = FeedState()
+        state.replace(with: page([a, b, c]))
+        let above = state.cardsAbove(confirmationID: b)
+        state.replace(with: page([a, c]))
+        state.decide(item(b), result: outcome(b, .rejected), below: above)
+        XCTAssertEqual(state.confirmationCards.map(\.item.id), [a, b, c])
+    }
+
+    /// Cards above the decided one come and go (decided elsewhere, new request); it stays between its neighbours.
+    func testChangesAboveDoNotMoveTheDecidedCardPastItsNeighbours() {
+        var state = FeedState()
+        state.replace(with: page([a, b, c]))
+        state.decide(item(b), result: outcome(b, .rejected))
+        state.replace(with: page([c]))
+        XCTAssertEqual(state.confirmationCards.map(\.item.id), [b, c], "the card above is gone")
+        let new = UUID()
+        state.replace(with: page([new, a, c]))
+        XCTAssertEqual(state.confirmationCards.map(\.item.id), [new, a, b, c], "a new request arrived on top")
+    }
 }
