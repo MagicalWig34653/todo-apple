@@ -13,7 +13,7 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 
 ## iPad hochkant und Push-Kaltstart 26.11.2026 (Karte 1A952C26)
 - [x] Liste liegt nie unter dem Detail (eigene Spalte), Push-Kaltstart-Wettlauf behoben; volle iPad- und iPhone-UI-Suite 0 rot, TodoCore 487/0, macOS-Build; auf main. Details: STATUS, Nachtraege 25./26.11.
-- [ ] Naechster Auftrag: Version 0.1.1 und fortlaufende Buildnummern (Karte ACCA073C).
+- [ ] Karte ACCA073C: Zaehler, Version 0.1.1 und Archive 24 fertig; Upload iOS und Mac-Probe nach Freigabe durch das Upload-Tor.
 - Keine API-/Servermigration, kein TestFlight, Hauptrepo unveraendert.
 
 ## iPad-Detail-Audit 25.11.2026 (Karte ADD2CA8B)
