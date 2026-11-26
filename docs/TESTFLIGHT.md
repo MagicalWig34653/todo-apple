@@ -189,3 +189,12 @@ Erster Upload mit fortlaufender Nummer. Archive ueber die Skripte (`TODO_ARCHIVE
 - Beide: interne Gruppe "ich" enthaelt den Build, `internalBuildState IN_BETA_TESTING`; extern `READY_FOR_BETA_SUBMISSION`, keine externe Gruppe, nichts zur Pruefung eingereicht; `usesNonExemptEncryption=false`. "Was testen" (`de-DE`) je Plattform gesetzt und gelesen (Texte im Nachweisordner).
 - Distribution-Log: `aps-environment` production im Export (Archiv development, wie bisher); die ERROR-Zeile "CDUploaderStateInfoResumeFilePath" ist die bekannte harmlose.
 - Kein App-Store-Release. Nicht geprueft: Geraetetest (Lino), Mac-Oberflaeche.
+
+## Upload Stand 7ec1154 (2026-11-26, iOS und macOS, Version 0.1.1 (25), Karte 950D1506)
+Icon "Bausteine" und B6D004D4. Archive ueber die Skripte (`TODO_ARCHIVE_ONLY=1 TODO_BUILD_NUMBER=25`, Nummer vorher mit `scripts/build-number.sh next` in 4d46b28 reserviert), Nachweise `runtime/nachweise/todolino-apple-25` und `todolino-apple-mac-25`, Freigabe durch das Brain 23:15, Export mit `destination=upload` ueber `tools/testflight-upload.sh`. Vorher per `asc builds list`: 25 auf beiden Plattformen frei.
+- iOS: "Upload succeeded" 23:18, EXPORT SUCCEEDED, Build-ID `f1c7fd1e-11b8-4a58-adc4-d2686b0e2a38`, `VALID`.
+- macOS: "Upload succeeded" 23:20, EXPORT SUCCEEDED, Build-ID `584f04be-6511-468a-bf40-3d6335445e6d`, `VALID`.
+- Beide: interne Gruppe "ich" enthaelt den Build, `internalBuildState IN_BETA_TESTING`; `usesNonExemptEncryption=false`; "Was testen" (`de-DE`) je Plattform gesetzt, zurueckgelesen und gleich der Datei (`asc-test-notes-view.json` im Nachweisordner).
+- Extern: `externalBuildState READY_FOR_BETA_SUBMISSION`, keine externe Gruppe, nichts eingereicht. Fuer externe Tester fehlen weiterhin Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt (26.11. per `asc` gelesen: leer); die traegt Lino ein.
+- Distribution-Log (`IDEDistributionPipeline.log`): Archiv `aps-environment development`, Export "are: ... production", `get-task-allow 0`, Signatur "Apple Distribution" (macOS ebenso); 0 ERROR-Zeilen in `upload.log`.
+- Kein App-Store-Release. Nicht geprueft: Geraetetest (Lino), Mac-Oberflaeche, Icon-Composer-Oberflaeche.
