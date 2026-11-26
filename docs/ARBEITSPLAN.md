@@ -11,6 +11,10 @@ Globale Planung bleibt ausschließlich im Hauptrepository. Dieser Checkpoint bes
 
 Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des parallel entwickelten Serververtrags. Lokale Pfade werden nicht an `RunnerServer` übergeben. Bei unklarer Prozessidentität nach Neustart keine PID-Signale und kein automatischer Neustart; expliziter Abgleich bleibt erforderlich.
 
+## "Für dich": entschiedene Bestaetigung bleibt stehen 26.11.2026 (Karte B6D004D4)
+- [x] Rot (abbff6a, 63d22ca), Fix (b9b8af6, 7d42e53), E2E und Bildfolge iPhone/iPad hell/dunkel; Details: STATUS, Nachtrag.
+- [ ] TestFlight erst nach Entscheidung des Brain (Upload-Tor).
+
 ## iPad hochkant und Push-Kaltstart 26.11.2026 (Karte 1A952C26)
 - [x] Liste liegt nie unter dem Detail (eigene Spalte), Push-Kaltstart-Wettlauf behoben; volle iPad- und iPhone-UI-Suite 0 rot, TodoCore 487/0, macOS-Build; auf main. Details: STATUS, Nachtraege 25./26.11.
 - [x] Karte ACCA073C: fortlaufender Zaehler, Version 0.1.1; iOS und macOS 0.1.1 (24) in TestFlight (VALID), Mac nutzt denselben Zaehler.
