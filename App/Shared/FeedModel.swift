@@ -14,18 +14,13 @@ final class FeedModel {
     var errorKey: String?
     /// Pending reviews that wait for a variant choice: their feed items must lead to the card instead of offering "Annehmen".
     private(set) var choiceReviewIDs: Set<UUID> = []
-    /// Confirmations decided in this view, shown with their outcome until the view goes away.
-    private(set) var decided: [(item: FeedConfirmation, result: ActionRequest)] = []
     private(set) var deciding: Set<UUID> = []
     /// Card brought up by a push notification (outline); stays until the person decides or leaves the screen. Here and not
     /// as view `@State`: only the lazy rows read it, and a value set before the first row was drawn never reached them.
     var highlightedConfirmation: UUID?
 
-    /// Pending confirmations from the server plus the ones decided here (outcome line), in feed order.
-    var confirmationCards: [(item: FeedConfirmation, result: ActionRequest?)] {
-        let done = Set(decided.map(\.item.id))
-        return decided.map { ($0.item, Optional($0.result)) } + state.confirmations.filter { !done.contains($0.id) }.map { ($0, nil) }
-    }
+    /// Pending confirmations from the server plus the ones decided in this view (outcome line), in feed order.
+    var confirmationCards: [FeedConfirmationCard] { state.confirmationCards }
 
     /// Confirms (executes) or rejects a request of an agent (ADR 0026).
     func decide(_ item: FeedConfirmation, confirm: Bool, _ app: AppModel) async {
@@ -34,8 +29,7 @@ final class FeedModel {
         defer { deciding.remove(item.id) }
         do {
             let result = confirm ? try await client.confirmActionRequest(item.id) : try await client.rejectActionRequest(item.id)
-            decided.append((item, result))
-            state.remove(confirmationID: item.id)
+            state.decide(item, result: result)
             if result.state == .executed { Haptics.success() }
         } catch APIError.conflict { errorKey = "feed.error.alreadyHandled"
         } catch APIError.server(410, _) { errorKey = "confirm.done.expired"

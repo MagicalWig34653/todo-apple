@@ -116,6 +116,17 @@ public struct FeedPage: Codable, Sendable, Equatable {
 
 public enum FeedMode: String, Sendable { case all, classic, management }
 
+/// A confirmation card of "Für dich": pending (`result == nil`) or decided here with its outcome.
+public struct FeedConfirmationCard: Sendable, Equatable {
+    public let item: FeedConfirmation
+    public let result: ActionRequest?
+}
+
+struct DecidedConfirmation: Sendable, Equatable {
+    let item: FeedConfirmation
+    let result: ActionRequest
+}
+
 /// The paged feed state: page 1 replaces everything, later pages append (deduplicated by post id).
 public struct FeedState: Sendable, Equatable {
     public private(set) var needsYou: [FeedNeedsYou] = []
@@ -146,6 +157,22 @@ public struct FeedState: Sendable, Equatable {
     /// Drops a decided confirmation immediately.
     public mutating func remove(confirmationID id: UUID) {
         confirmations.removeAll { $0.id == id }
+    }
+
+    /// Confirmations decided here, kept with their outcome line (survive refetches of page 1).
+    private var decided: [DecidedConfirmation] = []
+
+    /// Records the outcome of a confirmation decided here; it leaves the pending list and shows its result instead.
+    public mutating func decide(_ item: FeedConfirmation, result: ActionRequest) {
+        decided.append(DecidedConfirmation(item: item, result: result))
+        remove(confirmationID: item.id)
+    }
+
+    /// Pending confirmations plus the ones decided here (outcome line), in feed order.
+    public var confirmationCards: [FeedConfirmationCard] {
+        let done = Set(decided.map(\.item.id))
+        return decided.map { FeedConfirmationCard(item: $0.item, result: $0.result) }
+            + confirmations.filter { !done.contains($0.id) }.map { FeedConfirmationCard(item: $0, result: nil) }
     }
 
     public var isEmpty: Bool { loaded && needsYou.isEmpty && confirmations.isEmpty && posts.isEmpty }
