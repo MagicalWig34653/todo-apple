@@ -13,8 +13,6 @@ struct FeedView: View {
     var showsSystemStatus = false
     @State private var model = FeedModel()
     @State private var shown: FeedImage?
-    /// Card brought up by a push notification (outline); stays until the person decides or leaves the screen.
-    @State private var highlightedConfirmation: UUID?
 
     /// Today's rows shown inline; the rest is one tap away in "Planen".
     private static let todayLimit = 5
@@ -116,7 +114,7 @@ struct FeedView: View {
         guard let id = app.confirmationFocus else { return }
         if model.confirmationCards.contains(where: { $0.item.id == id && $0.result == nil }) {
             app.confirmationFocus = nil
-            highlightedConfirmation = id
+            model.highlightedConfirmation = id
             Task {
                 try? await Task.sleep(for: .milliseconds(150)) // the card is laid out after the feed state changed
                 withAnimation { proxy.scrollTo(id, anchor: .top) }
@@ -169,8 +167,8 @@ struct FeedView: View {
             Text("confirm.section").font(Font.sectionTitle).foregroundStyle(Color.textSecondary).accessibilityAddTraits(.isHeader)
             ForEach(model.confirmationCards, id: \.item.id) { card in
                 ConfirmationCard(item: card.item, outcome: card.result, busy: model.deciding.contains(card.item.id),
-                                 highlighted: highlightedConfirmation == card.item.id && card.result == nil) { confirm in
-                    if highlightedConfirmation == card.item.id { highlightedConfirmation = nil }
+                                 highlighted: model.highlightedConfirmation == card.item.id && card.result == nil) { confirm in
+                    if model.highlightedConfirmation == card.item.id { model.highlightedConfirmation = nil }
                     Task { await model.decide(card.item, confirm: confirm, app) }
                 }
                 .id(card.item.id)

@@ -17,6 +17,9 @@ final class FeedModel {
     /// Confirmations decided in this view, shown with their outcome until the view goes away.
     private(set) var decided: [(item: FeedConfirmation, result: ActionRequest)] = []
     private(set) var deciding: Set<UUID> = []
+    /// Card brought up by a push notification (outline); stays until the person decides or leaves the screen. Here and not
+    /// as view `@State`: only the lazy rows read it, and a value set before the first row was drawn never reached them.
+    var highlightedConfirmation: UUID?
 
     /// Pending confirmations from the server plus the ones decided here (outcome line), in feed order.
     var confirmationCards: [(item: FeedConfirmation, result: ActionRequest?)] {
