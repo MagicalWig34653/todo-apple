@@ -11,6 +11,11 @@ Globale Planung bleibt ausschließlich im Hauptrepository. Dieser Checkpoint bes
 
 Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des parallel entwickelten Serververtrags. Lokale Pfade werden nicht an `RunnerServer` übergeben. Bei unklarer Prozessidentität nach Neustart keine PID-Signale und kein automatischer Neustart; expliziter Abgleich bleibt erforderlich.
 
+## iPad hochkant und Push-Kaltstart 26.11.2026 (Karte 1A952C26)
+- [x] Liste liegt nie unter dem Detail (eigene Spalte), Push-Kaltstart-Wettlauf behoben; volle iPad- und iPhone-UI-Suite 0 rot, TodoCore 487/0, macOS-Build; auf main. Details: STATUS, Nachtraege 25./26.11.
+- [ ] Naechster Auftrag: Version 0.1.1 und fortlaufende Buildnummern (Karte ACCA073C).
+- Keine API-/Servermigration, kein TestFlight, Hauptrepo unveraendert.
+
 ## iPad-Detail-Audit 25.11.2026 (Karte ADD2CA8B)
 - [x] Rot reproduziert, Ursache belegt, Fix und Test (f3ff1ed, e18de52), 12 Laeufe in Folge gruen; Details: STATUS, Nachtrag 25.11.
 - [x] Karte CDDE2F5C: `BrainUITests/test1_ConsentRecordSendAndAnswer` wackelte (Testfehler: Aufnahme-Audio wird serverseitig geloescht, feste Antworttexte aus frueheren Laeufen); behoben, 10 von 10 Laeufe gruen.
