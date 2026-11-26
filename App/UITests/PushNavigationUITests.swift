@@ -105,6 +105,28 @@ final class PushNavigationUITests: XCTestCase {
         shot("tap-bestaetigung-vordergrund-dunkel")
     }
 
+    /// The outline is gone once the request is decided. Rejects one pending request per look, which other tests of a full
+    /// run still need: runs only on its own with `TODO_UITEST_DECIDE=1`.
+    func testOutlineGoesAwayWithTheDecision() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["TODO_UITEST_DECIDE"] == "1", "consumes requests: TODO_UITEST_DECIDE=1")
+        for (dark, target) in zip([false, true], confirmations.reversed()) {
+            let look = dark ? "dunkel" : "hell"
+            let app = launch(subject: target.id, select: nil, delay: 12, dark: dark)
+            XCTAssertTrue(app.otherElements["confirm.card"].firstMatch.waitForExistence(timeout: 60), "Für dich with the pending cards")
+            XCTAssertFalse(app.otherElements["confirm.card.highlighted"].exists, "nothing outlined before the tap")
+            shot("umrandung-1-vorher-\(look)")
+            assertOnlyTargetHighlighted(app, target: target)
+            Thread.sleep(forTimeInterval: 2)
+            shot("umrandung-2-waehrend-\(look)")
+            app.otherElements["confirm.card.highlighted"].buttons["confirm.reject"].tap()
+            XCTAssertTrue(app.descendants(matching: .any)["confirm.outcome"].firstMatch.waitForExistence(timeout: 20), "rejected outcome")
+            XCTAssertTrue(app.otherElements["confirm.card.highlighted"].waitForNonExistence(timeout: 5), "no outline after the decision")
+            Thread.sleep(forTimeInterval: 2)
+            shot("umrandung-3-nachher-\(look)")
+            app.terminate()
+        }
+    }
+
     /// Unknown request id: "Für dich" opens, no card is outlined, no error alert; the real cards stay as they are.
     func testUnknownRequestIDShowsForYouWithoutError() throws {
         for dark in [false, true] {
