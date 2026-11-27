@@ -11,10 +11,13 @@ struct AuditTimeText: View {
     var body: some View {
         if let date {
             let exact = AuditTime.exact(date)
-            HStack(spacing: Space.xxs) {
-                if let label { Text(label) }
-                Text(verbatim: CommandFormat.relative(date))
+            // One text, not two in a row: at large sizes it wraps instead of cutting the label off ("zuletzt geä…").
+            Group {
+                if let label { Text(label) + Text(verbatim: " " + CommandFormat.relative(date)) }
+                else { Text(verbatim: CommandFormat.relative(date)) }
             }
+            // The task detail header proposes a single-line height; take the wrapped height instead of "vor 9…".
+            .fixedSize(horizontal: false, vertical: true)
             .help(exact)
             .contextMenu { Label { Text(verbatim: exact) } icon: { Image(systemName: "clock") } }
             .accessibilityElement(children: .combine)
