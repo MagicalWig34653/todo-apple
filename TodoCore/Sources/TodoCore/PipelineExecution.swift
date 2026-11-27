@@ -131,6 +131,16 @@ public struct PipelineExecutionSection: Sendable, Equatable {
     public init(show: Bool, start: Bool) { self.show = show; self.start = start }
 }
 
+/// What the account may do with the pipeline of a project.
+public struct PipelineRights: Sendable, Equatable {
+    public let mayStart: Bool
+    public let canEdit: Bool
+    public init(mayStart: Bool, canEdit: Bool) { self.mayStart = mayStart; self.canEdit = canEdit }
+}
+
+/// How much of the pipeline the card detail shows.
+public enum PipelineDetail: Sendable, Equatable { case none, startOnly, full }
+
 public enum PipelineRetryOffer: Sendable, Equatable { case hidden, ready(round: Int, max: Int), exhausted(max: Int) }
 /// Shown at a retry while an execution is active: the retry is then more than a note on the board.
 public enum PipelineRetryHint: Sendable, Equatable { case runs, needsOwner }
@@ -169,6 +179,8 @@ public extension TaskPipeline {
         guard canEdit, step != .approval, let rounds = fixRounds, let s = stepStatus(step), s.stateKind == .failed, s.isOn else { return .hidden }
         return rounds.used >= rounds.max ? .exhausted(max: rounds.max) : .ready(round: rounds.used + 1, max: rounds.max)
     }
+
+    func detail(bindings: [PipelineStartBinding], mayStart: Bool, management: Bool, hasMessage: Bool) -> PipelineDetail { .none }
 
     func retryHint(mayStart: Bool) -> PipelineRetryHint? {
         guard execution?.isActive ?? false else { return nil }
@@ -295,6 +307,8 @@ public extension APIClient {
     func retryPipelineStep(taskID: UUID, step: PipelineStepName, planVersion: Int?) async throws -> TaskPipeline {
         try await send("POST", pipelinePath(taskID) + "/steps/\(step.rawValue)/retry", body: RetryBody(planVersion: planVersion))
     }
+
+    func pipelineRights(projectID: UUID) async throws -> PipelineRights? { throw APIError.invalidResponse }
 
     /// Projects the viewer owns (start right); a server without the field counts as owner, like the PWA.
     func ownedProjectIDs() async throws -> [UUID] {

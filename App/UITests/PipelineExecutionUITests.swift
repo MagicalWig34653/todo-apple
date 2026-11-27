@@ -76,13 +76,14 @@ final class PipelineExecutionUITests: XCTestCase {
         return Runner(projectID: projectID, deviceID: deviceID, token: runnerToken, label: "Linos Mac · todo-apple")
     }
 
-    /// A card due today at noon (listed under "Heute") with an approved plan: the next step is the developer.
-    private func createCard(_ name: String, in projectID: String) async throws -> (id: String, title: String) {
+    /// A card due today at noon (listed under "Heute"), with an approved plan (the next step is the developer) or without one.
+    private func createCard(_ name: String, in projectID: String, plan: Bool = true) async throws -> (id: String, title: String) {
         let title = "\(name) \(Int(Date().timeIntervalSince1970 * 10) % 1000000)"
         let created = try await request("POST", "/v1/tasks", body: ["projectID": projectID, "title": title])
         let id = try XCTUnwrap(created["id"] as? String, "created task")
         let noon = try XCTUnwrap(Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()))
         try await request("PUT", "/v1/planning/tasks/\(id)", body: ["dueAt": ISO8601DateFormatter().string(from: noon), "priority": 0, "reminders": [String]()])
+        guard plan else { return (id, title) }
         try await request("PUT", "/v1/tasks/\(id)/plan", body: ["body": "# Ziel\nAusführung in der App zeigen.\n\n- Test zuerst\n- Umsetzung", "expectedVersion": 0])
         try await request("POST", "/v1/tasks/\(id)/plan/decision", body: ["decision": "approve", "version": 1])
         return (id, title)
@@ -346,6 +347,77 @@ final class PipelineExecutionUITests: XCTestCase {
         XCTAssertFalse(element("execution.start").exists, "no start without a binding")
         XCTAssertFalse(element("execution.feedback").exists, "the message belonged to the closed card")
         try await pictures("fehler-3-wieder-geoeffnet", showing: "plan.state")
+    }
+
+    /// A plain to-do (no plan): the card offers only the start; the runner plans, the person approves in the app, all steps run.
+    func testPlainCardPlannerApprovalAndCompletion() async throws {
+        let runner = try await pairRunner("Planung")
+        let card = try await createCard("Ausführung Planung", in: runner.projectID, plan: false)
+        launch()
+        openCard(card.title, waitFor: "execution.start")
+        XCTAssertFalse(element("pipeline.step.planner").exists, "no empty list of steps on a plain card")
+        try await pictures("planung-1-nur-start", showing: "execution.start")
+        tap("execution.start")
+        try await expectPipeline(card.id, "planner queued") { self.execution($0)["step"] as? String == "planner" }
+        expectLabel("pipeline.step.planner", contains: "Wartet auf den Runner")
+
+        let planner = try await queuedJob(runner, step: "planner")
+        let run = try await claim(runner, planner)
+        try await request("POST", "/v1/runner/runs/\(run)/submit", body: [
+            "generation": 1, "outcome": "passed", "plan": "# Plan vom Runner\n\n- Test zuerst",
+            "result": ["summary": "geplant", "references": [String](), "checks": [String](), "limitations": [String]()]], as: runner.token)
+        expectLabel("execution.state", contains: "Wartet auf Freigabe")
+        expectLabel("execution.hint", contains: "Nach der Freigabe geht es automatisch weiter")
+        try await pictures("planung-2-freigabe", showing: "execution.hint")
+
+        tap("plan.approve")
+        try await expectPipeline(card.id, "developer after the approval") {
+            self.execution($0)["state"] as? String == "running" && self.execution($0)["step"] as? String == "developer"
+        }
+        expectLabel("execution.state", contains: "Läuft")
+        for step in ["developer", "validation", "tester", "review"] {
+            let job = try await queuedJob(runner, step: step)
+            try await submit(runner, try await claim(runner, job), "passed")
+        }
+        expectLabel("execution.state", contains: "Abgeschlossen")
+        expectLabel("execution.hint", contains: "Das Ergebnis wartet im Review")
+        expectGone("execution.stop")
+        XCTAssertFalse(element("execution.start").exists, "nothing left to run")
+        try await pictures("planung-3-abgeschlossen", showing: "execution.hint")
+    }
+
+    /// A new plan version arrives while the card is open: the first tap only says "read first", the second one starts.
+    func testNewPlanVersionNeedsASecondTap() async throws {
+        let runner = try await pairRunner("Fassung")
+        let card = try await createCard("Ausführung Fassung", in: runner.projectID)
+        launch()
+        openCard(card.title, waitFor: "execution.start")
+        try await request("PUT", "/v1/tasks/\(card.id)/plan", body: ["body": "# Ziel\nZweite Fassung.", "expectedVersion": 1])
+        try await request("POST", "/v1/tasks/\(card.id)/plan/decision", body: ["decision": "approve", "version": 2])
+        XCTAssertTrue(app.staticTexts["Zweite Fassung."].waitForExistence(timeout: 30), "the open card shows the new version")
+        tap("execution.start")
+        expectLabel("execution.feedback", contains: "bitte erst lesen")
+        expectLabel("execution.start", contains: "mit Version 2 starten")
+        let before = try await pipeline(card.id)
+        XCTAssertNil(before["execution"], "nothing was sent")
+        try await pictures("fassung-1-erst-lesen", showing: "execution.feedback")
+        tap("execution.start")
+        try await expectPipeline(card.id, "started after the second tap") { self.execution($0)["state"] as? String == "running" }
+        expectLabel("execution.feedback", contains: "Pipeline gestartet.")
+    }
+
+    /// The project switched to the classic view keeps the short to-do detail, also with a runner binding.
+    func testClassicProjectKeepsThePlainDetail() async throws {
+        let runner = try await pairRunner("Klassisch")
+        let prefs = try await request("GET", "/v1/me/project-prefs/\(runner.projectID)")
+        try await request("PATCH", "/v1/me/project-prefs/\(runner.projectID)",
+                          body: ["revision": prefs["revision"] as? Int ?? 0, "mode": "classic"])
+        let card = try await createCard("Ausführung Klassisch", in: runner.projectID, plan: false)
+        launch()
+        openCard(card.title, waitFor: "task.title")
+        XCTAssertFalse(element("execution.start").waitForExistence(timeout: 8), "no pipeline card on a plain to-do")
+        XCTAssertFalse(element("pipeline.step.planner").exists)
+        try await pictures("klassisch", showing: "task.title")
     }
 
     private func bindingID(_ runner: Runner) async throws -> String {

@@ -307,11 +307,42 @@ final class PipelineExecutionTests: XCTestCase {
         XCTAssertTrue(fresh.needsConfirmation(for: .start), "a plan that appeared while the card was open")
     }
 
-    func testOwnershipDefaultsToOwner() async throws {
-        let project = UUID(), shared = UUID(), old = UUID()
-        reply(#"[{"id":"\#(project.uuidString.lowercased())","name":"A","version":1,"isOwner":true},{"id":"\#(shared.uuidString.lowercased())","name":"B","version":1,"isOwner":false},{"id":"\#(old.uuidString.lowercased())","name":"C","version":1}]"#)
-        let owned = try await client.ownedProjectIDs()
+    /// Start right = owner, retry = edit right, both from `GET /v1/projects` (like the PWA: older servers count as own, full access).
+    func testProjectRights() async throws {
+        let own = UUID(), editor = UUID(), reader = UUID(), commenter = UUID(), old = UUID()
+        func item(_ id: UUID, _ extra: String) -> String { #"{"id":"\#(id.uuidString.lowercased())","name":"P","version":1\#(extra)}"# }
+        reply("[" + [item(own, #","isOwner":true,"role":"manage""#), item(editor, #","isOwner":false,"role":"edit""#),
+                     item(reader, #","isOwner":false,"role":"read""#), item(commenter, #","isOwner":false,"role":"comment""#), item(old, "")].joined(separator: ",") + "]")
+        var rights: [UUID: PipelineRights] = [:]
+        for id in [own, editor, reader, commenter, old, UUID()] { rights[id] = try await client.pipelineRights(projectID: id) }
         XCTAssertEqual(last.url?.path, "/v1/projects")
-        XCTAssertEqual(owned, [project, old], "without the field the viewer owns the project (like the PWA)")
+        XCTAssertEqual(rights[own], PipelineRights(mayStart: true, canEdit: true))
+        XCTAssertEqual(rights[editor], PipelineRights(mayStart: false, canEdit: true))
+        XCTAssertEqual(rights[reader], PipelineRights(mayStart: false, canEdit: false))
+        XCTAssertEqual(rights[commenter], PipelineRights(mayStart: false, canEdit: false))
+        XCTAssertEqual(rights[old], PipelineRights(mayStart: true, canEdit: true))
+        XCTAssertEqual(rights.count, 5, "an unknown project grants nothing (nil)")
+    }
+
+    // MARK: What the card detail shows
+
+    func testPlainCardsStayShort() throws {
+        let plain = try decode(pipeline(plan: false))
+        XCTAssertEqual(plain.detail(bindings: [], mayStart: true, management: true, hasMessage: false), .none, "no binding: as before")
+        XCTAssertEqual(plain.detail(bindings: bindings, mayStart: true, management: true, hasMessage: false), .startOnly,
+                       "a plain card offers the start without an empty list of steps")
+        XCTAssertEqual(plain.detail(bindings: bindings, mayStart: true, management: false, hasMessage: false), .none,
+                       "classic projects keep the short to-do detail")
+        XCTAssertEqual(plain.detail(bindings: [], mayStart: true, management: false, hasMessage: true), .startOnly, "a refusal stays readable")
+        let off = try decode(pipeline(steps: steps(["tester": "skipped"], off: ["tester"]), plan: false))
+        XCTAssertEqual(off.detail(bindings: [], mayStart: false, management: true, hasMessage: false), .none, "a step that is off is no activity")
+    }
+
+    func testCardsWithPipelineContentShowEverything() throws {
+        for p in [try decode(pipeline()),
+                  try decode(pipeline(steps: steps(["developer": "running"]), plan: false)),
+                  try decode(pipeline(execution: execution("stopped"), plan: false))] {
+            XCTAssertEqual(p.detail(bindings: [], mayStart: false, management: false, hasMessage: false), .full)
+        }
     }
 }
