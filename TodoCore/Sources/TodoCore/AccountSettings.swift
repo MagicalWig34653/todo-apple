@@ -105,19 +105,26 @@ public struct Connection: Codable, Sendable, Equatable, Identifiable {
     public let clientName: String?
     public let name: String?
     public let scopes: [String]
+    /// The effective projects (with a rule: explicit list plus groups or "all except", oauth-mcp.yaml 1.13.0).
     public let projectIDs: [UUID]
+    /// The explicitly chosen projects (1.13.0); nil on older servers, where `projectIDs` is the list.
+    public let explicitProjectIDs: [UUID]?
+    /// The rule (groups, "all except"); nil = only the explicit projects.
+    public let selection: ProjectSelection?
     public let revoked: Bool
     public let lastUsedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, scopes, revoked, name
+        case id, scopes, revoked, name, selection
         case clientID = "client_id", clientName = "client_name", projectIDs = "project_ids", lastUsedAt = "last_used_at"
+        case explicitProjectIDs = "explicit_project_ids"
     }
 
     public init(id: UUID, clientID: UUID? = nil, clientName: String? = nil, name: String? = nil, scopes: [String] = [],
-                projectIDs: [UUID] = [], revoked: Bool = false, lastUsedAt: Date? = nil) {
+                projectIDs: [UUID] = [], explicitProjectIDs: [UUID]? = nil, selection: ProjectSelection? = nil, revoked: Bool = false, lastUsedAt: Date? = nil) {
         self.id = id; self.clientID = clientID; self.clientName = clientName; self.name = name; self.scopes = scopes
-        self.projectIDs = projectIDs; self.revoked = revoked; self.lastUsedAt = lastUsedAt
+        self.projectIDs = projectIDs; self.explicitProjectIDs = explicitProjectIDs; self.selection = selection
+        self.revoked = revoked; self.lastUsedAt = lastUsedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -128,6 +135,8 @@ public struct Connection: Codable, Sendable, Equatable, Identifiable {
         name = try c.decodeIfPresent(String.self, forKey: .name)
         scopes = try c.decodeIfPresent([String].self, forKey: .scopes) ?? []
         projectIDs = try c.decodeIfPresent([UUID].self, forKey: .projectIDs) ?? []
+        explicitProjectIDs = try c.decodeIfPresent([UUID].self, forKey: .explicitProjectIDs)
+        selection = try c.decodeIfPresent(ProjectSelection.self, forKey: .selection)
         revoked = try c.decodeIfPresent(Bool.self, forKey: .revoked) ?? false
         lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt)
     }
