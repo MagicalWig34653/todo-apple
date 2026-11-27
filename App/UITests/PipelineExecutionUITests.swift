@@ -5,7 +5,8 @@ import XCTest
 /// the Mac runner over the runner API (pair, poll with `pipeline=1`, hold, claim, progress, submit) and reads every action back
 /// over REST. Every test uses its own project and runner device, so other tests never see a binding. Needs `TODO_UITEST_SERVER` /
 /// `TODO_UITEST_TOKEN` (skipped without); with `TODO_UITEST_HELPER` (scripts/ui-tests.sh) the states are also taken as pictures in
-/// light and dark (`<scratch>/shots/<device>-ausfuehrung-…`).
+/// light and dark (`<scratch>/shots/<device>-ausfuehrung-…`). The sending state needs `TODO_UITEST_DELAY_PROXY`
+/// (`scripts/selection-proxy.py` in front of the backend, started by `scripts/ui-tests.sh`).
 @MainActor
 final class PipelineExecutionUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -134,9 +135,9 @@ final class PipelineExecutionUITests: XCTestCase {
 
     // MARK: App helpers
 
-    private func launch() {
+    private func launch(through appServer: String? = nil) {
         app = XCUIApplication()
-        app.launchEnvironment["TODO_DEBUG_SERVER"] = server
+        app.launchEnvironment["TODO_DEBUG_SERVER"] = appServer ?? server
         app.launchEnvironment["TODO_DEBUG_TOKEN"] = token
         app.launchEnvironment["TODO_DEBUG_SELECT"] = "today"
         app.launchEnvironment["TODO_DEBUG_NOW"] = "12:00"
@@ -418,6 +419,78 @@ final class PipelineExecutionUITests: XCTestCase {
         XCTAssertFalse(element("execution.start").waitForExistence(timeout: 8), "no pipeline card on a plain to-do")
         XCTAssertFalse(element("pipeline.step.planner").exists)
         try await pictures("klassisch", showing: "task.title")
+    }
+
+    /// "Wird gesendet …" while start or stop are on their way (button locked), gone after success and after a failure; closing the
+    /// card while sending leaves nothing stuck.
+    func testSendingStateOnSuccessFailureAndClose() async throws {
+        guard let proxy = ProcessInfo.processInfo.environment["TODO_UITEST_DELAY_PROXY"] else {
+            throw XCTSkip("TODO_UITEST_DELAY_PROXY not set (run through scripts/ui-tests.sh)")
+        }
+        let runner = try await pairRunner("Senden")
+        let card = try await createCard("Ausführung Senden", in: runner.projectID)
+        launch(through: proxy)
+        openCard(card.title, waitFor: "execution.start")
+        func control(_ rules: [String: Any]) async throws {
+            var r = URLRequest(url: URL(string: proxy + "/__control")!)
+            r.httpMethod = "POST"; r.httpBody = try JSONSerialization.data(withJSONObject: rules)
+            _ = try await URLSession.shared.data(for: r)
+        }
+        func sending(_ id: String, _ name: String) async throws {
+            expectLabel(id, contains: "Wird gesendet")
+            XCTAssertFalse(element(id).isEnabled, "\(id) is locked while sending")
+            try await pictures(name, showing: id)
+        }
+
+        // Start fails: the sending label goes, the message says so, nothing started.
+        try await control(["exec-start": ["delay": 20, "status": 500]])
+        try await pictures("senden-1-start-vorher", showing: "execution.start")
+        tap("execution.start")
+        try await sending("execution.start", "senden-2-start-fehler-waehrend")
+        expectLabel("execution.feedback", contains: "Das hat nicht geklappt")
+        expectLabel("execution.start", contains: "Pipeline starten")
+        XCTAssertTrue(element("execution.start").isEnabled, "free again after the failure")
+        let failed = try await pipeline(card.id)
+        XCTAssertNil(failed["execution"], "nothing started")
+        try await pictures("senden-3-start-fehler-nachher", showing: "execution.start")
+
+        // Start succeeds.
+        try await control(["exec-start": ["delay": 20]])
+        tap("execution.start")
+        try await sending("execution.start", "senden-4-start-waehrend")
+        expectLabel("execution.state", contains: "Läuft")
+        expectLabel("execution.feedback", contains: "Pipeline gestartet.")
+        expectGone("execution.start")
+        try await pictures("senden-5-start-nachher", showing: "execution.stop")
+
+        // Stop fails, then succeeds.
+        try await control(["exec-stop": ["delay": 20, "status": 500]])
+        tap("execution.stop")
+        try await sending("execution.stop", "senden-6-stopp-fehler-waehrend")
+        expectLabel("execution.feedback", contains: "Das hat nicht geklappt")
+        expectLabel("execution.stop", contains: "Stoppen")
+        XCTAssertTrue(element("execution.stop").isEnabled)
+        expectLabel("execution.state", contains: "Läuft")
+        try await pictures("senden-7-stopp-fehler-nachher", showing: "execution.stop")
+        try await control(["exec-stop": ["delay": 20]])
+        tap("execution.stop")
+        try await sending("execution.stop", "senden-8-stopp-waehrend")
+        expectLabel("execution.state", contains: "Gestoppt")
+        expectGone("execution.stop")
+        try await pictures("senden-9-stopp-nachher", showing: "execution.hint")
+
+        // Closed while sending: reopened, the card shows the stored state and no leftover sending label.
+        try await control(["exec-start": ["delay": 6]])
+        tap("execution.start")
+        expectLabel("execution.start", contains: "Wird gesendet")
+        app.buttons["Fertig"].tap()
+        try await expectPipeline(card.id, "the request goes on after closing") { self.execution($0)["state"] as? String == "running" }
+        openCard(card.title, waitFor: "execution.stop")
+        expectLabel("execution.stop", contains: "Stoppen")
+        XCTAssertTrue(element("execution.stop").isEnabled)
+        XCTAssertFalse(element("execution.start").exists)
+        XCTAssertFalse(element("execution.feedback").exists, "the message belonged to the closed card")
+        try await control([:])
     }
 
     private func bindingID(_ runner: Runner) async throws -> String {

@@ -16,6 +16,8 @@
 #                      flake once in a while); a test that passed on a retry is still reported as such by xcodebuild
 #   TODO_UITEST_HELPER_PORT  loopback port of scripts/sim-text-size-helper.py (default 28090), started for the run so UI tests can
 #                      change the system text size while the app runs; a taken port is refused, never killed
+#   TODO_UITEST_PROXY_PORT  loopback port of scripts/selection-proxy.py (default 28095) in front of the backend, so UI tests can
+#                      delay or fail single requests (pipeline sending states); a taken port is refused, never killed
 #   TODO_UITEST_TMP    scratch directory (default mktemp); TODO_UITEST_KEEP=1 keeps it
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -23,12 +25,13 @@ port="${TODO_UITEST_PORT:-28080}"
 base="http://127.0.0.1:$port"
 runtime="${TODO_UITEST_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-27-0}"
 scratch="${TODO_UITEST_TMP:-$(mktemp -d)}"
-backend_pid="" sim_created="" helper_pid=""
+backend_pid="" sim_created="" helper_pid="" proxy_pid=""
 
 die() { echo "ui-tests: $*" >&2; exit 2; }
 cleanup() {
   local code=$?
   [[ -n "$helper_pid" ]] && kill "$helper_pid" 2>/dev/null && wait "$helper_pid" 2>/dev/null || true
+  [[ -n "$proxy_pid" ]] && kill "$proxy_pid" 2>/dev/null && wait "$proxy_pid" 2>/dev/null || true
   [[ -n "$backend_pid" ]] && kill "$backend_pid" 2>/dev/null && wait "$backend_pid" 2>/dev/null || true
   if [[ -n "$sim_created" ]]; then xcrun simctl shutdown "$sim_created" >/dev/null 2>&1 || true; xcrun simctl delete "$sim_created" >/dev/null 2>&1 || true; fi
   [[ "${TODO_UITEST_KEEP:-0}" == "1" ]] && echo "ui-tests: scratch kept at $scratch" || rm -rf "$scratch"
@@ -73,6 +76,9 @@ helper_port="${TODO_UITEST_HELPER_PORT:-28090}"
 nc -z 127.0.0.1 "$helper_port" 2>/dev/null && die "port $helper_port is already in use; stop it or set TODO_UITEST_HELPER_PORT"
 mkdir -p "$scratch/shots"
 python3 -I scripts/sim-text-size-helper.py "$sim" "$helper_port" "$scratch/shots" & helper_pid=$!
+proxy_port="${TODO_UITEST_PROXY_PORT:-28095}"
+nc -z 127.0.0.1 "$proxy_port" 2>/dev/null && die "port $proxy_port is already in use; stop it or set TODO_UITEST_PROXY_PORT"
+python3 -I scripts/selection-proxy.py "$proxy_port" "$port" >"$scratch/proxy.log" 2>&1 & proxy_pid=$!
 
 xcodegen generate >/dev/null
 echo "ui-tests: running Todo-iOS-UITests on simulator $sim"
@@ -81,6 +87,7 @@ skip=(-skip-testing:Todo-iOS-UITests/AuditTimesServerE2E -skip-testing:Todo-iOS-
 retry=(); (( ${TODO_UITEST_RETRIES:-1} > 0 )) && retry=(-retry-tests-on-failure -test-iterations $(( ${TODO_UITEST_RETRIES:-1} + 1 )))
 set +e
 TEST_RUNNER_TODO_UITEST_SERVER="$base" TEST_RUNNER_TODO_UITEST_TOKEN="$token" TEST_RUNNER_TODO_UITEST_HELPER="http://127.0.0.1:$helper_port" \
+  TEST_RUNNER_TODO_UITEST_DELAY_PROXY="http://127.0.0.1:$proxy_port" \
   xcodebuild test -project Todo.xcodeproj -scheme Todo-iOS -destination "id=$sim" \
   -resultBundlePath "$scratch/result.xcresult" ${retry[@]+"${retry[@]}"} CODE_SIGNING_ALLOWED=NO ${skip[@]+"${skip[@]}"} "$@"
 code=$?

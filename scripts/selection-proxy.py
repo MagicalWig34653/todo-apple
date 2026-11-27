@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Loopback proxy for the UI test SelectionPendingTests: forwards to a local backend, but the test can delay or fail the
-selection preview and the mandate save, so the pending, failed and cancelled states can be seen and asserted.
+"""Loopback proxy for UI tests of pending states (SelectionPendingTests, PipelineExecutionUITests): forwards to a local
+backend, but the test can delay or fail the selection preview, the mandate save and the pipeline actions, so the pending,
+failed and cancelled states can be seen and asserted.
 
   selection-proxy.py <listen port> <backend port>
 
   POST /__control {"preview": {"delay": 5, "status": 200}, "save": {...}}   replaces the rules and clears the log
+                  (rules: preview, save, exec-start, exec-stop, exec-continue, exec-retry)
   GET  /__log     [{"rule": "preview", "status": 200, "forwarded": true}, ...] answered slow requests, oldest first
 
 A forced status other than 200 is answered without asking the backend, so nothing is stored.
@@ -17,7 +19,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 listen, backend = int(sys.argv[1]), int(sys.argv[2])
 RULES = {("POST", "/v1/project-selection/preview"): "preview", ("PUT", "/v1/settings/brain-mandate"): "save"}
+PIPELINE = (("/execution", "exec-start"), ("/execution/stop", "exec-stop"), ("/execution/continue", "exec-continue"), ("/retry", "exec-retry"))
 rules, log = {}, []
+
+
+def rule_name(method, path):
+    if method == "POST" and "/pipeline/" in path:
+        return next((name for end, name in PIPELINE if path.endswith(end)), None)
+    return RULES.get((method, path))
 
 
 class Proxy(BaseHTTPRequestHandler):
@@ -42,7 +51,7 @@ class Proxy(BaseHTTPRequestHandler):
             return self.reply(200, [], b"{}")
         if path == "/__log":
             return self.reply(200, [("content-type", "application/json")], json.dumps(log).encode())
-        name = RULES.get((self.command, path))
+        name = rule_name(self.command, path)
         rule = rules.get(name, {}) if name else {}
         time.sleep(rule.get("delay", 0))
         status = rule.get("status", 200)
