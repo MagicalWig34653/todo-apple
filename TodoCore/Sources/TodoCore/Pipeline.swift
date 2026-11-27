@@ -91,12 +91,15 @@ public struct PipelineStepStatus: Decodable, Sendable, Equatable, Identifiable {
     public let note: String?
     public let actorLabel: String?
     public let updatedAt: Date?
+    /// Stage 2: false when the project switched the step off; missing on older servers (= on).
+    public let enabled: Bool?
     public var id: String { step }
     public var stateKind: State { State(raw: state) }
+    public var isOn: Bool { false }
     public var name: PipelineStepName? { PipelineStepName(rawValue: step) }
 
-    public init(step: String, state: String, note: String? = nil, actorLabel: String? = nil, updatedAt: Date? = nil) {
-        self.step = step; self.state = state; self.note = note; self.actorLabel = actorLabel; self.updatedAt = updatedAt
+    public init(step: String, state: String, note: String? = nil, actorLabel: String? = nil, updatedAt: Date? = nil, enabled: Bool? = nil) {
+        self.step = step; self.state = state; self.note = note; self.actorLabel = actorLabel; self.updatedAt = updatedAt; self.enabled = enabled
     }
 
     /// Throws without `step` or `state`.
@@ -110,6 +113,10 @@ public struct PipelineStepStatus: Decodable, Sendable, Equatable, Identifiable {
 public struct PipelineEvent: Decodable, Sendable, Equatable, Identifiable {
     public enum Kind: Sendable, Equatable {
         case planWritten, planApproved, planChangesRequested, stepChanged, unknown
+        // Stage 2 and 3 (card BEE2417E).
+        case stepRetried, executionStarted, executionContinued, executionStopped, executionCompleted
+        /// Only an activity kind (`pipeline.execution`): start, continue or stop.
+        case executionChanged
 
         /// From the contract's `action` (`plan_written`, ...).
         public init(action: String) {
@@ -154,9 +161,14 @@ public struct TaskPipeline: Decodable, Sendable, Equatable {
     public let plan: PipelinePlan?
     public let steps: [PipelineStepStatus]
     public let events: [PipelineEvent]
+    /// Stage 2: fix rounds of the current plan version; missing on older servers (then there is no retry).
+    public let fixRounds: PipelineFixRounds?
+    /// Stage 3: the execution on a runner; missing while the card was never started.
+    public let execution: PipelineExecution?
 
-    public init(taskID: UUID, plan: PipelinePlan? = nil, steps: [PipelineStepStatus] = [], events: [PipelineEvent] = []) {
-        self.taskID = taskID; self.plan = plan; self.steps = steps; self.events = events
+    public init(taskID: UUID, plan: PipelinePlan? = nil, steps: [PipelineStepStatus] = [], events: [PipelineEvent] = [],
+                fixRounds: PipelineFixRounds? = nil, execution: PipelineExecution? = nil) {
+        self.taskID = taskID; self.plan = plan; self.steps = steps; self.events = events; self.fixRounds = fixRounds; self.execution = execution
     }
 
     public init(from decoder: any Decoder) throws {
@@ -192,7 +204,7 @@ public enum PipelineActivity {
         case .planApproved: "activity.plan_approved"
         case .planChangesRequested: "activity.plan_changes_requested"
         case .stepChanged: "activity.pipeline_step"
-        case .unknown, nil: nil
+        case .unknown, .stepRetried, .executionStarted, .executionContinued, .executionStopped, .executionCompleted, .executionChanged, nil: nil
         }
     }
 }
