@@ -95,7 +95,7 @@ public struct PipelineStepStatus: Decodable, Sendable, Equatable, Identifiable {
     public let enabled: Bool?
     public var id: String { step }
     public var stateKind: State { State(raw: state) }
-    public var isOn: Bool { false }
+    public var isOn: Bool { enabled ?? true }
     public var name: PipelineStepName? { PipelineStepName(rawValue: step) }
 
     public init(step: String, state: String, note: String? = nil, actorLabel: String? = nil, updatedAt: Date? = nil, enabled: Bool? = nil) {
@@ -105,7 +105,8 @@ public struct PipelineStepStatus: Decodable, Sendable, Equatable, Identifiable {
     /// Throws without `step` or `state`.
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: PipelineKey.self)
-        self.init(step: try c.need("step"), state: try c.need("state"), note: c.opt("note"), actorLabel: c.opt("actorLabel"), updatedAt: c.opt("updatedAt"))
+        self.init(step: try c.need("step"), state: try c.need("state"), note: c.opt("note"), actorLabel: c.opt("actorLabel"), updatedAt: c.opt("updatedAt"),
+                  enabled: c.opt("enabled"))
     }
 }
 
@@ -125,6 +126,11 @@ public struct PipelineEvent: Decodable, Sendable, Equatable, Identifiable {
             case "plan_approved": self = .planApproved
             case "plan_changes_requested": self = .planChangesRequested
             case "step_changed": self = .stepChanged
+            case "step_retried": self = .stepRetried
+            case "execution_started": self = .executionStarted
+            case "execution_continued": self = .executionContinued
+            case "execution_stopped": self = .executionStopped
+            case "execution_completed": self = .executionCompleted
             default: self = .unknown
             }
         }
@@ -173,7 +179,8 @@ public struct TaskPipeline: Decodable, Sendable, Equatable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: PipelineKey.self)
-        self.init(taskID: try c.need("taskID"), plan: c.opt("plan"), steps: c.items("steps"), events: c.items("events"))
+        self.init(taskID: try c.need("taskID"), plan: c.opt("plan"), steps: c.items("steps"), events: c.items("events"),
+                  fixRounds: c.opt("fixRounds"), execution: c.opt("execution"))
     }
 
     /// A proposed plan waits for the person's decision: the actions "Plan freigeben" and "Änderungen" are offered.
@@ -192,6 +199,7 @@ public enum PipelineActivity {
         case "plan.approved": .planApproved
         case "plan.changes_requested": .planChangesRequested
         case "pipeline.step": .stepChanged
+        case "pipeline.execution": .executionChanged
         default: nil
         }
     }
@@ -204,7 +212,8 @@ public enum PipelineActivity {
         case .planApproved: "activity.plan_approved"
         case .planChangesRequested: "activity.plan_changes_requested"
         case .stepChanged: "activity.pipeline_step"
-        case .unknown, .stepRetried, .executionStarted, .executionContinued, .executionStopped, .executionCompleted, .executionChanged, nil: nil
+        case .executionChanged: "activity.pipeline_execution"
+        case .unknown, .stepRetried, .executionStarted, .executionContinued, .executionStopped, .executionCompleted, nil: nil
         }
     }
 }
