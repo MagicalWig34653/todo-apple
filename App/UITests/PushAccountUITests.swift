@@ -195,6 +195,33 @@ final class PushAccountUITests: XCTestCase {
         shot("einstellungen-fehler-hell")
     }
 
+    // MARK: 5 Account screen at standard and large text, light and dark
+
+    /// The picture series of the account screen (card D97C4918): standard and largest accessibility size, each light and dark.
+    /// Nothing may be cut off at the sides and the notification rows stay reachable.
+    func test5AccountScreenAtStandardAndLargeText() throws {
+        let large = ["-push.primerDismissed", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        let standard = ["-push.primerDismissed", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        for (size, extra) in [("standard", standard), ("gross", large)] {
+            for dark in [false, true] {
+                let look = dark ? "dunkel" : "hell"
+                let app = launch(select: "account", dark: dark, extra: extra)
+                let screen = app.windows.firstMatch.frame
+                let status = app.descendants(matching: .any).matching(identifier: "push.status").firstMatch
+                // The status row is far down at large text (lazy list): scroll to it instead of waiting for it.
+                shot("konto-\(size)-\(look)-oben")
+                XCTAssertTrue(reveal(app, status), "\(size) \(look): notification status on the account screen")
+                XCTAssertGreaterThanOrEqual(status.frame.minX, screen.minX, "\(size) \(look): status not cut off on the left")
+                XCTAssertLessThanOrEqual(status.frame.maxX, screen.maxX + 1, "\(size) \(look): status not cut off on the right")
+                let reminders = app.switches["push.cat.reminders"]
+                XCTAssertTrue(reveal(app, reminders), "\(size) \(look): reminders switch reachable")
+                XCTAssertLessThanOrEqual(reminders.frame.maxX, screen.maxX + 1, "\(size) \(look): switch row not cut off")
+                shot("konto-\(size)-\(look)-anlaesse")
+                app.terminate()
+            }
+        }
+    }
+
     // MARK: Helpers
 
     private func launch(select: String, dark: Bool = false, extra: [String] = ["-push.primerDismissed", "YES"]) -> XCUIApplication {

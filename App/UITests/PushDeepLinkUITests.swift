@@ -47,7 +47,7 @@ final class PushDeepLinkUITests: XCTestCase {
     /// Largest accessibility sizes: the iPad shows the detail as a sheet, the destination stays the same.
     func testLargeTextReachesTheSameDestinations() throws {
         let target = try seededTarget()
-        for (kind, dark) in [(Kind.reminder, false), (Kind.question, true)] {
+        for (kind, dark) in [(Kind.reminder, false), (Kind.reminder, true), (Kind.question, false), (Kind.question, true)] {
             let app = launch(payload(kind, target), delay: 0, dark: dark, large: true)
             assertDestination(app, kind, target, shot: "gross-\(kind.rawValue)-\(look(dark))")
             app.terminate()
@@ -129,6 +129,19 @@ final class PushDeepLinkUITests: XCTestCase {
                 let created = app.descendants(matching: .any).matching(identifier: "audit.created").firstMatch
                 let updated = app.descendants(matching: .any).matching(identifier: "audit.updated").firstMatch
                 XCTAssertTrue(created.waitForExistence(timeout: 10) && updated.exists, "\(kind): timestamps", file: file, line: line)
+                let screen = app.windows.firstMatch.frame
+                if !isPad {
+                    // "zuletzt geändert vor 3 Min." does not fit one line on an iPhone at this size: it has to wrap
+                    // instead of ending in "geä…" (the combined accessibility label keeps the full text either way).
+                    XCTAssertGreaterThan(updated.frame.height, created.frame.height * 1.5,
+                                         "\(kind): 'zuletzt geändert' wraps instead of being cut off (\(updated.frame) vs \(created.frame))",
+                                         file: file, line: line)
+                }
+                for (name, element) in [("created", created), ("updated", updated)] {
+                    XCTAssertGreaterThanOrEqual(element.frame.minX, screen.minX, "\(kind): \(name) not cut off on the left", file: file, line: line)
+                    XCTAssertLessThanOrEqual(element.frame.maxX, screen.maxX + 1, "\(kind): \(name) not cut off on the right", file: file, line: line)
+                    XCTAssertLessThanOrEqual(element.frame.maxY, screen.maxY, "\(kind): \(name) on screen", file: file, line: line)
+                }
                 XCTAssertGreaterThanOrEqual(updated.frame.minY, created.frame.maxY - 1,
                                             "\(kind): at accessibility sizes the two timestamps stand one below the other, not squeezed side by side",
                                             file: file, line: line)
