@@ -181,11 +181,13 @@ struct PipelineExecutionView: View {
                 else if state.confirming == .continue { Text("pipeline.exec.continueConfirm \(version)") }
                 else { Text("pipeline.exec.continue") }
             } icon: { Image(systemName: "play.fill") }
+            .sendingLabel(state.acting == .continue)
         }
         .buttonStyle(.borderedProminent).tint(Color.brand).foregroundStyle(Color.onBrand).controlSize(.large).disabled(busy)
         .accessibilityIdentifier("execution.continue")
         let stop = Button { state.onAct(.stop) } label: {
             Label { state.acting == .stop ? Text("pipeline.exec.sending") : Text("pipeline.exec.stop") } icon: { Image(systemName: "stop.fill") }
+                .sendingLabel(state.acting == .stop)
         }
         .buttonStyle(.bordered).controlSize(.large).disabled(busy)
         .accessibilityIdentifier("execution.stop")
@@ -222,12 +224,21 @@ struct PipelineExecutionView: View {
                     else if state.confirming == .start { Text("pipeline.exec.startConfirm \(version)") }
                     else { Text("pipeline.exec.start") }
                 } icon: { Image(systemName: "play.fill") }
+                .sendingLabel(state.acting == .start)
             }
             .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).tint(Color.brand).foregroundStyle(Color.onBrand)
             .controlSize(.large).disabled(state.acting != nil)
             .accessibilityIdentifier("execution.start")
             Text("pipeline.exec.intro").font(.caption).foregroundStyle(Color.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+extension View {
+    /// "Wird gesendet …" stays readable on the locked button: the system's disabled look (white on light grey on a prominent
+    /// button) is too faint for a label that says what happens.
+    @ViewBuilder func sendingLabel(_ sending: Bool) -> some View {
+        if sending { foregroundStyle(Color.textSecondary) } else { self }
     }
 }
 

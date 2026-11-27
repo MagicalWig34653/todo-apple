@@ -169,6 +169,7 @@ extension PipelineCard {
                 AdaptiveStack(spacing: Space.s) {
                     Button { execution.onRetry(step) } label: {
                         Label { execution.retrying == step ? Text("pipeline.retry.sending") : Text("pipeline.retry") } icon: { Image(systemName: "arrow.clockwise") }
+                            .sendingLabel(execution.retrying == step)
                     }
                     .buttonStyle(.bordered).controlSize(.regular).disabled(execution.retrying != nil || execution.acting != nil)
                     .accessibilityIdentifier("pipeline.retry.\(step.rawValue)")

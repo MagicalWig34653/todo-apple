@@ -431,19 +431,8 @@ final class PipelineExecutionUITests: XCTestCase {
         let card = try await createCard("Ausführung Senden", in: runner.projectID)
         launch(through: proxy)
         openCard(card.title, waitFor: "execution.start")
-        func control(_ rules: [String: Any]) async throws {
-            var r = URLRequest(url: URL(string: proxy + "/__control")!)
-            r.httpMethod = "POST"; r.httpBody = try JSONSerialization.data(withJSONObject: rules)
-            _ = try await URLSession.shared.data(for: r)
-        }
-        func sending(_ id: String, _ name: String) async throws {
-            expectLabel(id, contains: "Wird gesendet")
-            XCTAssertFalse(element(id).isEnabled, "\(id) is locked while sending")
-            try await pictures(name, showing: id)
-        }
-
         // Start fails: the sending label goes, the message says so, nothing started.
-        try await control(["exec-start": ["delay": 20, "status": 500]])
+        try await control(proxy, ["exec-start": ["delay": 45, "status": 500]])
         try await pictures("senden-1-start-vorher", showing: "execution.start")
         tap("execution.start")
         try await sending("execution.start", "senden-2-start-fehler-waehrend")
@@ -455,7 +444,7 @@ final class PipelineExecutionUITests: XCTestCase {
         try await pictures("senden-3-start-fehler-nachher", showing: "execution.start")
 
         // Start succeeds.
-        try await control(["exec-start": ["delay": 20]])
+        try await control(proxy, ["exec-start": ["delay": 45]])
         tap("execution.start")
         try await sending("execution.start", "senden-4-start-waehrend")
         expectLabel("execution.state", contains: "Läuft")
@@ -464,7 +453,7 @@ final class PipelineExecutionUITests: XCTestCase {
         try await pictures("senden-5-start-nachher", showing: "execution.stop")
 
         // Stop fails, then succeeds.
-        try await control(["exec-stop": ["delay": 20, "status": 500]])
+        try await control(proxy, ["exec-stop": ["delay": 45, "status": 500]])
         tap("execution.stop")
         try await sending("execution.stop", "senden-6-stopp-fehler-waehrend")
         expectLabel("execution.feedback", contains: "Das hat nicht geklappt")
@@ -472,7 +461,7 @@ final class PipelineExecutionUITests: XCTestCase {
         XCTAssertTrue(element("execution.stop").isEnabled)
         expectLabel("execution.state", contains: "Läuft")
         try await pictures("senden-7-stopp-fehler-nachher", showing: "execution.stop")
-        try await control(["exec-stop": ["delay": 20]])
+        try await control(proxy, ["exec-stop": ["delay": 45]])
         tap("execution.stop")
         try await sending("execution.stop", "senden-8-stopp-waehrend")
         expectLabel("execution.state", contains: "Gestoppt")
@@ -480,7 +469,7 @@ final class PipelineExecutionUITests: XCTestCase {
         try await pictures("senden-9-stopp-nachher", showing: "execution.hint")
 
         // Closed while sending: reopened, the card shows the stored state and no leftover sending label.
-        try await control(["exec-start": ["delay": 6]])
+        try await control(proxy, ["exec-start": ["delay": 6]])
         tap("execution.start")
         expectLabel("execution.start", contains: "Wird gesendet")
         app.buttons["Fertig"].tap()
@@ -490,7 +479,78 @@ final class PipelineExecutionUITests: XCTestCase {
         XCTAssertTrue(element("execution.stop").isEnabled)
         XCTAssertFalse(element("execution.start").exists)
         XCTAssertFalse(element("execution.feedback").exists, "the message belonged to the closed card")
-        try await control([:])
+        try await control(proxy, [:])
+    }
+
+    /// The same for "Wiederholen" at a failed step and for "Fortsetzen" of a paused execution.
+    func testSendingStateOfRetryAndContinue() async throws {
+        guard let proxy = ProcessInfo.processInfo.environment["TODO_UITEST_DELAY_PROXY"] else {
+            throw XCTSkip("TODO_UITEST_DELAY_PROXY not set (run through scripts/ui-tests.sh)")
+        }
+        let runner = try await pairRunner("Erneut")
+        let card = try await createCard("Ausführung Erneut", in: runner.projectID)
+        let bindingID = try await bindingID(runner)
+        try await request("POST", "/v1/tasks/\(card.id)/pipeline/execution", body: ["id": UUID().uuidString.lowercased(), "bindingID": bindingID])
+        let first = try await queuedJob(runner, step: "developer")
+        try await submit(runner, try await claim(runner, first), "failed")
+        try await control(proxy, [:])
+        launch(through: proxy)
+        openCard(card.title, waitFor: "pipeline.retry.developer")
+
+        try await control(proxy, ["exec-retry": ["delay": 45, "status": 500]])
+        try await pictures("erneut-1-wiederholen-vorher", showing: "pipeline.retry.developer")
+        tap("pipeline.retry.developer")
+        try await sending("pipeline.retry.developer", "erneut-2-wiederholen-fehler-waehrend")
+        expectLabel("execution.feedback", contains: "Das hat nicht geklappt")
+        XCTAssertTrue(element("pipeline.retry.developer").isEnabled, "free again after the failure")
+        try await pictures("erneut-3-wiederholen-fehler-nachher", showing: "pipeline.retry.developer")
+        try await control(proxy, ["exec-retry": ["delay": 45]])
+        tap("pipeline.retry.developer")
+        try await sending("pipeline.retry.developer", "erneut-4-wiederholen-waehrend")
+        expectLabel("execution.feedback", contains: "wiederholt: der Schritt läuft erneut")
+        expectGone("pipeline.retry.developer")
+        try await pictures("erneut-5-wiederholen-nachher", showing: "execution.feedback")
+
+        // Paused by a card change before the claim of the repeated step.
+        let job = try await queuedJob(runner, step: "developer")
+        let task = try await request("GET", "/v1/planning/tasks/\(card.id)")["task"] as? [String: Any] ?? [:]
+        try await request("PATCH", "/v1/tasks/\(card.id)", body: ["description": "Neu: auch iPad", "version": task["version"] as? Int ?? 1])
+        try await request("POST", "/v1/runner/jobs/\(job)/claim?pipeline=1", as: runner.token, expect: 200...499)
+        XCTAssertTrue(element("execution.continue").waitForExistence(timeout: 30), "continue offered")
+        try await control(proxy, ["exec-continue": ["delay": 45, "status": 500]])
+        try await pictures("erneut-6-fortsetzen-vorher", showing: "execution.continue")
+        tap("execution.continue")
+        try await sending("execution.continue", "erneut-7-fortsetzen-fehler-waehrend")
+        expectLabel("execution.feedback", contains: "Das hat nicht geklappt")
+        XCTAssertTrue(element("execution.continue").isEnabled)
+        expectLabel("execution.state", contains: "Angehalten")
+        try await pictures("erneut-8-fortsetzen-fehler-nachher", showing: "execution.continue")
+        try await control(proxy, ["exec-continue": ["delay": 45]])
+        tap("execution.continue")
+        try await sending("execution.continue", "erneut-9-fortsetzen-waehrend")
+        expectLabel("execution.state", contains: "Läuft")
+        expectLabel("execution.feedback", contains: "Ausführung fortgesetzt.")
+        expectGone("execution.continue")
+        try await pictures("erneut-a-fortsetzen-nachher", showing: "execution.feedback")
+        try await control(proxy, [:])
+    }
+
+    /// Replaces the proxy's rules (delay or forced status per request kind).
+    private func control(_ proxy: String, _ rules: [String: Any]) async throws {
+        var r = URLRequest(url: URL(string: proxy + "/__control")!)
+        r.httpMethod = "POST"; r.httpBody = try JSONSerialization.data(withJSONObject: rules)
+        _ = try await URLSession.shared.data(for: r)
+    }
+
+    /// The sending state of `id`: label, locked, pictures in both looks that still show it, then waits until the answer is there.
+    private func sending(_ id: String, _ name: String, file: StaticString = #filePath, line: UInt = #line) async throws {
+        expectLabel(id, contains: "Wird gesendet", file: file, line: line)
+        XCTAssertFalse(element(id).isEnabled, "\(id) is locked while sending", file: file, line: line)
+        try await pictures(name, showing: id)
+        XCTAssertTrue(element(id).exists && element(id).label.contains("Wird gesendet"), "still sending after both pictures", file: file, line: line)
+        let answered = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false OR NOT (label CONTAINS 'Wird gesendet')"),
+                                                 object: element(id))
+        XCTAssertEqual(XCTWaiter.wait(for: [answered], timeout: 60), .completed, "\(id) is answered", file: file, line: line)
     }
 
     private func bindingID(_ runner: Runner) async throws -> String {
