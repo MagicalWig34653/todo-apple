@@ -391,7 +391,9 @@ private struct NeedsYouCard: View {
                             Button(action: open) { Label("review.variants.openChoice", systemImage: "hand.tap.fill") }
                                 .modifier(ActionStyle(primary: true)).disabled(busy)
                         }
-                        ForEach(visibleActions) { action in
+                        // A question's options are its actions: the runner can ask with a repeated option, hence numbered keys.
+                        ForEach(visibleActions.uniquelyKeyed { $0.id }) { keyed in
+                            let action = keyed.item
                             let primary = !needsChoice && item.kind != "question" && action.id == visibleActions.first?.id
                             Button { if action.requiresInput { input = action } else { act(action, nil) } } label: {
                                 Text(verbatim: action.label)

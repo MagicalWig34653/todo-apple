@@ -51,6 +51,7 @@ final class NowBlockUITests: XCTestCase {
         app.launchEnvironment["TODO_DEBUG_TOKEN"] = token
         app.launchEnvironment["TODO_DEBUG_SELECT"] = "today"
         app.launchEnvironment["TODO_DEBUG_NOW"] = "12:00"
+        app.launchArguments += ["-appearance.colorScheme", look == "dark" ? "dark" : "light"]
         if let stub { app.launchEnvironment["TODO_DEBUG_NOW_STUB"] = stub }
         app.launch()
     }
@@ -157,14 +158,13 @@ final class NowBlockUITests: XCTestCase {
         // The project cards sit below the block "Jetzt" in a lazy stack: their rows exist once scrolled near.
         for _ in 0..<15 where !(first.exists && first.isHittable) { app.swipeUp(velocity: .slow) }
         XCTAssertTrue(first.exists, "a build row of the new project")
-        // Both rows sit next to each other in "Builds": one row per screenshot, each shown once.
-        XCTAssertEqual(rows(labels[0]).count, 1, "row \(labels[0])")
-        XCTAssertEqual(rows(labels[1]).count, 1, "row \(labels[1])")
-        defer { XCUIDevice.shared.appearance = .light }
-        for (appearance, suffix) in [(XCUIDevice.Appearance.light, "hell"), (.dark, "dunkel")] {
-            XCUIDevice.shared.appearance = appearance
-            shot("jetzt-zwei-bilder-\(suffix)")
-        }
+        // Both rows sit next to each other in "Builds": one row per screenshot. A row is the combined element and its text, so the
+        // number per row is not fixed, but it is the same for both; with a shared id one row was drawn twice and the other was missing.
+        let hell = rows(labels[0]).count, dunkel = rows(labels[1]).count
+        XCTAssertGreaterThan(hell, 0, "row \(labels[0]) is shown")
+        XCTAssertGreaterThan(dunkel, 0, "row \(labels[1]) is shown")
+        XCTAssertEqual(hell, dunkel, "each screenshot is drawn once: \(labels[0]) x\(hell), \(labels[1]) x\(dunkel)")
+        shot("jetzt-\(look)-6-zwei-bilder")
     }
 
     private func heading(_ text: String) -> XCUIElement {

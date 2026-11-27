@@ -72,10 +72,13 @@ public struct OverviewSession: Decodable, Sendable, Equatable, Identifiable {
     public let updatedAt: Date?
     public let ageSeconds: Int?
     public let orphaned: Bool?
-    public var id: String { sessionName }
+    /// The server keys a session by person, project and name, so two people of a shared project can report the same name:
+    /// `OverviewProject` numbers such repeats.
+    public fileprivate(set) var id: String
 
     public init(sessionName: String, activity: String = "", updatedAt: Date? = nil, ageSeconds: Int? = nil, orphaned: Bool? = nil) {
         self.sessionName = sessionName; self.activity = activity; self.updatedAt = updatedAt; self.ageSeconds = ageSeconds; self.orphaned = orphaned
+        self.id = sessionName
     }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: LooseKey.self)
@@ -124,7 +127,10 @@ public enum BuildStatus: String, Codable, Sendable, Equatable, Hashable {
 }
 
 public struct OverviewBuild: Decodable, Sendable, Equatable, Identifiable {
+    /// Id of the build artifact (one screenshot), unique per entry, since session-status 1.5.0; nil from an older server.
+    public let artifactID: UUID?
     public let taskID: UUID
+    /// Shared by every screenshot of one build (per card and per project): never a list key, see `id`.
     public let buildID: String
     public let label: String?
     public let platform: String?
@@ -133,10 +139,12 @@ public struct OverviewBuild: Decodable, Sendable, Equatable, Identifiable {
     public let commit: String?
     /// nil when absent or unknown: then no badge is shown.
     public let status: BuildStatus?
-    public var id: String { buildID }
+    /// List identity: the artifact id; from an old server (no `id`) the `buildID`, numbered by `OverviewProject` where it repeats.
+    public fileprivate(set) var id: String
 
     public init(taskID: UUID, buildID: String, label: String? = nil, platform: String? = nil, createdAt: Date? = nil, commit: String? = nil,
-                status: BuildStatus? = nil) {
+                status: BuildStatus? = nil, artifactID: UUID? = nil) {
+        self.artifactID = artifactID; self.id = artifactID?.uuidString ?? buildID
         self.taskID = taskID; self.buildID = buildID; self.label = label; self.platform = platform; self.createdAt = createdAt
         self.commit = BuildStatus.validCommit(commit)
         self.status = status
@@ -144,7 +152,7 @@ public struct OverviewBuild: Decodable, Sendable, Equatable, Identifiable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: LooseKey.self)
         self.init(taskID: try c.required("taskID"), buildID: try c.required("buildID"), label: c.loose("label"), platform: c.loose("platform"),
-                  createdAt: c.loose("createdAt"), commit: c.loose("commit"), status: c.loose("status"))
+                  createdAt: c.loose("createdAt"), commit: c.loose("commit"), status: c.loose("status"), artifactID: c.loose("id"))
     }
 
     /// First 7 characters, shown monospaced.
@@ -204,7 +212,10 @@ public struct OverviewProject: Decodable, Sendable, Equatable, Identifiable {
                 agentJobs: [OverviewJob] = [], builds: [OverviewBuild] = [], openQuestions: [OverviewOpenItem] = [], pendingReviews: [OverviewOpenItem] = [],
                 recentActivity: [OverviewEvent] = []) {
         self.projectID = projectID; self.projectName = projectName; self.lastActivityAt = lastActivityAt; self.runningTasks = runningTasks
-        self.sessions = sessions; self.agentJobs = agentJobs; self.builds = builds; self.openQuestions = openQuestions
+        self.sessions = zip(uniqueKeys(sessions.map(\.id)), sessions).map { id, session in var s = session; s.id = id; return s }
+        self.agentJobs = agentJobs
+        self.builds = zip(uniqueKeys(builds.map(\.id)), builds).map { id, build in var b = build; b.id = id; return b }
+        self.openQuestions = openQuestions
         self.pendingReviews = pendingReviews; self.recentActivity = recentActivity
     }
     public init(from decoder: any Decoder) throws {
@@ -264,11 +275,14 @@ public struct NowActive: Decodable, Sendable, Equatable, Identifiable {
     public let dueAt: Date?
     /// 0...100 or nil (missing or out of range).
     public let percent: Int?
-    public var id: String { "\(kind.rawValue):\(taskID?.uuidString ?? projectID.uuidString + title)" }
+    /// A card is unique by its task; a session by project and name, which two people of a shared project can both use:
+    /// `NowBlock` numbers such repeats.
+    public fileprivate(set) var id: String
 
     public init(kind: Kind, projectID: UUID, projectName: String, taskID: UUID? = nil, title: String, text: String = "", worker: String? = nil,
                 since: Date? = nil, lastSignAt: Date? = nil, ageSeconds: Int? = nil, dueAt: Date? = nil, percent: Int? = nil) {
         self.kind = kind; self.projectID = projectID; self.projectName = projectName; self.taskID = taskID; self.title = title; self.text = text
+        self.id = "\(kind.rawValue):\(taskID?.uuidString ?? projectID.uuidString + title)"
         self.worker = worker; self.since = since; self.lastSignAt = lastSignAt; self.ageSeconds = ageSeconds; self.dueAt = dueAt
         self.percent = percent.flatMap { (0...100).contains($0) ? $0 : nil }
     }
@@ -282,6 +296,11 @@ public struct NowActive: Decodable, Sendable, Equatable, Identifiable {
 
     /// A due date in the past (cards only).
     public func isOverdue(at now: Date) -> Bool { kind == .task && (dueAt.map { $0 < now } ?? false) }
+
+    /// One list with every repeated id numbered (see `uniqueKeys`).
+    fileprivate static func numbered(_ rows: [NowActive]) -> [NowActive] {
+        zip(uniqueKeys(rows.map(\.id)), rows).map { id, row in var r = row; r.id = id; return r }
+    }
 }
 
 /// An open question or a pending review (`waiting`).
@@ -337,7 +356,7 @@ public struct NowBlock: Decodable, Sendable, Equatable {
 
     /// A count below the length of its list (lost element, older server) is raised to it, so the heading never undercounts.
     public init(counts: NowCounts? = nil, running: [NowActive] = [], waiting: [NowWaiting] = [], recentlyDone: [NowDone] = [], silent: [NowActive] = []) {
-        self.running = running; self.waiting = waiting; self.recentlyDone = recentlyDone; self.silent = silent
+        self.running = NowActive.numbered(running); self.waiting = waiting; self.recentlyDone = recentlyDone; self.silent = NowActive.numbered(silent)
         let c = counts ?? NowCounts()
         self.counts = NowCounts(running: max(c.running, running.count), waiting: max(c.waiting, waiting.count),
                                 recentlyDone: max(c.recentlyDone, recentlyDone.count), silent: max(c.silent, silent.count))

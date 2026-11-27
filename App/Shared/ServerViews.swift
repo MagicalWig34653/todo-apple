@@ -122,7 +122,8 @@ final class ActivityModel {
         LiveHub.shared.subscribe(self) { [weak self] in await self?.load(app) }
         do {
             let feed = try await client.activityFeed(limit: 50, before: more ? next : nil)
-            if more { items += feed.items; next = feed.nextCursor }
+            // A page asked for twice (two taps on "Mehr", a refresh that overlaps) must not repeat entries.
+            if more { items = items.appendingPage(feed.items); next = feed.nextCursor }
             else if items.count <= 50 { if items != feed.items { items = feed.items }; next = feed.nextCursor }
             // else: the user paged further; a live refresh keeps the longer list.
             offline = false

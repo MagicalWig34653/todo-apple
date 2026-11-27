@@ -640,7 +640,9 @@ struct TaskDetailView: View {
             }
             if !model.planning.reminders.isEmpty {
                 AdaptiveStack(spacing: Space.s) {
-                    ForEach(model.planning.reminders, id: \.self) { r in
+                    // The server accepts the same time twice (web, MCP); numbered keys keep both chips.
+                    ForEach(model.planning.reminders.uniquelyKeyed { "\($0.timeIntervalSince1970)" }) { keyed in
+                        let r = keyed.item
                         Button { removeReminder(r) } label: {
                             HStack(spacing: Space.xs) {
                                 Image(systemName: "bell.fill").font(.caption2)

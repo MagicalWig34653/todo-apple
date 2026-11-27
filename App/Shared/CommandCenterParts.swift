@@ -370,7 +370,9 @@ struct QuestionAnswerView: View {
                 }
             } else {
                 FlowLayout(spacing: Space.s) {
-                    ForEach(options, id: \.self) { option in
+                    // The runner can ask with a repeated option; numbered keys keep every button its own row.
+                    ForEach(options.uniquelyKeyed { $0 }) { keyed in
+                        let option = keyed.item
                         Button { onAnswer(option) } label: { Text(verbatim: option) }
                             .buttonStyle(AnswerChipStyle()).disabled(busy)
                     }
