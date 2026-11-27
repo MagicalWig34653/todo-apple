@@ -51,6 +51,60 @@ Stand: nur unsichtbare Grundlage in TodoCore und Kategorie-Registrierung; **kein
 - Prefs: `categories.confirmations` (Standard an), `categories.daily_brief` (Standard aus) und `dailyBriefHour` (UTC-Stunde 0 bis 23; `PushPrefs.dailyBriefHour` ist `nil`, wenn der Server nichts meldet). `PushCategory.confirmations` und `.dailyBrief` (JSON-Schlüssel `daily_brief`), `PushPrefsUpdate(dailyBriefHour:)` sendet die Stunde nur, wenn sie gesetzt ist (Teilupdate). Ältere Server ohne die Schlüssel brechen nichts: fehlende Kategorien bekommen die Standardwerte, unbekannte Schlüssel werden ignoriert.
 - Grenzen: Die Stunde ist UTC und lässt sich über die API nicht auf "Standard" zurücksetzen (nur auf einen Wert 0 bis 23 setzen). Der Server prüft 0 bis 23 (`invalid_daily_brief_hour`), der Client nicht. Eine Oberfläche müsste die Stunde in Ortszeit umrechnen. Der Tagesbericht enthält nur Zähler, nie Titel, unabhängig von "Inhalt anzeigen".
 
+## Belege je Punkt (Karte D97C4918, 27.11.2026)
+
+Kurzzeichen: **DL** = `App/UITests/PushDeepLinkUITests`, **AC** = `App/UITests/PushAccountUITests` (echte App im Simulator, natives Backend, echter `NotificationDelegate`; nur Apples Teil ist ersetzt: Push-Antwort per `TODO_DEBUG_DELIVER_RESPONSE`, Token per `TODO_DEBUG_APNS_TOKEN` über den echten `AppDelegate`-Callback). **MAC** = `scripts/mac-push-e2e.sh` (echtes Mac-Hauptfenster, unsichtbar). **UT** = `PushTests` in TodoCore. Commits: Fix `952f102`, E2E `9d97628`, große Schrift und "Erledigen" `c9d2c31`; Stand davor schon in `9c615ce`, `ea11306`.
+
+Aufruf: `TODO_UITEST_CONFIRMATIONS=1 scripts/ui-tests.sh -collect-test-diagnostics never -only-testing:Todo-iOS-UITests/PushDeepLinkUITests -only-testing:Todo-iOS-UITests/PushAccountUITests` (Simulator immer über `sim-sperre.py`; iPad: `TODO_UITEST_DEVICE=<UDID>`; Ablehnen: `TEST_RUNNER_TODO_UITEST_PERMISSION=deny` auf frischem Simulator).
+
+### Deep-Links je Push-Art
+
+Jede Art: Kaltstart (Antwort während des Starts, hell) und warm (App steht auf "Suche", dunkel), iPhone und iPad, dazu Mac hell und dunkel.
+
+| Push-Art | Ziel | iPhone / iPad (DL) | Mac (MAC) | Zuordnung (UT) |
+|---|---|---|---|---|
+| `reminder` | Projektseite, Aufgabe darüber | `testReminderOpensTheTaskInItsProject` | `reminder` | `testResponseActions`, `testBackendPayloadBytesResolveToTaskLink` |
+| `comment` | Projektseite, Aufgabe darüber | `testCommentOpensTheTaskInItsProject` | `comment` | `testPayloadParsingAndLinks` |
+| `question` | Projekt-Steuerzentrale, Aufgabe darüber | `testQuestionOpensTheProjectCommandCenterWithTheTask` | `question` | `testOtherKindsKeepTheirDestinations` |
+| `review` | Projekt-Steuerzentrale, Aufgabe darüber | `testReviewOpensTheProjectCommandCenterWithTheTask` | `review` | `testOtherKindsKeepTheirDestinations` |
+| `action_request` | "Für dich", Karte der Anfrage umrandet | `testActionRequestOpensForYouWithTheRequestCard`, `PushNavigationUITests` | `action_request` | `testBackendActionRequestPayloadOpensConfirmationInForYou` |
+| `daily_brief` | Steuerzentrale (alle Projekte), keine Aufgabe | `testDailyBriefOpensTheCommandCenterWithoutATask` | `daily_brief` | `testBackendDailyBriefPayloadOpensCommandCenter` |
+| `test`, unbekannt | öffnet nichts | nicht im Simulator (nur Zuordnung) | nicht geprüft | `testNewKindsNeverNeedIDsAndUnknownKindsStayNil` |
+
+Weitere Fälle: große Schrift (`testLargeTextReachesTheSameDestinations`, Erinnerung und Rückfrage; iPad zeigt dann ein Sheet), Push zu einem noch nicht synchronisierten Projekt (`testPushForAProjectNotSyncedYetStillOpensIt`), Aktion "Erledigen" bei laufender App (`testDoneActionOfAReminderCompletesTheTaskOnTheServer`), "Später" (`PushGroupingUITests`), "Antworten"/"Öffnen" (`PushResponseUITests.testActionButtonsThatOpenTheApp`).
+
+**Behobene Lücke (`952f102`):** Beim Tap aus der geschlossenen App öffnete sich zwar die Aufgabe, darunter lag aber die falsche Seite (Erinnerung, Kommentar: nicht das Projekt; Rückfrage, Review: nicht die Projekt-Steuerzentrale). Der Link wurde verbraucht, bevor die Projektliste geladen war; dasselbe bei einem gerade erst angelegten Projekt. Jetzt entscheidet `PushLink.readiness`: sofort, warten auf die ersten Daten, oder einmal nachladen (höchstens vier Versuche, danach das allgemeine Ziel). Rot vorher: `PushTests` 6 Fehler (`dc5aca7`), DL auf dem iPhone 6 von 8 rot (Erinnerung, Kommentar, Rückfrage, Review, große Schrift; der Nachlade-Test scheiterte erst am Testdaten-Aufruf und war nach dessen Korrektur ohne Fix rot).
+
+**Behobene Lücke große Schrift (`c9d2c31`):** In der geöffneten Aufgabe standen "erstellt" und "zuletzt geändert" in vier schmalen Spalten und wurden abgeschnitten; bei Bedienungshilfen-Größen stehen sie jetzt untereinander (Prüfung in `testLargeTextReachesTheSameDestinations`).
+
+### Registrierung, Berechtigung, Einstellungen
+
+| Punkt | Beleg (AC) | Lücke |
+|---|---|---|
+| Kein System-Dialog von selbst; Erklärkarte nur auf Wunsch, "Nicht jetzt" bleibt | `test1PrimerCardAsksOnlyOnRequestAndStaysDismissed` | - |
+| Älterer Server (404): keine Push-Bedienelemente, keine Registrierung | `test2OlderServerHidesPushControls`, UT `testOlderServerAnswers404` | - |
+| Erlauben: Dialog erst nach Tap, Status "Erlaubt", Gerät beim Server (`ios`, `sandbox`, `de.linolaske.todo`) | `test3PermissionRegistrationAndSignOut` | Token von Apple nur auf dem Gerät |
+| Ablehnen: "Nicht erlaubt", Knopf in die Systemeinstellungen, keine Registrierung | `test3…` mit `TODO_UITEST_PERMISSION=deny` | Sprung in die Systemeinstellungen nicht ausgelöst |
+| Einmal je Sitzung und Token, erneut beim nächsten Start, ein Gerät je Token | `test3…` | Konto-Wechsel nicht in der Oberfläche |
+| Abmelden widerruft das Gerät (204, nicht mehr gelistet) | `test3…` | - |
+| Alle Schalter (6 Anlässe, "Inhalt anzeigen", "Zähler") speichern und zurück; Fehler: Schalter springt zurück mit Hinweis | `test4SettingsSwitchesReachTheServer` | Zähler am App-Symbol selbst nur auf dem Gerät |
+| Tagesbericht-Uhrzeit bleibt nach Neustart | `PushBriefPersistenceUITests` | - |
+
+### Offene Grenzen
+
+- Echte Zustellung über APNs, echtes Token, echtes Antippen eines Banners, Stapeln auf dem Sperrbildschirm: nur Gerät (Anleitung unten). `PushOpenUITests` überspringt ohne Banner.
+- `environment` = `production` entsteht nur im Release-Build (`#if DEBUG`), nicht automatisch geprüft.
+- Mac: nur die Navigation im unsichtbaren Fenster. Die Aufnahme zeigt die rechte Aufgaben-Spalte nicht (dort zählt `model.path` aus `report.json`) und in dunkel eine helle Seitenleiste (bekannt aus `mac-window-e2e.sh`). Berechtigung und Registrierung am Mac, Kaltstart aus einer Mac-Mitteilung: nicht geprüft.
+- "Erledigen" aus der geschlossenen App (REST mit gespeicherter Sitzung): nicht automatisiert (die Debug-Sitzung liegt nicht im Schlüsselbund).
+
+## Gerätetest (nur Lino, nach dem nächsten TestFlight-Build mit `952f102`)
+
+1. iPhone: neuen Build installieren, anmelden. Es darf **kein** Mitteilungs-Dialog von selbst kommen.
+2. Einstellungen > Benachrichtigungen > "Benachrichtigungen aktivieren" > "Erlauben": Status "Erlaubt", kein Warnhinweis darunter.
+3. Todolino im App-Umschalter ganz schließen, dann einen Agenten auf einer Karte eine Rückfrage stellen lassen.
+4. Die Mitteilung antippen: Die Karte ist offen; nach "Fertig" steht darunter die Steuerzentrale **dieses** Projekts.
+5. "ok" oder Bildschirmfoto plus den Schritt, der abweicht, als Kommentar auf Karte D97C4918.
+
 ## Fehlersuche
 
 - **Keine Zustellung, Einstellungen zeigen "Erlaubt":** Server-Hinweis "Push noch nicht aktiviert" sichtbar? Dann `APNS_ENABLED=true` und Schlüssel fehlen (PUSH-EINRICHTUNG im Hauptrepo). Sonst auf dem Server `App push-test <konto-id> --yes` und das Ergebnis je Gerät lesen.
@@ -61,4 +115,4 @@ Stand: nur unsichtbare Grundlage in TodoCore und Kategorie-Registrierung; **kein
 
 ## Tests
 
-`TodoCore/Tests/TodoCoreTests/PushTests.swift` (Mock: Request-Formen, Decoding, 404 bei älteren Servern, Deep-Link- und Aktions-Mapping, Tolerance gegen fremde Payloads, neue Prefs-Schlüssel mit/ohne Server-Unterstützung, Backend-Payloads von `action_request` und `daily_brief`), Live: `LiveEtappe2Tests.testLivePushDevicesAndPrefs` (nur mit `TEST_RUNNER_TODO_LIVE_BASE_URL`). Echte Zustellung über APNs ist nicht automatisiert prüfbar (braucht Schlüssel und Gerät).
+`App/UITests/PushDeepLinkUITests`, `App/UITests/PushAccountUITests`, `scripts/mac-push-e2e.sh` (siehe "Belege je Punkt") und `TodoCore/Tests/TodoCoreTests/PushTests.swift` (Mock: Request-Formen, Decoding, 404 bei älteren Servern, Deep-Link- und Aktions-Mapping, Tolerance gegen fremde Payloads, neue Prefs-Schlüssel mit/ohne Server-Unterstützung, Backend-Payloads von `action_request` und `daily_brief`), Live: `LiveEtappe2Tests.testLivePushDevicesAndPrefs` (nur mit `TEST_RUNNER_TODO_LIVE_BASE_URL`). Echte Zustellung über APNs ist nicht automatisiert prüfbar (braucht Schlüssel und Gerät).
