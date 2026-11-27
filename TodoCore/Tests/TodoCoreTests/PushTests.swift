@@ -311,4 +311,26 @@ final class PushTests: XCTestCase {
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.actionDone, payload: q), .none)
         XCTAssertEqual(PushResponseAction.resolve(actionIdentifier: PushIdentifiers.systemDefault, payload: PushPayload(userInfo: info(kind: "test"))), .none)
     }
+
+    // MARK: Readiness (card D97C4918): a tap must not be consumed before its project can be shown.
+
+    func testLinkWaitsForTheFirstDataBeforeItsProjectIsOpened() {
+        for link: PushLink in [.task(taskID: tid, projectID: pid), .commandCenter(taskID: tid, projectID: pid), .project(pid)] {
+            XCTAssertEqual(link.readiness(knownProjects: [], initialDataLoaded: false), .wait, "\(link)")
+        }
+    }
+
+    func testLinkToAProjectNotSyncedYetRefreshesFirst() {
+        for link: PushLink in [.task(taskID: tid, projectID: pid), .commandCenter(taskID: nil, projectID: pid), .project(pid)] {
+            XCTAssertEqual(link.readiness(knownProjects: [sid], initialDataLoaded: true), .refresh, "\(link)")
+        }
+    }
+
+    func testLinkOpensAtOnceWhenItsProjectIsKnownOrItNeedsNone() {
+        XCTAssertEqual(PushLink.commandCenter(taskID: tid, projectID: pid).readiness(knownProjects: [pid], initialDataLoaded: false), .now,
+                       "a cached project is enough")
+        for link: PushLink in [.commandCenter(taskID: nil, projectID: nil), .forYou(requestID: sid), .forYou(requestID: nil)] {
+            XCTAssertEqual(link.readiness(knownProjects: [], initialDataLoaded: false), .now, "\(link)")
+        }
+    }
 }

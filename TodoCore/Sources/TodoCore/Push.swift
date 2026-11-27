@@ -253,6 +253,13 @@ public enum PushLink: Equatable, Sendable {
 }
 
 /// The top-level `userInfo` fields the server sends plus `aps.category`, `aps.badge`, `aps.thread-id`.
+/// What to do with a tapped link right now (stub).
+public enum PushLinkReadiness: Equatable, Sendable { case now, wait, refresh }
+
+extension PushLink {
+    public func readiness(knownProjects: Set<UUID>, initialDataLoaded: Bool) -> PushLinkReadiness { .now }
+}
+
 public struct PushPayload: Equatable, Sendable {
     public enum Kind: String, Sendable {
         case reminder, question, review, comment, test
