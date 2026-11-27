@@ -56,11 +56,7 @@ public struct ProjectSelection: Codable, Sendable, Equatable, Hashable {
             && Set(excludedProjectIDs) == Set(other.excludedProjectIDs) && Set(excludedGroupIDs) == Set(other.excludedGroupIDs)
     }
 
-    /// Drops ids that no longer exist (a project or group vanished while the form was open).
-    public func pruned(projectIDs known: Set<UUID>, groupIDs knownGroups: Set<UUID>) -> ProjectSelection {
-        ProjectSelection(mode: mode, projectIDs: projectIDs.filter(known.contains), groupIDs: groupIDs.filter(knownGroups.contains),
-                         excludedProjectIDs: excludedProjectIDs.filter(known.contains), excludedGroupIDs: excludedGroupIDs.filter(knownGroups.contains))
-    }
+    public func droppingUnknownProjects(known: Set<UUID>) -> ProjectSelection { self }
 
     /// Form state from a server answer: with a rule its own explicit list counts, otherwise `explicit`.
     public static func from(explicit: [UUID], rule: ProjectSelection?) -> ProjectSelection {
@@ -141,6 +137,12 @@ public struct SelectionPreview: Codable, Sendable, Equatable {
         projectIDs = try c.decodeIfPresent([UUID].self, forKey: .projectIDs) ?? []
         agentCreatedProjectIDs = try c.decodeIfPresent([UUID].self, forKey: .agentCreatedProjectIDs) ?? []
     }
+}
+
+/// PLACEHOLDER for the red run.
+public enum SelectionSaveRules {
+    public static func errorKey(for error: APIError) -> String? { nil }
+    public static func canSave(_ selection: ProjectSelection, initial: ProjectSelection, allowsEmpty: Bool = false, isNewGrant: Bool = false) -> Bool { false }
 }
 
 /// Added and removed ids between two effective sets (order kept from the inputs).

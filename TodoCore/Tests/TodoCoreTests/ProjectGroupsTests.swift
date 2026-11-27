@@ -211,4 +211,39 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(last.httpMethod, "DELETE")
         XCTAssertEqual(last.url?.path, "/v1/settings/brain-mandate/\(grant.uuidString)")
     }
+
+    // MARK: Saving rules
+
+    func testSaveErrorsNameTheRealCause() {
+        XCTAssertEqual(SelectionSaveRules.errorKey(for: .conflict(reason: "name_taken")), "projectGroups.error.taken")
+        XCTAssertEqual(SelectionSaveRules.errorKey(for: .conflict(reason: "grant_revoked")), "selection.error.grantRevoked")
+        XCTAssertEqual(SelectionSaveRules.errorKey(for: .notFound), "selection.error.notFound")
+        XCTAssertEqual(SelectionSaveRules.errorKey(for: .invalidInput(reason: "invalid_projects")), "selection.error.invalid")
+        XCTAssertEqual(SelectionSaveRules.errorKey(for: .invalidInput(reason: "projects_required")), "selection.error.invalid")
+        XCTAssertEqual(SelectionSaveRules.errorKey(for: .invalidInput(reason: "too_many_groups")), "projectGroups.error.tooMany")
+        XCTAssertNil(SelectionSaveRules.errorKey(for: .transport("offline")), "the general message covers the rest")
+        XCTAssertNil(SelectionSaveRules.errorKey(for: .conflict(reason: "something_else")))
+    }
+
+    func testWhenASelectionMayBeSaved() {
+        let initial = ProjectSelection(projectIDs: [p1])
+        XCTAssertFalse(SelectionSaveRules.canSave(initial, initial: initial), "nothing changed")
+        XCTAssertTrue(SelectionSaveRules.canSave(initial, initial: initial, isNewGrant: true), "a revoked mandate is given again unchanged")
+        XCTAssertTrue(SelectionSaveRules.canSave(ProjectSelection(projectIDs: [p2]), initial: initial))
+        XCTAssertFalse(SelectionSaveRules.canSave(ProjectSelection(), initial: initial), "names nothing")
+        XCTAssertFalse(SelectionSaveRules.canSave(ProjectSelection(), initial: initial, isNewGrant: true))
+        XCTAssertTrue(SelectionSaveRules.canSave(ProjectSelection(), initial: initial, allowsEmpty: true), "a connection that may create projects")
+    }
+
+    /// A deleted project in the explicit list would make every save fail (404). Only that list is cleaned: dropping an
+    /// exclusion or a group could widen the reach or destroy the rule.
+    func testUnknownExplicitProjectsAreDroppedButTheRuleStays() {
+        let s = ProjectSelection(mode: .selected, projectIDs: [p1, p2], groupIDs: [g1], excludedProjectIDs: [p3], excludedGroupIDs: [g2])
+        let cleaned = s.droppingUnknownProjects(known: [p1])
+        XCTAssertEqual(cleaned.projectIDs, [p1])
+        XCTAssertEqual(cleaned.groupIDs, [g1])
+        XCTAssertEqual(cleaned.excludedProjectIDs, [p3], "an exclusion is never dropped")
+        XCTAssertEqual(cleaned.excludedGroupIDs, [g2])
+        XCTAssertEqual(s.droppingUnknownProjects(known: []), s, "an unknown project list (offline) changes nothing")
+    }
 }
