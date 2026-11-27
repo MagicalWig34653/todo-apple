@@ -28,13 +28,16 @@ struct NotificationSettingsSections: View {
         Section {
             LabeledContent("push.status") { Text(statusKey).foregroundStyle(Color.textSecondary) }
                 .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("push.status")
             switch push.authorization {
             case .notDetermined, .unknown:
                 Button("push.enable") { Task { await app.enablePush() } }
                     .tapTarget()
+                    .accessibilityIdentifier("push.enable")
             case .denied:
                 Text("push.denied.hint").font(.footnote).foregroundStyle(Color.textSecondary)
                 Button("push.openSettings") { push.openSystemSettings() }.tapTarget()
+                    .accessibilityIdentifier("push.openSettings")
             case .authorized: EmptyView()
             }
             if push.serverPushEnabled == false {
@@ -67,9 +70,13 @@ struct NotificationSettingsSections: View {
     private var categoriesSection: some View {
         Section {
             Toggle("push.cat.reminders", isOn: binding(.reminders))
+                .accessibilityIdentifier("push.cat.reminders")
             Toggle("push.cat.questions", isOn: binding(.agentQuestions))
+                .accessibilityIdentifier("push.cat.questions")
             Toggle("push.cat.reviews", isOn: binding(.agentReviews))
+                .accessibilityIdentifier("push.cat.reviews")
             Toggle("push.cat.comments", isOn: binding(.comments))
+                .accessibilityIdentifier("push.cat.comments")
             if push.prefs?.supportsBriefSettings == true {
                 Toggle("push.cat.confirmations", isOn: binding(.confirmations))
                     .accessibilityIdentifier("push.cat.confirmations")
@@ -83,7 +90,9 @@ struct NotificationSettingsSections: View {
                 if push.prefs?.supportsBriefSettings == true, push.prefs?.categories.dailyBrief == true {
                     Text("push.dailyBrief.footer")
                 }
-                if let key = push.prefsErrorKey { Text(LocalizedStringKey(key)).foregroundStyle(Color.dueOverdue) }
+                if let key = push.prefsErrorKey {
+                    Text(LocalizedStringKey(key)).foregroundStyle(Color.dueOverdue).accessibilityIdentifier("push.prefs.error")
+                }
             }
         }
     }
@@ -111,9 +120,11 @@ struct NotificationSettingsSections: View {
             Toggle("push.showContent", isOn: Binding(
                 get: { push.prefs?.showContent ?? false },
                 set: { v in Task { await push.setShowContent(v, client: app.client) } }))
+                .accessibilityIdentifier("push.showContent")
             Toggle("push.badge", isOn: Binding(
                 get: { push.prefs?.badge ?? true },
                 set: { v in Task { await push.setBadge(v, client: app.client) } }))
+                .accessibilityIdentifier("push.badge")
         } footer: { Text("push.showContent.footer") }
     }
 }
@@ -151,7 +162,9 @@ struct PushPrimerContent: View {
             Text("push.primer.message").font(.subheadline).foregroundStyle(Color.textSecondary)
             AdaptiveStack(spacing: Space.s) {
                 Button("push.primer.enable", action: enable).buttonStyle(.borderedProminent).tapTarget()
+                    .accessibilityIdentifier("push.primer.enable")
                 Button("push.primer.later", action: later).buttonStyle(.bordered).tapTarget()
+                    .accessibilityIdentifier("push.primer.later")
             }
         }
         .padding(Space.l)

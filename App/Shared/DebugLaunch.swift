@@ -74,42 +74,57 @@ enum DebugLaunch {
         try? await center.add(request)
     }
 
-    /// `TODO_DEBUG_DELIVER_RESPONSE=<userInfo JSON>` (server payload format): calls the REAL `NotificationDelegate`
+    /// `TODO_DEBUG_APNS_TOKEN=<hex>`: the token "APNs" hands to the app instead of a real registration.
+    static var apnsToken: Data? {
+        guard let hex = env["TODO_DEBUG_APNS_TOKEN"], hex.count.isMultiple(of: 2) else { return nil }
+        let chars = Array(hex)
+        let bytes = stride(from: 0, to: chars.count, by: 2).compactMap { UInt8(String(chars[$0...($0 + 1)]), radix: 16) }
+        return bytes.count == chars.count / 2 ? Data(bytes) : nil
+    }
+
+    /// `TODO_DEBUG_DELIVER_RESPONSE=<userInfo JSON>` (or `@<host file>`, read at delivery time) (server payload format): calls the REAL `NotificationDelegate`
     /// (`didReceive` and `willPresent`, through the Objective-C protocol entry the system uses) with a notification response
     /// built from that payload, from a background queue as UserNotifications does, after `TODO_DEBUG_DELIVER_DELAY` seconds
     /// (default 0 = during launch, "cold"; larger = with the UI up, "warm"); `TODO_DEBUG_DELIVER_ONLY` limits it to one callback; `TODO_DEBUG_DELIVER_ACTION` picks the action button instead of the default tap. The completion handlers assert the main queue
     /// like UIKit's does (`dispatchPrecondition` traps otherwise), then `DebugProbe` shows the outcome. Needs no banner.
     static func deliverResponseIfRequested() {
-        guard let json = env["TODO_DEBUG_DELIVER_RESPONSE"], let data = json.data(using: .utf8),
-              let userInfo = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        guard let spec = env["TODO_DEBUG_DELIVER_RESPONSE"] else { return }
         DebugProbe.shared.enabled = true
         let delay = Double(env["TODO_DEBUG_DELIVER_DELAY"] ?? "") ?? 0
         let only = env["TODO_DEBUG_DELIVER_ONLY"] // `didReceive` or `willPresent`; both when unset
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            await DebugProbe.reportSummaries()
+        }
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
+            let json = spec.hasPrefix("@") ? (try? String(contentsOfFile: String(spec.dropFirst()), encoding: .utf8)) : spec
+            guard let data = json?.data(using: .utf8),
+                  let userInfo = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+            deliver(userInfo, only: only)
+        }
+    }
+
+    /// One delivery to the real delegate, from whatever queue the caller is on (UserNotifications uses a background one).
+    nonisolated static func deliver(_ userInfo: [String: Any], only: String?) {
         let content = UNMutableNotificationContent()
         content.userInfo = userInfo
         content.categoryIdentifier = (userInfo["aps"] as? [String: Any])?["category"] as? String ?? ""
         // The system fills `threadIdentifier` from `aps.thread-id` for a remote push.
         content.threadIdentifier = (userInfo["aps"] as? [String: Any])?["thread-id"] as? String ?? ""
         let request = UNNotificationRequest(identifier: "debug-deliver", content: content, trigger: nil)
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2))
-            await DebugProbe.reportSummaries()
-        }
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
-            let delegate: UNUserNotificationCenterDelegate = NotificationDelegate.shared
-            let notification = DebugNotification(request: request)
-            let response = DebugNotificationResponse(notification: notification)
-            if only != "willPresent" {
-                delegate.userNotificationCenter?(.current(), didReceive: response) {
-                    dispatchPrecondition(condition: .onQueue(.main))
-                    Task { @MainActor in DebugProbe.shared.mark("didReceive") }
-                }
+        let delegate: UNUserNotificationCenterDelegate = NotificationDelegate.shared
+        let notification = DebugNotification(request: request)
+        let response = DebugNotificationResponse(notification: notification)
+        if only != "willPresent" {
+            delegate.userNotificationCenter?(.current(), didReceive: response) {
+                dispatchPrecondition(condition: .onQueue(.main))
+                Task { @MainActor in DebugProbe.shared.mark("didReceive") }
             }
-            if only != "didReceive" {
-                delegate.userNotificationCenter?(.current(), willPresent: notification) { _ in
-                    dispatchPrecondition(condition: .onQueue(.main))
-                    Task { @MainActor in DebugProbe.shared.mark("willPresent") }
-                }
+        }
+        if only != "didReceive" {
+            delegate.userNotificationCenter?(.current(), willPresent: notification) { _ in
+                dispatchPrecondition(condition: .onQueue(.main))
+                Task { @MainActor in DebugProbe.shared.mark("willPresent") }
             }
         }
     }

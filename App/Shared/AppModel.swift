@@ -74,6 +74,10 @@ final class AppModel {
     /// Confirmation request a tapped push notification wants to bring up in "Für dich"; the feed scrolls to its card and
     /// clears this once the request was found, or after a refresh without it (`FeedView.resolveConfirmationFocus`).
     var confirmationFocus: UUID?
+    /// True once this session has loaded its lists (sync or REST, even if that failed offline); a pending push link whose
+    /// project is not known yet waits for it.
+    @ObservationIgnored var initialDataLoaded = false
+    @ObservationIgnored var pushLinkRefreshing = false
     var today: [PlanningTask] = []
     var upcoming: [PlanningTask] = []
     var teams: [Team] = []
@@ -346,6 +350,7 @@ final class AppModel {
         engine = nil; outbox = nil
         await oldEngine?.invalidate()
         await oldOutbox?.invalidate()
+        initialDataLoaded = false
         await PushCoordinator.shared.accountWillSignOut(client: logoutClient, userID: logoutUserID)
         syncLoop?.cancel(); syncLoop = nil
         if !preservingLocalData {
@@ -385,10 +390,15 @@ final class AppModel {
     /// Falls back to REST if the store cannot be opened.
     private func beginSync() async {
         syncLoop?.cancel()
+        initialDataLoaded = false
         Task { await pushSync() }
         guard let client, let user, let path = storePath(for: user),
             let store = try? SQLiteSyncStore(path: path), let engine = try? SyncEngine(client: client, store: store)
-        else { usesREST = true; loadPrefsCache(); await reloadREST(); await refreshServerState(); return }
+        else {
+            usesREST = true; loadPrefsCache(); await reloadREST()
+            initialDataLoaded = true; openPendingPushLink()
+            await refreshServerState(); return
+        }
         let generation = sessionGeneration
         self.engine = engine
         metaCacheURL = URL(fileURLWithPath: path + ".meta.json")
@@ -403,9 +413,12 @@ final class AppModel {
         // A cache that already holds feed planning (contract 1.4.0) serves chips and due dates offline right away.
         metaFromFeed = !cached.planning.isEmpty
         publish(cached)
+        // A cached project is enough to open a tapped notification right away, also without network.
+        openPendingPushLink()
         await syncNow()
         guard generation == sessionGeneration, self.engine === engine else { return }
         selectDefaultIfNeeded()
+        initialDataLoaded = true
         openPendingPushLink()
         syncLoop = Task { [weak self] in
             while !Task.isCancelled {

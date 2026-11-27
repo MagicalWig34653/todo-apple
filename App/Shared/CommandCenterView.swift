@@ -103,8 +103,10 @@ struct CommandCenterView: View {
                 }
                 .buttonStyle(.plain)
                 .tapTarget()
+                .accessibilityIdentifier("cc.scope.project")
             } else {
                 Text("cc.scope.account").font(.subheadline).foregroundStyle(Color.textSecondary)
+                    .accessibilityIdentifier("cc.scope.account")
             }
             if cc.summary.activeAgents > 0 {
                 HStack(spacing: Space.xs) {

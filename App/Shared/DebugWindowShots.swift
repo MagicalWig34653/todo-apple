@@ -71,6 +71,11 @@ enum DebugWindowShots {
         window.orderBack(nil)
         window.makeKey()
 
+        if let file = ProcessInfo.processInfo.environment["TODO_DEBUG_WINDOW_PUSHES"] {
+            await runPushes(file: file, model: model, window: window, out: out)
+            exit(0)
+        }
+
         // Baseline: where the outline view puts "Für dich" (the model drives this one selection).
         model.selection = .feed
         try? await Task.sleep(for: .seconds(2))
@@ -118,6 +123,44 @@ enum DebugWindowShots {
             try? data.write(to: out.appendingPathComponent("report.json"))
         }
         exit(0)
+    }
+
+    /// `TODO_DEBUG_WINDOW_PUSHES=<json file>` (card D97C4918): `[{"name":..,"payload":{server push payload}}]`. Each push is
+    /// handed to the real `NotificationDelegate` while the window shows the search screen; `report.json` records where the
+    /// model ended up and the window is captured once per push and colour scheme.
+    private static func runPushes(file: String, model: AppModel, window: NSWindow, out: URL) async {
+        guard let data = FileManager.default.contents(atPath: file),
+              let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { fputs("window pushes: unreadable \(file)\n", stderr); exit(4) }
+        var results: [[String: Any]] = []
+        for dark in [false, true] {
+            window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            for entry in list {
+                guard let name = entry["name"] as? String, let payload = entry["payload"] as? [String: Any],
+                      let json = try? JSONSerialization.data(withJSONObject: payload) else { continue }
+                model.path = []; model.confirmationFocus = nil; model.selection = .search
+                try? await Task.sleep(for: .seconds(1))
+                DispatchQueue.global(qos: .userInitiated).async {
+                    guard let info = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return }
+                    DebugLaunch.deliver(info, only: "didReceive")
+                }
+                try? await Task.sleep(for: .seconds(4))
+                window.layoutIfNeeded(); window.contentView?.layoutSubtreeIfNeeded(); window.displayIfNeeded()
+                let png = "mac-push-\(name)-\(dark ? "dark" : "light").png"
+                _ = capture(window: window, name: png, to: out, step: Step(key: name, item: nil, offset: nil) { _ in }, scheme: dark ? "dark" : "light")
+                results.append([
+                    "name": name, "file": png, "selection": String(describing: model.selection),
+                    "task": model.path.last?.title ?? "", "taskID": model.path.last?.id.uuidString ?? "",
+                ])
+            }
+        }
+        let report: [String: Any] = [
+            "policyProhibited": NSApp.activationPolicy() == .prohibited, "appActive": NSApp.isActive,
+            "windowOnScreen": NSScreen.screens.contains { $0.frame.intersects(window.frame) },
+            "pushes": results,
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: out.appendingPathComponent("report.json"))
+        }
     }
 
     /// Control: a plain SwiftUI `List(selection:)` with the sidebar style, nothing of the app, captured the same way. Shows what a

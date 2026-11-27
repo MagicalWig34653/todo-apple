@@ -6,6 +6,7 @@
 # Exit code: that of xcodebuild (0 = all green); 2 = setup problem (port taken, backend binary missing).
 # Env (all optional):
 #   TODO_BACKEND_BIN   backend binary; default <mainRepo>/.build/debug/App, mainRepo from .workspace.local.json
+#   TODO_UITEST_CONFIRMATIONS=1  also seed three pending confirmation requests (push tap on action_request)
 #   TODO_UITEST_PORT   default 28080 (the app's default server); a taken port is refused, never killed
 #   TODO_UITEST_SEEDS  space-separated TODO_LIVE_SEED_* switches, default "FEED STATE BOARD W3" (all set to 1)
 #   TODO_UITEST_RUNTIME simulator runtime id, default com.apple.CoreSimulator.SimRuntime.iOS-27-0
@@ -62,8 +63,10 @@ echo "ui-tests: backend up on $base ($bin)"
 
 # Seed: virtual-passkey registration of "Alice" + demo data; the session token lands in seed.json.
 seeds=(); for s in ${TODO_UITEST_SEEDS:-FEED STATE BOARD W3}; do seeds+=("TODO_LIVE_SEED_$s=1"); done
+seed_filter='LiveEtappe2Tests/testSeedDemoData'
+[[ "${TODO_UITEST_CONFIRMATIONS:-0}" == "1" ]] && seed_filter="$seed_filter|testSeedConfirmationRequests"
 env TODO_LIVE_BASE_URL="$base" TODO_LIVE_RP_ORIGIN="$RP_ORIGIN" TODO_LIVE_SEED_OUT="$scratch/seed.json" "${seeds[@]}" \
-  swift test --package-path TodoCore --filter LiveEtappe2Tests/testSeedDemoData >"$scratch/seed.log" 2>&1 \
+  swift test --package-path TodoCore --filter "$seed_filter" >"$scratch/seed.log" 2>&1 \
   || { tail -30 "$scratch/seed.log" >&2; die "seeding failed"; }
 token="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$scratch/seed.json")"
 

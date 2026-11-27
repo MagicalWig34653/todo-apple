@@ -253,11 +253,30 @@ public enum PushLink: Equatable, Sendable {
 }
 
 /// The top-level `userInfo` fields the server sends plus `aps.category`, `aps.badge`, `aps.thread-id`.
-/// What to do with a tapped link right now (stub).
-public enum PushLinkReadiness: Equatable, Sendable { case now, wait, refresh }
+/// What to do with a tapped link right now. Opening consumes the link, so it must not happen before its project can be
+/// shown: right after a launch the lists are still empty, and a push about something brand new may arrive before the sync.
+public enum PushLinkReadiness: Equatable, Sendable {
+    case now
+    /// The first data of this session is not there yet; keep the link.
+    case wait
+    /// The data is there but the project is not part of it: refresh once more, then open.
+    case refresh
+}
 
 extension PushLink {
-    public func readiness(knownProjects: Set<UUID>, initialDataLoaded: Bool) -> PushLinkReadiness { .now }
+    /// The project the destination lives in; nil for destinations that exist for every account.
+    public var requiredProjectID: UUID? {
+        switch self {
+        case .task(_, let projectID), .commandCenter(_, let projectID): projectID
+        case .project(let id): id
+        case .forYou: nil
+        }
+    }
+
+    public func readiness(knownProjects: Set<UUID>, initialDataLoaded: Bool) -> PushLinkReadiness {
+        guard let id = requiredProjectID, !knownProjects.contains(id) else { return .now }
+        return initialDataLoaded ? .refresh : .wait
+    }
 }
 
 public struct PushPayload: Equatable, Sendable {

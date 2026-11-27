@@ -83,6 +83,13 @@ final class PushCoordinator {
     }
 
     private func registerWithSystem() {
+        #if DEBUG && canImport(UIKit)
+        // UI tests: only Apple's part is replaced; the token arrives through the real application delegate callback.
+        if let token = DebugLaunch.apnsToken {
+            UIApplication.shared.delegate?.application?(UIApplication.shared, didRegisterForRemoteNotificationsWithDeviceToken: token)
+            return
+        }
+        #endif
         #if canImport(UIKit)
         UIApplication.shared.registerForRemoteNotifications()
         #elseif canImport(AppKit)
