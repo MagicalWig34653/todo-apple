@@ -229,7 +229,7 @@ final class PipelineExecutionUITests: XCTestCase {
         launch()
         openCard(card.title, waitFor: "execution.start")
         expectLabel("execution.binding", contains: runner.label)
-        try await pictures("start", showing: "execution.start")
+        try await pictures("lauf-1-start", showing: "execution.start")
 
         tap("execution.start")
         try await expectPipeline(card.id, "started at the developer") {
@@ -242,6 +242,7 @@ final class PipelineExecutionUITests: XCTestCase {
         expectLabel("execution.unsupported", contains: "noch keinen Pipeline-Auftrag")
         expectLabel("pipeline.step.developer", contains: "Wartet auf den Runner")
         XCTAssertFalse(element("execution.start").exists, "no second start while it runs")
+        try await pictures("lauf-2-gestartet", showing: "execution.device")
 
         // The runner polls (it can run pipelines) and holds the job back.
         let developer = try await queuedJob(runner, step: "developer")
@@ -249,7 +250,7 @@ final class PipelineExecutionUITests: XCTestCase {
         expectLabel("execution.hold", contains: "Kontingent-Bremse: Ampel rot bis 14:00")
         expectLabel("pipeline.step.developer", contains: "Der Runner wartet")
         expectGone("execution.unsupported")
-        try await pictures("bremse", showing: "execution.hold")
+        try await pictures("lauf-3-bremse", showing: "execution.hold")
 
         // Claimed with progress: the brake notice goes, the progress shows in the section and at the step.
         let run = try await claim(runner, developer)
@@ -257,7 +258,7 @@ final class PipelineExecutionUITests: XCTestCase {
         expectLabel("execution.progress", contains: "Schreibe die Tests")
         expectLabel("pipeline.step.developer", contains: "Läuft auf dem Runner: Schreibe die Tests")
         expectGone("execution.hold")
-        try await pictures("laeuft", showing: "execution.progress")
+        try await pictures("lauf-4-fortschritt", showing: "execution.progress")
         try await submit(runner, run, "passed")
 
         // A failed validation blocks the execution; the retry is offered at the step.
@@ -269,7 +270,7 @@ final class PipelineExecutionUITests: XCTestCase {
         expectLabel("pipeline.step.validation", contains: "Fehlgeschlagen")
         expectLabel("pipeline.retry.hint", contains: "erneut auf dem Runner")
         expectNoLabel("execution.feedback", contains: "gestartet")
-        try await pictures("blockiert", showing: "pipeline.retry.validation")
+        try await pictures("lauf-5-blockiert", showing: "pipeline.retry.validation")
 
         tap("pipeline.retry.validation")
         try await expectPipeline(card.id, "validation runs again") {
@@ -278,6 +279,7 @@ final class PipelineExecutionUITests: XCTestCase {
         }
         expectLabel("execution.state", contains: "Läuft")
         expectLabel("pipeline.step.validation", contains: "Wartet auf den Runner")
+        try await pictures("lauf-6-wiederholt", showing: "pipeline.step.validation")
 
         tap("execution.stop")
         try await expectPipeline(card.id, "stopped") { self.execution($0)["state"] as? String == "stopped" }
@@ -286,33 +288,41 @@ final class PipelineExecutionUITests: XCTestCase {
         expectNoLabel("pipeline.step.validation", contains: "Runner")
         expectGone("execution.stop")
         XCTAssertTrue(element("execution.start").waitForExistence(timeout: 10), "a stopped execution can be started again")
-        try await pictures("gestoppt", showing: "execution.hint")
+        try await pictures("lauf-7-gestoppt", showing: "execution.hint")
     }
 
-    /// The card changed while the job waited: the runner's claim pauses the execution; "Fortsetzen" goes on with the shown plan.
+    /// The card changed while the job waited: the runner's claim pauses the execution (shown in the open card without reopening);
+    /// "Fortsetzen" goes on with the shown plan.
     func testPausedAfterCardChangeContinues() async throws {
         let runner = try await pairRunner("Pause")
         let card = try await createCard("Ausführung Pause", in: runner.projectID)
         let bindingID = try await bindingID(runner)
         try await request("POST", "/v1/tasks/\(card.id)/pipeline/execution", body: ["id": UUID().uuidString.lowercased(), "bindingID": bindingID])
+        let job = try await queuedJob(runner, step: "developer")
+
+        launch()
+        openCard(card.title, waitFor: "execution.stop")
+        expectLabel("execution.state", contains: "Läuft")
+        XCTAssertFalse(element("execution.continue").exists, "no continue while it runs")
+        try await pictures("pause-1-laeuft", showing: "execution.stop")
+
         let task = try await request("GET", "/v1/planning/tasks/\(card.id)")["task"] as? [String: Any] ?? [:]
         try await request("PATCH", "/v1/tasks/\(card.id)", body: ["description": "Neu: auch iPad", "version": task["version"] as? Int ?? 1])
-        let job = try await queuedJob(runner, step: "developer")
         try await request("POST", "/v1/runner/jobs/\(job)/claim?pipeline=1", as: runner.token, expect: 200...499)
         try await expectPipeline(card.id, "paused, task changed") {
             self.execution($0)["state"] as? String == "paused" && self.execution($0)["reason"] as? String == "task_changed"
         }
-
-        launch()
-        openCard(card.title, waitFor: "execution.continue")
         expectLabel("execution.state", contains: "Angehalten")
         expectLabel("execution.hint", contains: "Titel oder Beschreibung der Karte wurden geändert")
-        try await pictures("angehalten", showing: "execution.continue")
+        XCTAssertTrue(element("execution.continue").waitForExistence(timeout: 10), "continue offered")
+        try await pictures("pause-2-angehalten", showing: "execution.continue")
+
         tap("execution.continue")
         try await expectPipeline(card.id, "running again") { self.execution($0)["state"] as? String == "running" }
         expectLabel("execution.state", contains: "Läuft")
         expectLabel("execution.feedback", contains: "Ausführung fortgesetzt.")
         expectGone("execution.continue")
+        try await pictures("pause-3-fortgesetzt", showing: "execution.feedback")
     }
 
     /// The device was revoked after the card opened: the start is refused, the message says why, the start goes away.
@@ -321,13 +331,21 @@ final class PipelineExecutionUITests: XCTestCase {
         let card = try await createCard("Ausführung Fehler", in: runner.projectID)
         launch()
         openCard(card.title, waitFor: "execution.start")
+        try await pictures("fehler-1-start", showing: "execution.start")
         try await request("DELETE", "/v1/agents/devices/\(runner.deviceID)")
         tap("execution.start")
         expectLabel("execution.feedback", contains: "Gerätefreigabe wurde nicht gefunden")
         expectGone("execution.start")
         let p = try await pipeline(card.id)
         XCTAssertNil(p["execution"], "nothing was started")
-        try await pictures("fehler", showing: "execution.feedback")
+        try await pictures("fehler-2-abgelehnt", showing: "execution.feedback")
+
+        // Opened again: without a binding and without an execution the card looks like before (plan and steps only).
+        app.buttons["Fertig"].tap()
+        openCard(card.title, waitFor: "plan.state")
+        XCTAssertFalse(element("execution.start").exists, "no start without a binding")
+        XCTAssertFalse(element("execution.feedback").exists, "the message belonged to the closed card")
+        try await pictures("fehler-3-wieder-geoeffnet", showing: "plan.state")
     }
 
     private func bindingID(_ runner: Runner) async throws -> String {

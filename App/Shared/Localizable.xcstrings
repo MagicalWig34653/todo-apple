@@ -10078,6 +10078,756 @@
           }
         }
       }
+    },
+    "activity.pipeline_execution": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline-Ausführung geändert"
+          }
+        }
+      }
+    },
+    "cc.update.pipelineExecution": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline-Ausführung geändert"
+          }
+        }
+      }
+    },
+    "pipeline.error.fixRoundsExhausted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Fix-Runden sind verbraucht. Der aktuelle Stand wird angezeigt."
+          }
+        }
+      }
+    },
+    "pipeline.error.planNotApproved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Plan ist noch nicht freigegeben. Erst nach der Freigabe sind Arbeitsschritte möglich."
+          }
+        }
+      }
+    },
+    "pipeline.error.stepDisabled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Schritt ist in den Projekt-Einstellungen ausgeschaltet."
+          }
+        }
+      }
+    },
+    "pipeline.error.stepNotFailed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Schritt ist nicht fehlgeschlagen (mehr). Der aktuelle Stand wird angezeigt."
+          }
+        }
+      }
+    },
+    "pipeline.exec.binding": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerät und Ordner"
+          }
+        }
+      }
+    },
+    "pipeline.exec.blocked.fix_rounds_exhausted %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Schritt „%@“ ist fehlgeschlagen und es ist keine Fix-Runde mehr frei. Ein neuer Plan beginnt wieder bei Runde 1."
+          }
+        }
+      }
+    },
+    "pipeline.exec.blocked.step_failed %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Schritt „%@“ ist fehlgeschlagen. „Wiederholen“ beim Schritt lässt ihn erneut laufen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.completed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Schritte sind abgeschlossen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.completedReview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Schritte sind abgeschlossen. Das Ergebnis wartet im Review."
+          }
+        }
+      }
+    },
+    "pipeline.exec.continue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortsetzen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.continueConfirm %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelesen: mit Version %lld fortsetzen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.device": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerät"
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.active": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diese Karte läuft bereits eine Ausführung. Der aktuelle Stand wird angezeigt."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.forbidden": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starten, Fortsetzen und Stoppen darf nur der Projekteigentümer."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.generic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das hat nicht geklappt. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.idConflict": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Start hat sich mit einem anderen überschnitten. Bitte starte erneut."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.network": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server ist nicht erreichbar. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.none": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es läuft keine Ausführung mehr. Der aktuelle Stand wird angezeigt."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.notFound": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Karte oder die Gerätefreigabe wurde nicht gefunden. Die Auswahl wurde neu geladen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.nothing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Arbeitsschritte sind schon erledigt. Es gibt nichts auszuführen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.error.planChanged": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Plan wurde inzwischen geändert. Es wurde nicht fortgesetzt: bitte lies die neue Fassung."
+          }
+        }
+      }
+    },
+    "pipeline.exec.feedback.continued": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausführung fortgesetzt."
+          }
+        }
+      }
+    },
+    "pipeline.exec.feedback.readFirst %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Fassung – bitte erst lesen. Es wurde noch nichts gesendet, angezeigt wird jetzt Version %lld."
+          }
+        }
+      }
+    },
+    "pipeline.exec.feedback.retriedPaused %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wiederholt: zum Weiterlaufen muss fortgesetzt werden."
+          }
+        }
+      }
+    },
+    "pipeline.exec.feedback.retriedRunning %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wiederholt: der Schritt läuft erneut."
+          }
+        }
+      }
+    },
+    "pipeline.exec.feedback.started": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline gestartet."
+          }
+        }
+      }
+    },
+    "pipeline.exec.feedback.stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausführung gestoppt."
+          }
+        }
+      }
+    },
+    "pipeline.exec.fixRounds %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fix-Runden verbraucht: %1$lld von %2$lld"
+          }
+        }
+      }
+    },
+    "pipeline.exec.intro": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Runner auf deinem Mac arbeitet die eingeschalteten Schritte nacheinander ab. Mit dem Start gilt der freigegebene Plan als von dir angenommen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.job": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auftrag"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.awaiting_review": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf Review"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.cancelled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abgebrochen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.claimed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übernommen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.queued": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.succeeded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfolgreich"
+          }
+        }
+      }
+    },
+    "pipeline.exec.job.waiting_for_answer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf Antwort"
+          }
+        }
+      }
+    },
+    "pipeline.exec.live.answer": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf deine Antwort zu einer Rückfrage"
+          }
+        }
+      }
+    },
+    "pipeline.exec.live.claimed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vom Runner übernommen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.live.held": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Runner wartet"
+          }
+        }
+      }
+    },
+    "pipeline.exec.live.queued": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf den Runner"
+          }
+        }
+      }
+    },
+    "pipeline.exec.live.running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft auf dem Runner"
+          }
+        }
+      }
+    },
+    "pipeline.exec.nothingToRun": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Arbeitsschritte sind erledigt. Es gibt nichts auszuführen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.ownerOnly": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortsetzen und Stoppen kann nur der Projekteigentümer."
+          }
+        }
+      }
+    },
+    "pipeline.exec.pause.continue_required": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Schritt wurde zum Wiederholen vorgemerkt. Er läuft erst, wenn fortgesetzt wird."
+          }
+        }
+      }
+    },
+    "pipeline.exec.pause.other": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Ausführung ist angehalten."
+          }
+        }
+      }
+    },
+    "pipeline.exec.pause.plan_needs_owner": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Plan wurde noch nicht vom Projekteigentümer angenommen. Lies ihn und setze fort, wenn er so ausgeführt werden soll."
+          }
+        }
+      }
+    },
+    "pipeline.exec.pause.task_changed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel oder Beschreibung der Karte wurden geändert. Setze fort, wenn mit dem neuen Inhalt weitergearbeitet werden soll."
+          }
+        }
+      }
+    },
+    "pipeline.exec.progress": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortschritt"
+          }
+        }
+      }
+    },
+    "pipeline.exec.retryNeedsOwner": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholen merkt den Schritt vor. Er läuft erst, wenn der Projekteigentümer fortsetzt."
+          }
+        }
+      }
+    },
+    "pipeline.exec.retryRuns": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholen lässt diesen Schritt erneut auf dem Runner laufen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.sending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gesendet …"
+          }
+        }
+      }
+    },
+    "pipeline.exec.start": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pipeline starten"
+          }
+        }
+      }
+    },
+    "pipeline.exec.startConfirm %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelesen: mit Version %lld starten"
+          }
+        }
+      }
+    },
+    "pipeline.exec.state.blocked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blockiert"
+          }
+        }
+      }
+    },
+    "pipeline.exec.state.completed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abgeschlossen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.state.paused": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angehalten"
+          }
+        }
+      }
+    },
+    "pipeline.exec.state.running": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft"
+          }
+        }
+      }
+    },
+    "pipeline.exec.state.stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestoppt"
+          }
+        }
+      }
+    },
+    "pipeline.exec.state.waiting_approval": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf Freigabe"
+          }
+        }
+      }
+    },
+    "pipeline.exec.step": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schritt"
+          }
+        }
+      }
+    },
+    "pipeline.exec.stop": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stoppen"
+          }
+        }
+      }
+    },
+    "pipeline.exec.stopped": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Ausführung wurde gestoppt. Ein unterbrochener Schritt ist wieder offen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausführung"
+          }
+        }
+      }
+    },
+    "pipeline.exec.unsupported": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Gerät hat noch keinen Pipeline-Auftrag abgefragt. Prüfe, ob todo-runner dort läuft und aktuell ist, sonst bleibt der Auftrag liegen."
+          }
+        }
+      }
+    },
+    "pipeline.exec.waitingApproval": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Plan wartet auf Freigabe. Nach der Freigabe geht es automatisch weiter."
+          }
+        }
+      }
+    },
+    "pipeline.feedback.retried %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wiederholt: der Schritt ist wieder offen."
+          }
+        }
+      }
+    },
+    "pipeline.retry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholen"
+          }
+        }
+      }
+    },
+    "pipeline.retry.disabled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholen ist in diesem Projekt ausgeschaltet (0 Fix-Runden)."
+          }
+        }
+      }
+    },
+    "pipeline.retry.exhausted %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle %lld Fix-Runden sind verbraucht. Ein neuer Plan beginnt wieder bei Runde 1."
+          }
+        }
+      }
+    },
+    "pipeline.retry.round %lld %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runde %1$lld von %2$lld"
+          }
+        }
+      }
+    },
+    "pipeline.retry.sending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gesendet …"
+          }
+        }
+      }
     }
   }
 }

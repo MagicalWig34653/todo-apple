@@ -117,6 +117,7 @@ enum CommandFormat {
         case "plan.approved": Text("cc.update.planApproved")
         case "plan.changes_requested": Text("cc.update.planChanges")
         case "pipeline.step": Text("cc.update.pipelineStep")
+        case "pipeline.execution": Text("cc.update.pipelineExecution")
         default: Text(verbatim: kind)
         }
     }

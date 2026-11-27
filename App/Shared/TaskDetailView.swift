@@ -27,6 +27,17 @@ final class TaskDetailModel {
     /// Plan, steps and log of the card (contract pipeline 1.0.0); nil on a server without it, or while offline.
     var pipeline: TaskPipeline?
     var pipelineBusy = false
+    // Stage 3 (card BEE2417E): execution on a runner, like the PWA's section "Ausführung".
+    /// Own bindings (device and folder) of the card's project; empty without the start right.
+    var startBindings: [PipelineStartBinding] = []
+    var bindingID: UUID?
+    /// The start right (project owner); only hides controls, the server checks it.
+    var mayStart = false
+    var executionActing: PipelineExecutionAction?
+    var retrying: PipelineStepName?
+    var executionFeedback: PipelineFeedback?
+    var readGuard = PlanReadGuard()
+    private var startAttempt = PipelineStartAttempt()
 
     init(task: TodoTask) {
         self.task = task
@@ -90,7 +101,103 @@ final class TaskDetailModel {
     /// Failures (older server, offline) just leave the card out.
     func loadPipeline(_ app: AppModel) async {
         guard let client = app.client, let fresh = try? await client.taskPipelineIfAvailable(taskID: task.id) else { return }
+        readGuard.shown(planVersion: fresh.plan?.version)
+        // A message about the execution belongs to the state it was said about.
+        if executionActing == nil, executionFeedback?.isSuccess == true, pipeline?.execution?.state != fresh.execution?.state { executionFeedback = nil }
         if pipeline != fresh { pipeline = fresh }
+    }
+
+    /// The section "Ausführung" is there (an execution, or the start right with an own binding) or has something to say.
+    var showsExecution: Bool {
+        guard let pipeline else { return false }
+        return pipeline.executionSection(bindings: startBindings, mayStart: mayStart).show || executionFeedback != nil
+    }
+
+    /// Start right and own bindings of the project; failures (older server, offline) leave the start out.
+    func loadStartBindings(_ app: AppModel) async {
+        guard let client = app.client else { return }
+        let owner = (try? await client.ownedProjectIDs())?.contains(task.projectID) ?? false
+        var found: [PipelineStartBinding] = []
+        if owner, let devices = try? await client.agentDevices() { found = PipelineStartBinding.forProject(task.projectID, devices: devices) }
+        if mayStart != owner { mayStart = owner }
+        if startBindings != found { startBindings = found }
+        if !found.contains(where: { $0.id == bindingID }) { bindingID = found.first?.id }
+    }
+
+    func startExecution(_ app: AppModel) async {
+        guard let client = app.client, executionActing == nil, let pipeline, let bindingID,
+              pipeline.executionSection(bindings: startBindings, mayStart: mayStart).start else { return }
+        if readGuard.needsConfirmation(for: .start) { executionFeedback = .readFirst(version: pipeline.plan?.version ?? 0); return }
+        let taskID = task.id, id = startAttempt.id(taskID: taskID, bindingID: bindingID)
+        await act(.start, app) { [self] in
+            do {
+                let fresh = try await client.startPipelineExecution(taskID: taskID, executionID: id, bindingID: bindingID)
+                startAttempt.finished(with: nil)
+                return fresh
+            } catch { startAttempt.finished(with: error); throw error }
+        }
+    }
+
+    func continueExecution(_ app: AppModel) async {
+        guard let client = app.client, mayStart, executionActing == nil, pipeline?.execution?.stateKind == .paused else { return }
+        if readGuard.needsConfirmation(for: .continue) { executionFeedback = .readFirst(version: pipeline?.plan?.version ?? 0); return }
+        let taskID = task.id, version = pipeline?.plan?.version
+        await act(.continue, app) { try await client.continuePipelineExecution(taskID: taskID, planVersion: version) }
+    }
+
+    func stopExecution(_ app: AppModel) async {
+        guard let client = app.client, mayStart, executionActing == nil, pipeline?.execution?.isActive == true else { return }
+        let taskID = task.id
+        await act(.stop, app) { try await client.stopPipelineExecution(taskID: taskID) }
+    }
+
+    /// One action at a time; the card is read again when the server says the shown state is outdated (never sent again on its own).
+    private func act(_ action: PipelineExecutionAction, _ app: AppModel, _ send: () async throws -> TaskPipeline) async {
+        executionActing = action
+        executionFeedback = nil
+        defer { executionActing = nil }
+        do {
+            let fresh = try await send()
+            readGuard.shown(planVersion: fresh.plan?.version)
+            if action != .stop { readGuard.sent() }
+            if pipeline != fresh { pipeline = fresh }
+            executionFeedback = .done(action)
+            Haptics.success()
+            if let client = app.client, let items = try? await client.activity(taskID: task.id, limit: 30).items, items != activity { activity = items }
+        } catch {
+            await refused(error, app)
+        }
+        await app.refreshCommandSummary()
+    }
+
+    /// A failed step back to pending (one fix round); with an active execution the step runs again (owner) or waits for "Fortsetzen".
+    func retry(_ step: PipelineStepName, _ app: AppModel) async {
+        guard let client = app.client, retrying == nil, executionActing == nil else { return }
+        retrying = step
+        executionFeedback = nil
+        defer { retrying = nil }
+        do {
+            let fresh = try await client.retryPipelineStep(taskID: task.id, step: step, planVersion: pipeline?.plan?.version)
+            readGuard.shown(planVersion: fresh.plan?.version)
+            if pipeline != fresh { pipeline = fresh }
+            let execution = fresh.execution
+            executionFeedback = .retried(step: step, mode: !(execution?.isActive ?? false) ? .open : execution?.stateKind == .paused ? .paused : .running)
+            Haptics.success()
+        } catch {
+            await refused(error, app)
+        }
+        await app.refreshCommandSummary()
+    }
+
+    private func refused(_ error: any Error, _ app: AppModel) async {
+        guard let refusal = PipelineExecutionError(error) else {
+            if case APIError.unauthorized = error { await app.handle(error) }
+            executionFeedback = .failed
+            return
+        }
+        if refusal.showsOutdatedState { await loadPipeline(app) }
+        if refusal == .notFound { await loadStartBindings(app) }
+        executionFeedback = .refused(refusal)
     }
 
     /// Approves the shown plan version or asks for changes; the server refuses a version that is no longer current (`plan_changed`).
@@ -191,6 +298,7 @@ final class TaskDetailModel {
             await loadSubtasks(app)
             await loadLinks(app)
             await loadPipeline(app)
+            await loadStartBindings(app)
         } catch APIError.transport {
             offlineFallback(app, meta)
         } catch { await app.handle(error) }
@@ -329,6 +437,24 @@ struct TaskDetailView: View {
     private var project: Project? { app.projects.first { $0.id == model.task.projectID } }
     private var management: Bool { app.mode(for: model.task.projectID) == .management }
 
+    private func executionState(_ pipeline: TaskPipeline) -> PipelineCard.Execution {
+        PipelineCard.Execution(
+            section: pipeline.executionSection(bindings: model.startBindings, mayStart: model.mayStart),
+            bindings: model.startBindings, bindingID: $model.bindingID, mayStart: model.mayStart, canEdit: true,
+            acting: model.executionActing, retrying: model.retrying, confirming: model.readGuard.confirming, feedback: model.executionFeedback,
+            reviewPending: model.context?.review?.state == "pending",
+            onAct: { action in
+                Task {
+                    switch action {
+                    case .start: await model.startExecution(app)
+                    case .continue: await model.continueExecution(app)
+                    case .stop: await model.stopExecution(app)
+                    }
+                }
+            },
+            onRetry: { step in Task { await model.retry(step, app) } })
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.l) {
@@ -341,8 +467,10 @@ struct TaskDetailView: View {
                                      onDecide: { d, note in Task { await model.decide(d, note: note, app) } },
                                      onChoose: { variantID in Task { await model.decide(.accept, note: nil, variantID: variantID, app) } })
                 }
-                if PipelineCard.hasContent(model.pipeline), let pipeline = model.pipeline {
-                    PipelineCard(pipeline: pipeline, busy: model.pipelineBusy) { d, comment in Task { await model.decidePlan(d, comment: comment, app) } }
+                if PipelineCard.hasContent(model.pipeline) || model.showsExecution, let pipeline = model.pipeline {
+                    PipelineCard(pipeline: pipeline, busy: model.pipelineBusy, execution: executionState(pipeline)) { d, comment in
+                        Task { await model.decidePlan(d, comment: comment, app) }
+                    }
                 }
                 // Classic projects keep the short to-do detail; criteria still show once a card has some.
                 if model.loaded, management || !model.criteria.isEmpty {
@@ -398,6 +526,15 @@ struct TaskDetailView: View {
             await model.load(app, meta: meta)
             let merged = model.initialText(title: title, description: text, initialTitle: initialTitle, initialDescription: initialDescription)
             title = merged.title; text = merged.description
+        }
+        // While an execution runs, the runner's progress is read every few seconds (the live channel does not carry it).
+        .task(id: model.pipeline?.execution.flatMap { $0.isActive ? $0.id : nil }) {
+            guard model.pipeline?.execution?.isActive == true else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                if Task.isCancelled { break }
+                await model.loadPipeline(app)
+            }
         }
         .onChange(of: app.reviewUndoGeneration) { _, _ in Task { await model.loadSubtasks(app) } }
         .onChange(of: newSubtask) { _, new in keepDraft(\.subtask, new) }
@@ -873,6 +1010,7 @@ struct TaskDetailView: View {
     case "plan.approved": Text("activity.plan_approved")
     case "plan.changes_requested": Text("activity.plan_changes_requested")
     case "pipeline.step": Text("activity.pipeline_step")
+    case "pipeline.execution": Text("activity.pipeline_execution")
     default: Text(verbatim: kind)
     }
 }

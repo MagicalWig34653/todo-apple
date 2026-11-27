@@ -7,8 +7,26 @@ import TodoCore
 /// six pipeline steps. Shown only when the card has a plan or a step beyond "offen"; plain to-dos keep their short detail.
 /// Identifiers sit on leaf elements only (a container identifier would hide the children's).
 struct PipelineCard: View {
+    /// Stage 3 (card BEE2417E): what the section "Ausführung" and the retry at the steps need.
+    struct Execution {
+        var section = PipelineExecutionSection(show: false, start: false)
+        var bindings: [PipelineStartBinding] = []
+        var bindingID: Binding<UUID?> = .constant(nil)
+        var mayStart = false
+        /// Edit right: the retry at a failed step (the app does not know it yet, the server checks it).
+        var canEdit = false
+        var acting: PipelineExecutionAction?
+        var retrying: PipelineStepName?
+        var confirming: PipelineExecutionAction?
+        var feedback: PipelineFeedback?
+        var reviewPending = false
+        var onAct: (PipelineExecutionAction) -> Void = { _ in }
+        var onRetry: (PipelineStepName) -> Void = { _ in }
+    }
+
     let pipeline: TaskPipeline
     let busy: Bool
+    var execution = Execution()
     let onDecide: (PlanDecision, String?) -> Void
     @State private var asking = false
     @State private var comment = ""
@@ -24,6 +42,11 @@ struct PipelineCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
+            // First, like the PWA: what runs now and the start.
+            if execution.section.show || execution.feedback != nil {
+                PipelineExecutionView(pipeline: pipeline, state: execution)
+                Divider()
+            }
             if let plan = pipeline.plan {
                 planSection(plan)
             }
@@ -127,7 +150,43 @@ struct PipelineCard: View {
     private var stepsSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             Text("pipeline.steps.title").font(.sectionTitle).accessibilityAddTraits(.isHeader)
-            ForEach(pipeline.steps) { step in StepRow(step: step) }
+            let live = pipeline.liveStep
+            let hint = pipeline.retryHint(mayStart: execution.mayStart)
+            ForEach(pipeline.steps) { step in
+                StepRow(step: step, live: live?.step == step.step ? live : nil)
+                if let name = step.name { retry(name, offer: pipeline.retryOffer(name, canEdit: execution.canEdit), hint: hint) }
+            }
+        }
+    }
+}
+
+extension PipelineCard {
+    /// "Wiederholen" below a failed step (outside the step's combined accessibility element, so it stays a button).
+    @ViewBuilder func retry(_ step: PipelineStepName, offer: PipelineRetryOffer, hint: PipelineRetryHint?) -> some View {
+        switch offer {
+        case .hidden: EmptyView()
+        case .ready(let round, let max):
+            VStack(alignment: .leading, spacing: Space.xs) {
+                AdaptiveStack(spacing: Space.s) {
+                    Button { execution.onRetry(step) } label: {
+                        Label { execution.retrying == step ? Text("pipeline.retry.sending") : Text("pipeline.retry") } icon: { Image(systemName: "arrow.clockwise") }
+                    }
+                    .buttonStyle(.bordered).controlSize(.regular).disabled(execution.retrying != nil || execution.acting != nil)
+                    .accessibilityIdentifier("pipeline.retry.\(step.rawValue)")
+                    Text("pipeline.retry.round \(round) \(max)").font(.caption).monospacedDigit().foregroundStyle(Color.textSecondary)
+                }
+                if let hint {
+                    Group { hint == .runs ? Text("pipeline.exec.retryRuns") : Text("pipeline.exec.retryNeedsOwner") }
+                        .font(.caption).foregroundStyle(Color.textSecondary).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("pipeline.retry.hint")
+                }
+            }
+            .padding(.leading, Space.xl + Space.s)
+        case .exhausted(let max):
+            Group { max == 0 ? Text("pipeline.retry.disabled") : Text("pipeline.retry.exhausted \(max)") }
+                .font(.caption).foregroundStyle(Color.textSecondary).fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, Space.xl + Space.s)
+                .accessibilityIdentifier("pipeline.retry.exhausted")
         }
     }
 }
@@ -195,6 +254,8 @@ private struct PlanBlockView: View {
 
 private struct StepRow: View {
     let step: PipelineStepStatus
+    /// Set when the execution is at this step: what its job does right now.
+    var live: PipelineLiveStep?
 
     private var symbol: String {
         switch step.stateKind {
@@ -231,13 +292,41 @@ private struct StepRow: View {
         return found == key ? step.step : found
     }
 
+    private var liveTint: Color {
+        switch live?.tone {
+        case .running?: LanePresentation.color("running")
+        case .warning?: Color.tileOrange
+        case .waiting?, nil: Color.textSecondary
+        }
+    }
+
+    private var liveText: Text? {
+        guard let live else { return nil }
+        let base: Text = switch live.kind {
+        case .queued: Text("pipeline.exec.live.queued")
+        case .claimed: Text("pipeline.exec.live.claimed")
+        case .running: Text("pipeline.exec.live.running")
+        case .answer: Text("pipeline.exec.live.answer")
+        case .held: Text("pipeline.exec.live.held")
+        }
+        guard let progress = live.progress else { return base }
+        return base + Text(verbatim: ": \(progress)")
+    }
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-            Image(systemName: symbol).foregroundStyle(tint).scaledSquare(22, relativeTo: .subheadline).accessibilityHidden(true)
+            Image(systemName: live == nil ? symbol : live?.tone == .running ? "bolt.fill" : "hourglass")
+                .foregroundStyle(live == nil ? tint : liveTint)
+                .symbolEffect(.pulse, isActive: live?.tone == .running)
+                .scaledSquare(22, relativeTo: .subheadline).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Space.xxs) {
                 AdaptiveStack(spacing: Space.s, verticalAlignment: .firstTextBaseline) {
                     Text(verbatim: stepName).font(.subheadline.weight(.semibold))
                     Text(verbatim: stateText).font(.subheadline).foregroundStyle(Color.textSecondary)
+                }
+                if let liveText {
+                    liveText.font(.footnote.weight(.semibold)).foregroundStyle(live?.tone == .waiting ? Color.textSecondary : Color.primary)
+                        .lineLimit(4).fixedSize(horizontal: false, vertical: true)
                 }
                 if let note = step.note, !note.isEmpty {
                     MarkdownText(note).font(.footnote).lineLimit(4).fixedSize(horizontal: false, vertical: true)
@@ -282,9 +371,43 @@ private enum PipelinePreviewData {
     }
 }
 
-@MainActor private func pipelinePreview(_ pipeline: TaskPipeline) -> some View {
-    ScrollView { PipelineCard(pipeline: pipeline, busy: false) { _, _ in }.padding(Space.page) }.background(Color.canvas)
+extension PipelinePreviewData {
+    static let binding = PipelineStartBinding(id: UUID(), label: "todo-apple", deviceLabel: "Linos Mac")
+
+    static func execution(_ state: String, step: String, reason: String? = nil, job: String? = nil, progress: String? = nil) -> PipelineExecution {
+        PipelineExecution(id: UUID(), state: state, reason: reason, step: step, bindingID: binding.id, bindingLabel: "todo-apple", deviceLabel: "Linos Mac",
+                          runnerSupportsPipeline: true, jobID: job == nil ? nil : UUID(), jobState: job, jobProgress: progress, createdAt: date(10), updatedAt: date(1))
+    }
+
+    static func withExecution(_ execution: PipelineExecution?, failed: String? = nil) -> TaskPipeline {
+        let base = running
+        let steps = base.steps.map { s in
+            s.step == failed ? PipelineStepStatus(step: s.step, state: "failed", note: "1 Test rot", enabled: true)
+                : s.step == "developer" ? PipelineStepStatus(step: s.step, state: failed == nil ? "running" : "done", enabled: true)
+                : s.step == "validation" && failed == nil ? PipelineStepStatus(step: s.step, state: "pending", enabled: true) : s
+        }
+        return TaskPipeline(taskID: base.taskID, plan: base.plan, steps: steps, events: [], fixRounds: PipelineFixRounds(used: 0, max: 3, remaining: 3),
+                            execution: execution)
+    }
+
+    static func state(_ p: TaskPipeline) -> PipelineCard.Execution {
+        PipelineCard.Execution(section: p.executionSection(bindings: [binding], mayStart: true), bindings: [binding], mayStart: true, canEdit: true,
+                               feedback: p.execution == nil ? nil : .done(.start))
+    }
+
+    static var startable: TaskPipeline { withExecution(nil, failed: nil) }
+    static var held: TaskPipeline { withExecution(execution("running", step: "developer", job: "queued", progress: "Kontingent-Bremse: Ampel rot bis 14:00")) }
+    static var progressing: TaskPipeline { withExecution(execution("running", step: "developer", job: "running", progress: "Schreibe die Tests")) }
+    static var blocked: TaskPipeline { withExecution(execution("blocked", step: "validation", reason: "step_failed"), failed: "validation") }
 }
+
+@MainActor private func pipelinePreview(_ pipeline: TaskPipeline, execution: PipelineCard.Execution = .init()) -> some View {
+    ScrollView { PipelineCard(pipeline: pipeline, busy: false, execution: execution) { _, _ in }.padding(Space.page) }.background(Color.canvas)
+}
+#Preview("Pipeline execution light") { pipelinePreview(PipelinePreviewData.progressing, execution: PipelinePreviewData.state(PipelinePreviewData.progressing)).preferredColorScheme(.light) }
+#Preview("Pipeline execution dark") { pipelinePreview(PipelinePreviewData.held, execution: PipelinePreviewData.state(PipelinePreviewData.held)).preferredColorScheme(.dark) }
+#Preview("Pipeline execution accessibility5") { pipelinePreview(PipelinePreviewData.blocked, execution: PipelinePreviewData.state(PipelinePreviewData.blocked)).dynamicTypeSize(.accessibility5) }
+#Preview("Pipeline start light") { pipelinePreview(PipelinePreviewData.startable, execution: PipelinePreviewData.state(PipelinePreviewData.startable)).preferredColorScheme(.light) }
 #Preview("Pipeline proposed light") { pipelinePreview(PipelinePreviewData.proposed).preferredColorScheme(.light) }
 #Preview("Pipeline proposed dark") { pipelinePreview(PipelinePreviewData.proposed).preferredColorScheme(.dark) }
 #Preview("Pipeline proposed accessibility5") { pipelinePreview(PipelinePreviewData.proposed).dynamicTypeSize(.accessibility5) }
