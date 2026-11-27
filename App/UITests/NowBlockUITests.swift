@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 
 /// Block "Jetzt" (card 9F41292D, contract session-status 1.4.0): the screen opens from the tab bar (iPhone) or the sidebar (iPad),
@@ -114,6 +115,56 @@ final class NowBlockUITests: XCTestCase {
         silent.tap()
         XCTAssertTrue(element("now.block.silent.item").waitForExistence(timeout: 5), "silent group opens")
         shot("jetzt-\(look)-4-ohne-lebenszeichen-offen")
+    }
+
+    /// Upload as the app does it: begin, PUT with the upload capability, complete.
+    private func uploadScreenshot(taskID: String, filename: String) async throws -> String {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let checksum = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        let begun = json(try await request("POST", "/v1/attachments/begin", body: [
+            "taskID": taskID, "filename": filename, "role": "result", "mediaType": "image/png", "size": png.count, "checksum": checksum,
+        ])) as? [String: Any]
+        let attachmentID = try XCTUnwrap(begun?["attachmentID"] as? String, "attachment")
+        var put = URLRequest(url: try XCTUnwrap(URL(string: try XCTUnwrap(begun?["uploadURL"] as? String), relativeTo: URL(string: server))))
+        put.httpMethod = "PUT"
+        put.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        put.setValue("Bearer \(try XCTUnwrap(begun?["token"] as? String))", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.upload(for: put, from: png)
+        XCTAssertTrue((200..<300).contains((response as? HTTPURLResponse)?.statusCode ?? 0), "upload")
+        _ = try await request("POST", "/v1/attachments/\(attachmentID)/complete")
+        return attachmentID
+    }
+
+    /// Card 21A79A08: two screenshots of one build are two rows under "Builds". With `id = buildID` SwiftUI drew one row twice.
+    func testTwoScreenshotsOfOneBuildBothShow() async throws {
+        let name = "Zwei Bilder \(stamp)"
+        let project = json(try await request("POST", "/v1/projects", body: ["name": name])) as? [String: Any]
+        let projectID = try XCTUnwrap(project?["id"] as? String, "project")
+        let task = json(try await request("POST", "/v1/tasks", body: ["projectID": projectID, "title": "Startseite"])) as? [String: Any]
+        let taskID = try XCTUnwrap(task?["id"] as? String, "task")
+        let labels = ["Ansicht Hell \(stamp)", "Ansicht Dunkel \(stamp)"]
+        for (index, label) in labels.enumerated() {
+            let attachment = try await uploadScreenshot(taskID: taskID, filename: "shot\(index).png")
+            _ = try await request("POST", "/v1/builds", body: ["attachmentID": attachment, "buildID": "ui-\(stamp)", "label": label, "platform": "ios"])
+        }
+
+        launch()
+        openNow()
+        // The new project has no open question and is freshly active, so its card sits with the active ones and starts open.
+        // BuildRow combines its children into one accessibility element, so it is not a static text.
+        func rows(_ label: String) -> XCUIElementQuery { app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", label)) }
+        let first = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", labels[0], labels[1])).firstMatch
+        // The project cards sit below the block "Jetzt" in a lazy stack: their rows exist once scrolled near.
+        for _ in 0..<15 where !(first.exists && first.isHittable) { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(first.exists, "a build row of the new project")
+        // Both rows sit next to each other in "Builds": one row per screenshot, each shown once.
+        XCTAssertEqual(rows(labels[0]).count, 1, "row \(labels[0])")
+        XCTAssertEqual(rows(labels[1]).count, 1, "row \(labels[1])")
+        defer { XCUIDevice.shared.appearance = .light }
+        for (appearance, suffix) in [(XCUIDevice.Appearance.light, "hell"), (.dark, "dunkel")] {
+            XCUIDevice.shared.appearance = appearance
+            shot("jetzt-zwei-bilder-\(suffix)")
+        }
     }
 
     private func heading(_ text: String) -> XCUIElement {

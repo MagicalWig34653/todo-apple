@@ -11,6 +11,27 @@ extension LiveEtappe2Tests {
         Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
     }
 
+    /// Card 21A79A08: two screenshots of one build reach "Jetzt" as two rows with their own ids (session-status 1.5.0).
+    func testOverviewTwoScreenshotsOfOneBuildHaveOwnIDs() async throws {
+        let f = try await fixture()
+        let a = f.admin
+        let project = try await a.createProject(name: "Shots \(f.suffix)")
+        let task = try await a.createTask(projectID: project.id, title: "Zwei Bilder")
+        var artifacts: [UUID] = []
+        for name in ["hell", "dunkel"] {
+            let attachment = try await a.uploadAttachment(taskID: task.id, filename: "\(name).png", role: .result, mediaType: "image/png", data: png())
+            artifacts.append(try await a.registerBuild(attachmentID: attachment.id, buildID: "shots-\(f.suffix)", label: name, platform: "ios").id)
+        }
+        guard case .loaded(let overview) = try await a.fetchOverviewNow() else { return XCTFail("server without /v1/overview/now") }
+        let builds = try XCTUnwrap(overview.projects.first { $0.projectID == project.id }).builds
+        XCTAssertEqual(builds.map(\.buildID), Array(repeating: "shots-\(f.suffix)", count: 2))
+        XCTAssertEqual(Set(builds.map(\.id)), Set(artifacts.map(\.uuidString)), "one row per screenshot, keyed by the artifact id")
+        // The command center groups by build id, so its group list cannot repeat it.
+        let groups = try await a.commandCenter(CommandCenterOptions(projectID: project.id)).builds
+        XCTAssertEqual(groups.map(\.id), ["shots-\(f.suffix)"])
+        XCTAssertEqual(Set(groups[0].items.map(\.id)), Set(artifacts))
+    }
+
     func testCommandCenterEndToEnd() async throws {
         let f = try await fixture()
         let a = f.admin
