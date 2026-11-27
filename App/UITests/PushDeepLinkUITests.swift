@@ -75,6 +75,28 @@ final class PushDeepLinkUITests: XCTestCase {
         assertDestination(app, .question, target, shot: nil)
     }
 
+    /// "Erledigen" on a reminder with the app running: the real delegate completes the task, the server has it as done.
+    func testDoneActionOfAReminderCompletesTheTaskOnTheServer() throws {
+        let seeded = try seededTarget()
+        let title = "Per Mitteilung erledigen \(UUID().uuidString.prefix(4))"
+        let created = try post("/v1/tasks", ["projectID": seeded.projectID, "title": title])
+        let id = try XCTUnwrap(created["id"] as? String)
+        let target = Target(taskID: id, taskTitle: title, projectID: seeded.projectID, projectName: seeded.projectName)
+        let app = launch(payload(.reminder, target), delay: 10, dark: false, select: "search", action: "TODO_DONE")
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 30), "app up")
+        let probe = app.otherElements["debug.pushProbe"]
+        expectation(for: NSPredicate(format: "label CONTAINS 'didReceive'"), evaluatedWith: probe)
+        waitForExpectations(timeout: 25)
+        var status = ""
+        for _ in 0..<30 where status != "done" {
+            let tasks = try XCTUnwrap(get("/v1/tasks") as? [[String: Any]])
+            status = tasks.first { ($0["id"] as? String) == id }?["status"] as? String ?? ""
+            if status != "done" { Thread.sleep(forTimeInterval: 1) }
+        }
+        XCTAssertEqual(status, "done", "server state after \"Erledigen\"")
+        XCTAssertFalse(app.textFields["task.title"].exists, "\"Erledigen\" does not open the task")
+    }
+
     // MARK: Flow
 
     private func coldAndWarm(_ kind: Kind) throws {
@@ -164,8 +186,9 @@ final class PushDeepLinkUITests: XCTestCase {
     }
 
     private func launch(_ payload: String, delay: Int, dark: Bool, large: Bool = false, server override: String? = nil,
-                        select: String? = nil) -> XCUIApplication {
+                        select: String? = nil, action: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
+        if let action { app.launchEnvironment["TODO_DEBUG_DELIVER_ACTION"] = action }
         app.launchEnvironment["TODO_DEBUG_SERVER"] = override ?? server
         app.launchEnvironment["TODO_DEBUG_TOKEN"] = token
         if let select { app.launchEnvironment["TODO_DEBUG_SELECT"] = select }

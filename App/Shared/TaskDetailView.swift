@@ -612,7 +612,7 @@ struct TaskDetailView: View {
                         .font(.body).foregroundStyle(Color.textSecondary).lineLimit(1...12)
                         .accessibilityIdentifier("task.description")
                 }
-                HStack(spacing: Space.s) {
+                AdaptiveStack(spacing: Space.s) {
                     AuditTimeText(date: model.context?.task.createdAt ?? model.task.createdAt, label: "time.created", identifier: "audit.created")
                     AuditTimeText(date: model.context?.task.updatedAt ?? model.task.updatedAt, label: "time.updated", identifier: "audit.updated")
                 }

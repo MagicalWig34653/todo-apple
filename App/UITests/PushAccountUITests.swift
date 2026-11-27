@@ -9,6 +9,7 @@ import XCTest
 final class PushAccountUITests: XCTestCase {
     private var server = "", token = "", proxy = "", out: String?
     private let apnsToken = String(repeating: "ab12", count: 16)
+    nonisolated(unsafe) private static var warmedUp = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -18,6 +19,14 @@ final class PushAccountUITests: XCTestCase {
         }
         self.server = server; self.token = token; self.proxy = proxy; out = env["TODO_TOUR_OUT"]
         try control([:])
+        if !Self.warmedUp {
+            // The first launch after an install is not reliable with the debug session; a throw-away launch absorbs that.
+            Self.warmedUp = true
+            let warm = launch(select: "feed")
+            Thread.sleep(forTimeInterval: 8)
+            warm.terminate()
+            try control([:])
+        }
     }
 
     override func tearDown() {
@@ -35,6 +44,7 @@ final class PushAccountUITests: XCTestCase {
         let later = app.buttons["push.primer.later"]
         if !later.waitForExistence(timeout: 30) {
             // Only an installation whose permission is already decided may be without the card.
+            shot("primer-fehlt")
             app.terminate()
             app = launch(select: "account")
             try XCTSkipUnless(app.buttons["push.enable"].waitForExistence(timeout: 20), "permission already decided on this installation")

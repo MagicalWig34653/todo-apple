@@ -45,6 +45,14 @@ final class PushBriefPersistenceUITests: XCTestCase {
         XCTAssertEqual(answer["dailyBriefHour"] as? Int, utcHour, "server stored the UTC hour")
         defer { _ = try? storePrefs(["categories": ["daily_brief": false], "dailyBriefHour": 8]) }
 
+        // The first launch after an install is not reliable with the debug session; a throw-away launch absorbs that.
+        let warm = XCUIApplication()
+        warm.launchEnvironment["TODO_DEBUG_SERVER"] = server
+        warm.launchEnvironment["TODO_DEBUG_TOKEN"] = token
+        warm.launch()
+        Thread.sleep(forTimeInterval: 8)
+        warm.terminate()
+
         for dark in [false, true] {
             let app = XCUIApplication()
             app.launchEnvironment["TODO_DEBUG_SERVER"] = server
