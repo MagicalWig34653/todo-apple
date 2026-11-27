@@ -136,7 +136,7 @@ enum DebugLaunch {
     /// `ImageRenderer` and quits. The app runs with activation policy `.prohibited` (see `AppDelegate`), so no window
     /// appears and nothing is activated. `TODO_DEBUG_RENDER_MODE=hosting` renders an `NSHostingView` in an off-screen
     /// window (never ordered front) instead, for views whose content loads in `.task`.
-    static var renderRequested: Bool { env["TODO_DEBUG_WINDOW_SHOTS"] != nil || env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil || env["TODO_DEBUG_CALENDAR_RENDER"] != nil }
+    static var renderRequested: Bool { env["TODO_DEBUG_WINDOW_SHOTS"] != nil || env["TODO_DEBUG_RENDER"] != nil || env["TODO_DEBUG_NOW_RENDER"] != nil || env["TODO_DEBUG_VARIANTS_RENDER"] != nil || env["TODO_DEBUG_CALENDAR_RENDER"] != nil || env["TODO_DEBUG_GROUPS_RENDER"] != nil }
 
     /// `TODO_DEBUG_NOW_RENDER=<dir>`: the "Jetzt" screen with sample data, light and dark, off-screen (no server needed).
     static func renderNowSamples(dir: String) async {
@@ -227,8 +227,51 @@ enum DebugLaunch {
         exit(0)
     }
 
+    /// `TODO_DEBUG_GROUPS_RENDER=<dir>` (card 80738AEA, needs `TODO_DEBUG_SERVER`/`TODO_DEBUG_TOKEN`): the settings sections
+    /// "Projektgruppen" and "Brain-Vollmacht" and the mandate editor with the server's live preview, from the REAL account
+    /// data, light and dark, in an off-screen window (never shown, nothing activated). Seed: `LiveProjectGroupsTests.testSeedGroupsTour`.
+    static func renderGroups(model: AppModel, dir: String) async {
+        let url = URL(fileURLWithPath: dir)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        for _ in 0..<100 where model.phase != .signedIn { try? await Task.sleep(for: .milliseconds(100)) }
+        guard model.phase == .signedIn else { exit(3) }
+        await model.reload()
+        let hub = SettingsHubModel()
+        await hub.load(model)
+        guard let mandate = hub.listedMandates.first(where: { $0.grantName == "Brain" }) ?? hub.listedMandates.first else { exit(4) }
+        let privat = hub.groups.first { $0.name == "Privat" }
+        var allExcept = mandate.editableSelection
+        allExcept.setMode(.allExcept)
+        if let privat { allExcept.excludedGroupIDs = [privat.id] }
+        let shots: [(String, CGSize, AnyView)] = [
+            ("mac-einstellungen-gruppen", CGSize(width: 640, height: 900), AnyView(Form { ProjectGroupsSettingsSections(model: hub) }.formStyle(.grouped))),
+            ("mac-vollmacht-auswahl", CGSize(width: 600, height: 1000), AnyView(SelectionEditor(title: "mandate.edit", subject: mandate.grantName ?? "", groups: hub.groups,
+                projects: model.projects, initial: mandate.editableSelection, before: mandate.projectIDs) { _ in nil })),
+            ("mac-vollmacht-alle-ausser", CGSize(width: 600, height: 1000), AnyView(SelectionEditor(title: "mandate.edit", subject: mandate.grantName ?? "", groups: hub.groups,
+                projects: model.projects, initial: allExcept, before: mandate.projectIDs) { _ in nil })),
+        ]
+        for (name, size, view) in shots {
+            for dark in [false, true] {
+                let host = NSHostingView(rootView: view.environment(model).tint(.brand).environment(\.colorScheme, dark ? .dark : .light).preferredColorScheme(dark ? .dark : .light))
+                host.frame = CGRect(origin: .zero, size: size)
+                let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+                window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                window.contentView = host
+                host.layoutSubtreeIfNeeded()
+                try? await Task.sleep(for: .seconds(4))
+                host.layoutSubtreeIfNeeded()
+                guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { exit(2) }
+                host.cacheDisplay(in: host.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: url.appendingPathComponent("\(name)-\(dark ? "dunkel" : "hell").png"))
+                window.contentView = nil
+            }
+        }
+        exit(0)
+    }
+
     static func renderIfRequested(model: AppModel) async {
         if env["TODO_DEBUG_WINDOW_SHOTS"] != nil { await DebugWindowShots.run(model: model); return }
+        if let dir = env["TODO_DEBUG_GROUPS_RENDER"] { await renderGroups(model: model, dir: dir); return }
         if let dir = env["TODO_DEBUG_CALENDAR_RENDER"] { await renderCalendarSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_VARIANTS_RENDER"] { await renderVariantsSamples(dir: dir); return }
         if let dir = env["TODO_DEBUG_NOW_RENDER"] { await renderNowSamples(dir: dir); return }

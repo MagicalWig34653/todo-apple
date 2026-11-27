@@ -102,4 +102,32 @@ final class LiveProjectGroupsTests: XCTestCase {
         try await a.revokeBrainMandate(grantID: grant.id)
         print("LIVE 80738AEA ok: group \(g.id) mandate+connection kept rule; preview \(preview.projectIDs.count); allExcept \(allButC.projectIDs.count)")
     }
+
+    /// Seeds the account of the picture tour (`App/UITests/ProjectGroupsTour.swift`, Mac render `TODO_DEBUG_GROUPS_RENDER`) and writes
+    /// `{"token":...}` to `TODO_LIVE_SEED_GROUPS_OUT`: projects, groups "Kunden" and "Privat", a connection "Brain" with a mandate
+    /// for "Umzug" plus the group "Kunden", a connection "Claude Code" for all projects except the group "Privat".
+    func testSeedGroupsTour() async throws {
+        guard let out = ProcessInfo.processInfo.environment["TODO_LIVE_SEED_GROUPS_OUT"] else { throw XCTSkip("TODO_LIVE_SEED_GROUPS_OUT not set") }
+        let f = try await LiveEtappe2Tests().fixture()
+        let a = f.admin
+        let web = try await a.createProject(name: "Website-Relaunch")
+        let move = try await a.createProject(name: "Umzug")
+        _ = try await a.createProject(name: "Kueche", parentID: move.id)
+        let tax = try await a.createProject(name: "Steuer 2026")
+        let garden = try await a.createProject(name: "Garten")
+        let kundenResult = try await a.createProjectGroup(name: "Kunden", projectIDs: [web.id, tax.id])
+        let kunden = try XCTUnwrap(kundenResult.group)
+        let privatResult = try await a.createProjectGroup(name: "Privat", projectIDs: [move.id, garden.id])
+        let privat = try XCTUnwrap(privatResult.group)
+        _ = try await LiveMCPConnection.connect(a, name: "Brain", projects: [move.id])
+        _ = try await LiveMCPConnection.connect(a, name: "Claude Code", projects: [web.id])
+        let conns = try await a.connections().active
+        let brain = try XCTUnwrap(conns.first { $0.displayName == "Brain" })
+        let code = try XCTUnwrap(conns.first { $0.displayName == "Claude Code" })
+        _ = try await a.saveBrainMandate(grantID: brain.id, selection: ProjectSelection(projectIDs: [move.id], groupIDs: [kunden.id]))
+        _ = try await a.setConnectionSelection(code.id, ProjectSelection(mode: .allExcept, excludedGroupIDs: [privat.id]))
+        let token = try XCTUnwrap(try f.adminStore.load())
+        try JSONSerialization.data(withJSONObject: ["token": token]).write(to: URL(fileURLWithPath: out))
+    }
 }
+

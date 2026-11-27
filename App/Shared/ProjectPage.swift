@@ -10,6 +10,7 @@ struct ProjectView: View {
     @State private var board: BoardModel
     @State private var showOptions = false
     @State private var showComments = false
+    @State private var showGroups = false
     @State private var title = ""
     @State private var descriptionText = ""
     @FocusState private var titleFocus: Bool
@@ -67,6 +68,7 @@ struct ProjectView: View {
         .onAppear { title = project?.name ?? ""; descriptionText = project?.description ?? "" }
         .onChange(of: project?.description) { _, new in if !descriptionFocus { descriptionText = new ?? "" } }
         .sheet(isPresented: $showComments) { ProjectCommentsView(projectID: projectID).environment(model) }
+        .sheet(isPresented: $showGroups) { if let project { ProjectGroupsOfProjectSheet(project: project).environment(model).tint(.brand) } }
         .onChange(of: project?.name) { _, new in if !titleFocus { title = new ?? "" } }
         .refreshable { await model.reload() }
         .quickAdd(projectID: projectID)
@@ -147,6 +149,7 @@ struct ProjectView: View {
                 Menu {
                     Button { showComments = true } label: { Label("project.comments", systemImage: "bubble.left") }
                     Button { actions.share(project) } label: { Label("project.share", systemImage: "person.badge.plus") }
+                    Button { showGroups = true } label: { Label("project.groups", systemImage: "square.stack.3d.up") }
                     Divider()
                     Button { Task { await model.toggleFavorite(project) } } label: {
                         Label(project.isFavorite ? "project.unfavorite" : "project.favorite", systemImage: project.isFavorite ? "star.slash" : "star")

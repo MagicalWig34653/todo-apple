@@ -87,14 +87,8 @@ struct MainView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $shareProject) { ShareView(project: $0) }
-        .alert("project.new", isPresented: newProjectPresented) {
-            TextField(accessible: "project.name", text: $newProjectName)
-            Button("save") {
-                let parent = newProjectParent ?? nil
-                Task { await model.addProject(name: newProjectName, parentID: parent ?? nil) }
-            }
-            Button("cancel", role: .cancel) {}
-        }
+        // Card 80738AEA: a sheet instead of an alert, so the new project can join groups right away.
+        .sheet(isPresented: newProjectPresented) { NewProjectSheet(parentID: newProjectParent ?? nil).environment(model).tint(.brand) }
         .alert("sync.conflict.title", isPresented: conflictPresented) {
             Button("sync.conflict.keepMine") { Task { await model.resolveConflict(keepMine: true) } }
             Button("sync.conflict.useServer", role: .destructive) { Task { await model.resolveConflict(keepMine: false) } }

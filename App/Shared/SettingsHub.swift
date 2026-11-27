@@ -20,6 +20,12 @@ final class SettingsHubModel {
     var passkeys: [PasskeyInfo] = []
     var sessions: [AccountSession] = []
     var connections: [Connection] = []
+    /// Card 80738AEA: own project groups and brain mandates (one per connection).
+    var groups: [ProjectGroup] = []
+    var mandates: [BrainMandate] = []
+    /// Open sheets of the groups sections (`ProjectGroupsSheets` on the host).
+    var editingGroup: GroupTarget?
+    var editingSelection: SelectionTarget?
     var preferences: AccountPreferences?
     var pairing: RunnerPairing?
     var loaded = false
@@ -32,10 +38,15 @@ final class SettingsHubModel {
         async let s = try? client.sessions()
         async let c = try? client.connections()
         async let p = try? client.preferences()
+        async let g = try? client.projectGroups()
+        async let m = try? client.brainMandates()
         let (keys, sessions, connections, prefs) = await (k, s, c, p)
+        let (groups, mandates) = await (g, m)
         passkeys = (keys ?? []).filter(\.isActive)
         self.sessions = (sessions ?? []).sortedCurrentFirst
         self.connections = (connections ?? []).active
+        self.groups = groups ?? []
+        self.mandates = mandates ?? []
         if let prefs { preferences = prefs; if prefs.revision > 0 { app.colorScheme = prefs.appearance.scheme } }
         loaded = true
     }
@@ -68,6 +79,40 @@ final class SettingsHubModel {
     }
     func revokeOtherSessions(_ app: AppModel) async { await run(app) { try await $0.revokeOtherSessions() } }
     func revokeConnection(_ c: Connection, _ app: AppModel) async { await run(app) { try await $0.revokeConnection(c.id) } }
+    /// Mandates that moved to a newer connection stay only in the protocol (like the PWA).
+    var listedMandates: [BrainMandate] { mandates.filter { $0.grantRevokedReason != "superseded" } }
+
+    /// Saves with the rule (never a bare list, which would replace a group rule); returns an error key.
+    func saveMandate(_ grantID: UUID, _ selection: ProjectSelection, _ app: AppModel) async -> String? {
+        await write(app) { _ = try await $0.saveBrainMandate(grantID: grantID, selection: selection) }
+    }
+    func saveConnection(_ grantID: UUID, _ selection: ProjectSelection, _ app: AppModel) async -> String? {
+        await write(app) { _ = try await $0.setConnectionSelection(grantID, selection) }
+    }
+    func revokeMandate(_ m: BrainMandate, _ app: AppModel) async {
+        if let key = await write(app, { try await $0.revokeBrainMandate(grantID: m.grantID) }) { errorKey = key }
+    }
+    func apply(_ action: GroupAction, _ app: AppModel) async -> String? {
+        await write(app) { client in
+            switch action {
+            case .create(let name, let ids): _ = try await client.createProjectGroup(name: name, projectIDs: ids)
+            case .update(let g, let name, let ids): _ = try await client.updateProjectGroup(g.id, name: name, projectIDs: ids)
+            case .delete(let g): _ = try await client.deleteProjectGroup(g.id)
+            }
+        }
+    }
+
+    /// Runs a write and reloads; the error key for the sheet that asked.
+    private func write(_ app: AppModel, _ work: (APIClient) async throws -> Void) async -> String? {
+        guard let client = app.client else { return "error.generic" }
+        busy = true; defer { busy = false }
+        do { try await work(client) }
+        catch APIError.conflict { return "projectGroups.error.taken" }
+        catch { return AppModel.key(for: error) }
+        await load(app)
+        return nil
+    }
+
     func pair(label: String, _ app: AppModel) async {
         guard let client = app.client, !busy else { return }
         busy = true; defer { busy = false }
@@ -138,6 +183,8 @@ struct SettingsHubSections: View {
             }
         } header: { Text("settings.sessions") }
 
+        ProjectGroupsSettingsSections(model: model)
+
         Section {
             if model.loaded && model.connections.isEmpty { Text("settings.connections.empty").foregroundStyle(Color.textSecondary) }
             ForEach(model.connections) { c in
@@ -145,15 +192,21 @@ struct SettingsHubSections: View {
                     VStack(alignment: .leading, spacing: Space.xxs) {
                         Text(verbatim: c.displayName.isEmpty ? String(localized: "settings.connections.unnamed") : c.displayName)
                         HStack(spacing: Space.s) {
+                            if let summary = selectionSummary(c.selection, groups: model.groups) { Text(summary) }
                             Text("settings.connections.projects \(c.projectIDs.count)")
                             if let used = c.lastUsedAt { Text("settings.connections.used \(used.formatted(.relative(presentation: .named)))") }
                         }
                         .font(.caption).foregroundStyle(Color.textSecondary)
                     }
+                    // One element for name and caption (the row holds two buttons, so it can no longer combine all of it).
+                    .accessibilityElement(children: .combine)
                     Spacer(minLength: Space.s)
+                    Button("connection.projects.short") { model.editingSelection = .connection(c) }.buttonStyle(.borderless).disabled(model.busy)
+                        .accessibilityIdentifier("connection.projects.\(c.displayName)")
                     Button("settings.revoke", role: .destructive) { confirmRevoke = c }.buttonStyle(.borderless).disabled(model.busy)
                 }
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .contain)
+                .accessibilityAction(named: Text("connection.projects")) { model.editingSelection = .connection(c) }
                 .accessibilityAction(named: Text("settings.revoke")) { confirmRevoke = c }
             }
         } header: { Text("settings.connections") } footer: { Text("settings.connections.hint") }

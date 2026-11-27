@@ -422,6 +422,7 @@ struct AccountView: View {
             }
         }
         .navigationTitle("view.account")
+        .modifier(ProjectGroupsSheets(model: hub))
         .task { await hub.load(model) }
         .refreshable { await hub.load(model) }
     }

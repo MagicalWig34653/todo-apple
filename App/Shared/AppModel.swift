@@ -773,15 +773,25 @@ final class AppModel {
         } catch { await handle(error) }
     }
 
-    func addProject(name: String, parentID: UUID?) async {
+    func addProject(name: String, parentID: UUID?, groupIDs: [UUID] = []) async {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard let client, !name.isEmpty else { return }
         let id = UUID()
-        if await queueChange({ try await $0.createProject(id: id, name: name, parentID: parentID) }) { selectedProjectID = id; return }
-        do {
-            let p = try await client.createProject(name: name, parentID: parentID)
-            projects.append(p); selectedProjectID = p.id
-        } catch { await handle(error) }
+        var created: UUID?
+        if await queueChange({ try await $0.createProject(id: id, name: name, parentID: parentID) }) {
+            selectedProjectID = id; created = id
+            // The groups need the project on the server: push the queued create first.
+            if !groupIDs.isEmpty { await syncNow() }
+        } else {
+            do {
+                let p = try await client.createProject(name: name, parentID: parentID)
+                projects.append(p); selectedProjectID = p.id; created = p.id
+            } catch { await handle(error); return }
+        }
+        // Card 80738AEA: the person's groups for the new project (PUT /v1/projects/{id}/groups).
+        if let created, !groupIDs.isEmpty {
+            do { _ = try await client.setGroupsOfProject(created, groupIDs: groupIDs) } catch { noticeKey = "projectGroups.error.assign" }
+        }
     }
 
     func renameProject(_ project: Project, to name: String) async {

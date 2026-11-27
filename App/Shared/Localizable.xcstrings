@@ -9578,6 +9578,466 @@
           }
         }
       }
+    },
+    "projectGroups": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projektgruppen"
+          }
+        }
+      }
+    },
+    "projectGroups.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppen fassen eigene Projekte zusammen. Eine Vollmacht oder Verbindung mit einer Gruppe erreicht sofort jedes Projekt, das du der Gruppe hinzufügst; Unterprojekte gehören nicht automatisch dazu."
+          }
+        }
+      }
+    },
+    "projectGroups.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Gruppen."
+          }
+        }
+      }
+    },
+    "projectGroups.noneYet": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Gruppen. Lege sie in den Einstellungen an."
+          }
+        }
+      }
+    },
+    "projectGroups.new": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe anlegen"
+          }
+        }
+      }
+    },
+    "projectGroups.edit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe bearbeiten"
+          }
+        }
+      }
+    },
+    "projectGroups.name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name der Gruppe"
+          }
+        }
+      }
+    },
+    "projectGroups.name.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 bis 80 Zeichen, jeder Name nur einmal."
+          }
+        }
+      }
+    },
+    "projectGroups.members %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte (%lld)"
+          }
+        }
+      }
+    },
+    "projectGroups.members.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen wirken sofort auf jede Vollmacht und Verbindung mit dieser Gruppe."
+          }
+        }
+      }
+    },
+    "projectGroups.delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe löschen"
+          }
+        }
+      }
+    },
+    "projectGroups.delete.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollmachten und Verbindungen mit dieser Gruppe verlieren ihre Projekte sofort. War die Gruppe ausgenommen, bleiben ihre Projekte einzeln ausgenommen."
+          }
+        }
+      }
+    },
+    "projectGroups.error.name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Name braucht 1 bis 80 Zeichen."
+          }
+        }
+      }
+    },
+    "projectGroups.error.taken": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesen Namen gibt es schon."
+          }
+        }
+      }
+    },
+    "projectGroups.error.assign": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Projekt ist angelegt, die Gruppen konnten nicht gesetzt werden."
+          }
+        }
+      }
+    },
+    "mandate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brain-Vollmacht"
+          }
+        }
+      }
+    },
+    "mandate.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Verbindung mit Vollmacht darf in diesen Projekten Reviews und Fragen für dich entscheiden. Gruppen und „Alle außer …“ wirken sofort, wenn sich Gruppen oder Projekte ändern."
+          }
+        }
+      }
+    },
+    "mandate.empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Verbindung hat eine Vollmacht."
+          }
+        }
+      }
+    },
+    "mandate.give": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollmacht erteilen"
+          }
+        }
+      }
+    },
+    "mandate.edit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollmacht"
+          }
+        }
+      }
+    },
+    "mandate.revoke": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Widerrufen"
+          }
+        }
+      }
+    },
+    "mandate.active": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiv"
+          }
+        }
+      }
+    },
+    "mandate.revoked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Widerrufen"
+          }
+        }
+      }
+    },
+    "connection.projects": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte der Verbindung"
+          }
+        }
+      }
+    },
+    "connection.projects.short": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte"
+          }
+        }
+      }
+    },
+    "selection.for": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für"
+          }
+        }
+      }
+    },
+    "selection.mode": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswahl"
+          }
+        }
+      }
+    },
+    "selection.mode.selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewählte"
+          }
+        }
+      }
+    },
+    "selection.mode.allExcept": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle außer …"
+          }
+        }
+      }
+    },
+    "selection.mode.selected.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gewählte Projekte und alle Projekte der gewählten Gruppen."
+          }
+        }
+      }
+    },
+    "selection.mode.allExcept.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle eigenen Projekte, auch künftige, außer den ausgenommenen. Teamprojekte und von Agenten angelegte Projekte zählen nicht dazu."
+          }
+        }
+      }
+    },
+    "selection.groups": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppen"
+          }
+        }
+      }
+    },
+    "selection.projects": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekte"
+          }
+        }
+      }
+    },
+    "selection.excludedGroups": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgenommene Gruppen"
+          }
+        }
+      }
+    },
+    "selection.excludedProjects": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgenommene Projekte"
+          }
+        }
+      }
+    },
+    "selection.preview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau"
+          }
+        }
+      }
+    },
+    "selection.preview.count %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wirkt jetzt auf %lld Projekte"
+          }
+        }
+      }
+    },
+    "selection.preview.added %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu: %@"
+          }
+        }
+      }
+    },
+    "selection.preview.removed %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entfällt: %@"
+          }
+        }
+      }
+    },
+    "selection.preview.agentCreated %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von Agenten angelegt, nicht in „alle“: %@"
+          }
+        }
+      }
+    },
+    "selection.preview.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau nicht verfügbar."
+          }
+        }
+      }
+    },
+    "selection.preview.loading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau wird berechnet …"
+          }
+        }
+      }
+    },
+    "selection.summary.allExcept %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle außer %lld"
+          }
+        }
+      }
+    },
+    "selection.summary.groups %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppen: %@"
+          }
+        }
+      }
+    },
+    "project.groups": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppen"
+          }
+        }
+      }
+    },
+    "project.groups.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur deine eigenen Gruppen. Vollmachten und Verbindungen mit diesen Gruppen erreichen das Projekt sofort."
+          }
+        }
+      }
     }
   }
 }
