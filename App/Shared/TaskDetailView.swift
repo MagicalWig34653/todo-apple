@@ -39,6 +39,8 @@ final class TaskDetailModel {
     var executionActing: PipelineExecutionAction?
     var retrying: PipelineStepName?
     var executionFeedback: PipelineFeedback?
+    /// Set when the message belongs to a retry: it is then shown below that step, where the person tapped.
+    var feedbackStep: PipelineStepName?
     var readGuard = PlanReadGuard()
     private var startAttempt = PipelineStartAttempt()
 
@@ -134,7 +136,7 @@ final class TaskDetailModel {
     func startExecution(_ app: AppModel) async {
         guard let client = app.client, executionActing == nil, let pipeline, let bindingID,
               pipeline.executionSection(bindings: startBindings, mayStart: mayStart).start else { return }
-        if readGuard.needsConfirmation(for: .start) { executionFeedback = .readFirst(version: pipeline.plan?.version ?? 0); return }
+        if readGuard.needsConfirmation(for: .start) { feedbackStep = nil; executionFeedback = .readFirst(version: pipeline.plan?.version ?? 0); return }
         let taskID = task.id, id = startAttempt.id(taskID: taskID, bindingID: bindingID)
         await act(.start, app) { [self] in
             do {
@@ -147,7 +149,7 @@ final class TaskDetailModel {
 
     func continueExecution(_ app: AppModel) async {
         guard let client = app.client, mayStart, executionActing == nil, pipeline?.execution?.stateKind == .paused else { return }
-        if readGuard.needsConfirmation(for: .continue) { executionFeedback = .readFirst(version: pipeline?.plan?.version ?? 0); return }
+        if readGuard.needsConfirmation(for: .continue) { feedbackStep = nil; executionFeedback = .readFirst(version: pipeline?.plan?.version ?? 0); return }
         let taskID = task.id, version = pipeline?.plan?.version
         await act(.continue, app) { try await client.continuePipelineExecution(taskID: taskID, planVersion: version) }
     }
@@ -162,6 +164,7 @@ final class TaskDetailModel {
     private func act(_ action: PipelineExecutionAction, _ app: AppModel, _ send: () async throws -> TaskPipeline) async {
         executionActing = action
         executionFeedback = nil
+        feedbackStep = nil
         defer { executionActing = nil }
         do {
             let fresh = try await send()
@@ -183,6 +186,7 @@ final class TaskDetailModel {
         guard let client = app.client, retrying == nil, executionActing == nil else { return }
         retrying = step
         executionFeedback = nil
+        feedbackStep = step
         defer { retrying = nil }
         do {
             let fresh = try await client.retryPipelineStep(taskID: task.id, step: step, planVersion: pipeline?.plan?.version)
@@ -450,7 +454,7 @@ struct TaskDetailView: View {
         PipelineCard.Execution(
             section: pipeline.executionSection(bindings: model.startBindings, mayStart: model.mayStart),
             bindings: model.startBindings, bindingID: $model.bindingID, mayStart: model.mayStart, canEdit: model.canEdit,
-            acting: model.executionActing, retrying: model.retrying, confirming: model.readGuard.confirming, feedback: model.executionFeedback,
+            acting: model.executionActing, retrying: model.retrying, confirming: model.readGuard.confirming, feedback: model.executionFeedback, feedbackStep: model.feedbackStep,
             reviewPending: model.context?.review?.state == "pending",
             onAct: { action in
                 Task {

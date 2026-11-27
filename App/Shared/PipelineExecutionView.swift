@@ -92,7 +92,7 @@ struct PipelineExecutionView: View {
             }
             if let execution { status(execution) }
             if state.section.start { start } else if showsNothingToRun { Text("pipeline.exec.nothingToRun").font(.footnote).foregroundStyle(Color.textSecondary).accessibilityIdentifier("execution.nothing") }
-            if let feedback = state.feedback { PipelineFeedbackLine(feedback: feedback) }
+            if state.feedbackStep == nil, let feedback = state.feedback { PipelineFeedbackLine(feedback: feedback) }
         }
     }
 

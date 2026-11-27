@@ -502,6 +502,8 @@ final class PipelineExecutionUITests: XCTestCase {
         tap("pipeline.retry.developer")
         try await sending("pipeline.retry.developer", "erneut-2-wiederholen-fehler-waehrend")
         expectLabel("execution.feedback", contains: "Das hat nicht geklappt")
+        XCTAssertTrue(element("execution.feedback").isHittable, "the message is in view, next to the retried step")
+        XCTAssertGreaterThan(element("execution.feedback").frame.minY, element("pipeline.retry.developer").frame.minY)
         XCTAssertTrue(element("pipeline.retry.developer").isEnabled, "free again after the failure")
         try await pictures("erneut-3-wiederholen-fehler-nachher", showing: "pipeline.retry.developer")
         try await control(proxy, ["exec-retry": ["delay": 45]])

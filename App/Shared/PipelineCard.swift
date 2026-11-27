@@ -19,6 +19,8 @@ struct PipelineCard: View {
         var retrying: PipelineStepName?
         var confirming: PipelineExecutionAction?
         var feedback: PipelineFeedback?
+        /// The step a retry message belongs to; nil = the message is about the execution.
+        var feedbackStep: PipelineStepName?
         var reviewPending = false
         var onAct: (PipelineExecutionAction) -> Void = { _ in }
         var onRetry: (PipelineStepName) -> Void = { _ in }
@@ -40,7 +42,7 @@ struct PipelineCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             // First, like the PWA: what runs now and the start.
-            if execution.section.show || execution.feedback != nil {
+            if execution.section.show || (execution.feedback != nil && execution.feedbackStep == nil) {
                 PipelineExecutionView(pipeline: pipeline, state: execution)
                 if !startOnly { Divider() }
             }
@@ -153,7 +155,12 @@ struct PipelineCard: View {
             let hint = pipeline.retryHint(mayStart: execution.mayStart)
             ForEach(pipeline.steps) { step in
                 StepRow(step: step, live: live?.step == step.step ? live : nil)
-                if let name = step.name { retry(name, offer: pipeline.retryOffer(name, canEdit: execution.canEdit), hint: hint) }
+                if let name = step.name {
+                    retry(name, offer: pipeline.retryOffer(name, canEdit: execution.canEdit), hint: hint)
+                    if execution.feedbackStep == name, let feedback = execution.feedback {
+                        PipelineFeedbackLine(feedback: feedback).padding(.leading, Space.xl + Space.s)
+                    }
+                }
             }
         }
     }
