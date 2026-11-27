@@ -102,6 +102,125 @@ final class ProjectGroupsTour: XCTestCase {
         }
     }
 
+    /// The write paths through the real UI against the same backend (runs after `testTour`): create, rename and delete a group;
+    /// revoke a mandate and give it again unchanged; create a project that joins a group right away; take it out again in the
+    /// project's "Mehr" menu. Every result is read back from the server by the settings screen.
+    func testWrites() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let server = env["TODO_UITEST_SERVER"], let token = env["TODO_UITEST_TOKEN"], let dir = env["TODO_TOUR_OUT"] else {
+            throw XCTSkip("tour variables not set")
+        }
+        out = dir
+        continueAfterFailure = false
+        func launch(_ select: String) -> XCUIApplication {
+            let app = XCUIApplication()
+            app.launchEnvironment["TODO_DEBUG_SERVER"] = server
+            app.launchEnvironment["TODO_DEBUG_TOKEN"] = token
+            app.launchEnvironment["TODO_DEBUG_SELECT"] = select
+            app.launchArguments += ["-appearance.colorScheme", "light"]
+            app.launch()
+            return app
+        }
+
+        var app = launch("account")
+        // Create.
+        let new = app.buttons["group.new"]
+        XCTAssertTrue(reveal(app, new), "create button")
+        new.tap()
+        let name = app.textFields["group.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["group.save"].isEnabled, "no name yet")
+        name.tap(); name.typeText("Verein")
+        app.buttons["group.save"].tap()
+        let verein = app.buttons["group.row.Verein"]
+        XCTAssertTrue(verein.waitForExistence(timeout: 15), "the server lists the new group")
+        // Rename.
+        XCTAssertTrue(reveal(app, verein)); verein.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        name.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        name.typeText(" 2027")
+        app.buttons["group.save"].tap()
+        let renamed = app.buttons["group.row.Verein 2027"]
+        XCTAssertTrue(renamed.waitForExistence(timeout: 15), "renamed on the server")
+        // Delete (with confirmation).
+        XCTAssertTrue(reveal(app, renamed)); renamed.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        let delete = app.buttons["Gruppe löschen"].firstMatch
+        for _ in 0..<6 where !delete.isHittable { app.swipeUp() }
+        delete.tap()
+        let confirm = app.buttons.matching(identifier: "Gruppe löschen")
+        XCTAssertTrue(confirm.element(boundBy: 0).waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1)
+        confirm.element(boundBy: confirm.count - 1).tap()
+        XCTAssertTrue(waitGone(app.buttons["group.row.Verein 2027"]), "deleted")
+
+        // Revoke the mandate, then give it again without changing the selection.
+        let mandate = app.buttons["mandate.row.Brain"]
+        XCTAssertTrue(reveal(app, mandate))
+        mandate.press(forDuration: 1.2)
+        let revoke = app.buttons["Widerrufen"].firstMatch
+        XCTAssertTrue(revoke.waitForExistence(timeout: 5), "context menu")
+        revoke.tap()
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "Widerrufen"), evaluatedWith: mandate)
+        waitForExpectations(timeout: 15)
+        shot("vollmacht-widerrufen-hell")
+        mandate.tap()
+        let save = app.buttons["selection.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 10))
+        XCTAssertTrue(save.isEnabled, "a revoked mandate can be given again unchanged")
+        save.tap()
+        XCTAssertTrue(waitGone(app.buttons["selection.save"]))
+        XCTAssertTrue(reveal(app, mandate))
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "Aktiv"), evaluatedWith: mandate)
+        waitForExpectations(timeout: 15)
+        XCTAssertTrue(mandate.label.contains("Alle außer 1"), "the rule survived revoke and re-grant: \(mandate.label)")
+        app.terminate()
+
+        // New project that joins "Kunden" right away.
+        app = launch("projects")
+        let add = app.buttons["Projekt hinzufügen"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 30), "add project")
+        for _ in 0..<10 where !add.isHittable { drag(app) }
+        add.tap()
+        let projectName = app.textFields["project.new.name"]
+        XCTAssertTrue(projectName.waitForExistence(timeout: 10))
+        projectName.tap(); projectName.typeText("Neukunde")
+        let inKunden = app.switches["project.group.Kunden"]
+        XCTAssertTrue(inKunden.waitForExistence(timeout: 15), "the sheet offers the groups")
+        if !inKunden.isHittable { app.swipeUp() }
+        flip(inKunden)
+        XCTAssertEqual(inKunden.value as? String, "1")
+        shot("projekt-neu-gruppen-hell")
+        app.buttons["project.new.save"].tap()
+        XCTAssertTrue(waitGone(app.textFields["project.new.name"]))
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 8), "no 'groups could not be set' notice")
+        app.terminate()
+
+        // The project's menu shows the group from the server; take it out and read it again.
+        app = launch("project:Neukunde")
+        func openGroups() {
+            let more = app.buttons["Mehr"].firstMatch
+            XCTAssertTrue(more.waitForExistence(timeout: 30), "project menu")
+            more.tap()
+            let entry = app.buttons["Gruppen"].firstMatch
+            XCTAssertTrue(entry.waitForExistence(timeout: 5), "menu entry")
+            entry.tap()
+            XCTAssertTrue(app.switches["project.group.Kunden"].waitForExistence(timeout: 15))
+        }
+        openGroups()
+        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: app.switches["project.group.Kunden"])
+        waitForExpectations(timeout: 15)
+        XCTAssertEqual(app.switches["project.group.Privat"].value as? String, "0")
+        shot("projekt-gruppen-hell")
+        flip(app.switches["project.group.Kunden"])
+        app.buttons["project.groups.save"].tap()
+        XCTAssertTrue(waitGone(app.switches["project.group.Kunden"]))
+        openGroups()
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertEqual(app.switches["project.group.Kunden"].value as? String, "0", "saved on the server")
+        app.terminate()
+    }
+
     private func waitGone(_ element: XCUIElement) -> Bool {
         let gone = NSPredicate(format: "exists == false")
         return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: gone, object: element)], timeout: 10) == .completed

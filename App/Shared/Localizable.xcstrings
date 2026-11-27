@@ -10038,6 +10038,46 @@
           }
         }
       }
+    },
+    "selection.error.grantRevoked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Verbindung wurde entfernt. Verbinde den Client neu und wähle dann die Projekte."
+          }
+        }
+      }
+    },
+    "selection.error.notFound": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Projekt oder eine Gruppe gibt es nicht mehr. Schließe das Fenster und öffne es erneut."
+          }
+        }
+      }
+    },
+    "selection.error.invalid": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Auswahl nimmt der Server nicht an. Wähle mindestens ein Projekt oder eine Gruppe."
+          }
+        }
+      }
+    },
+    "projectGroups.error.tooMany": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr Gruppen sind nicht möglich (höchstens 50)."
+          }
+        }
+      }
     }
   }
 }

@@ -56,7 +56,15 @@ public struct ProjectSelection: Codable, Sendable, Equatable, Hashable {
             && Set(excludedProjectIDs) == Set(other.excludedProjectIDs) && Set(excludedGroupIDs) == Set(other.excludedGroupIDs)
     }
 
-    public func droppingUnknownProjects(known: Set<UUID>) -> ProjectSelection { self }
+    /// A deleted (or no longer readable) project in the explicit list would make every save fail with 404, and the form
+    /// cannot show it. Only that list is cleaned: dropping an exclusion could widen the reach later, and groups clean up
+    /// themselves on the server. An empty `known` (list not loaded) changes nothing.
+    public func droppingUnknownProjects(known: Set<UUID>) -> ProjectSelection {
+        guard !known.isEmpty else { return self }
+        var copy = self
+        copy.projectIDs = projectIDs.filter(known.contains)
+        return copy
+    }
 
     /// Form state from a server answer: with a rule its own explicit list counts, otherwise `explicit`.
     public static func from(explicit: [UUID], rule: ProjectSelection?) -> ProjectSelection {
@@ -139,10 +147,26 @@ public struct SelectionPreview: Codable, Sendable, Equatable {
     }
 }
 
-/// PLACEHOLDER for the red run.
+/// When the app may save a mandate or connection, and which message a refused save gets.
 public enum SelectionSaveRules {
-    public static func errorKey(for error: APIError) -> String? { nil }
-    public static func canSave(_ selection: ProjectSelection, initial: ProjectSelection, allowsEmpty: Bool = false, isNewGrant: Bool = false) -> Bool { false }
+    /// A localization key for the causes this screen can name; nil = the app's general message.
+    public static func errorKey(for error: APIError) -> String? {
+        switch error {
+        case .conflict(reason: "name_taken"): "projectGroups.error.taken"
+        case .conflict(reason: "grant_revoked"): "selection.error.grantRevoked"
+        case .notFound: "selection.error.notFound"
+        case .invalidInput(reason: "invalid_projects"), .invalidInput(reason: "projects_required"), .invalidInput(reason: "invalid_selection"):
+            "selection.error.invalid"
+        case .invalidInput(reason: "too_many_groups"): "projectGroups.error.tooMany"
+        default: nil
+        }
+    }
+
+    /// `isNewGrant`: a revoked mandate is given again, so the unchanged selection is a change. `allowsEmpty`: a connection
+    /// with `projects:write` may keep an empty list.
+    public static func canSave(_ selection: ProjectSelection, initial: ProjectSelection, allowsEmpty: Bool = false, isNewGrant: Bool = false) -> Bool {
+        (selection.namesSomething || allowsEmpty) && (isNewGrant || !selection.same(as: initial))
+    }
 }
 
 /// Added and removed ids between two effective sets (order kept from the inputs).

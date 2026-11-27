@@ -88,6 +88,8 @@ struct ProjectGroupsSettingsSections: View {
             ForEach(model.listedMandates) { m in
                 Button { model.editingSelection = .mandate(m) } label: { MandateRow(mandate: m, groups: model.groups).contentShape(Rectangle()) }
                     .buttonStyle(.plain)
+                    // The server refuses a mandate for a removed connection (409 grant_revoked).
+                    .disabled(!model.connections.contains { $0.id == m.grantID })
                     .accessibilityIdentifier("mandate.row.\(m.grantName ?? "")")
                     .swipeActions { if m.active { Button("mandate.revoke", role: .destructive) { Task { await model.revokeMandate(m, app) } } } }
                     .contextMenu { if m.active { Button("mandate.revoke", role: .destructive) { Task { await model.revokeMandate(m, app) } } } }
@@ -127,7 +129,7 @@ struct ProjectGroupsSheets: ViewModifier {
         switch target {
         case .mandate(let m):
             SelectionEditor(title: "mandate.edit", subject: m.grantName ?? "", groups: model.groups, projects: app.projects,
-                            initial: m.editableSelection, before: m.active ? m.projectIDs : []) { s in
+                            initial: m.editableSelection, before: m.active ? m.projectIDs : [], isNewGrant: !m.active) { s in
                 await model.saveMandate(m.grantID, s, app)
             }
         case .newMandate(let c):
@@ -182,6 +184,8 @@ struct SelectionEditor: View {
     /// What is in effect now; the preview lists what a save adds and removes.
     let before: [UUID]
     var allowsEmpty = false
+    /// A revoked mandate given again: saving the unchanged selection is allowed.
+    var isNewGrant = false
     /// Returns an error key, nil on success.
     let save: (ProjectSelection) async -> String?
     /// Previews and screenshots without a server.
@@ -199,7 +203,7 @@ struct SelectionEditor: View {
         ids.map { labels[$0] ?? String($0.uuidString.prefix(8)).lowercased() }.sorted { $0.localizedStandardCompare($1) == .orderedAscending }.joined(separator: ", ")
     }
     private var sortedProjects: [Project] { projects.sorted { (labels[$0.id] ?? $0.name).localizedStandardCompare(labels[$1.id] ?? $1.name) == .orderedAscending } }
-    private var canSave: Bool { !saving && (selection.namesSomething || allowsEmpty) && !selection.same(as: initial) }
+    private var canSave: Bool { !saving && SelectionSaveRules.canSave(selection, initial: initial, allowsEmpty: allowsEmpty, isNewGrant: isNewGrant) }
 
     var body: some View {
         NavigationStack {
@@ -246,7 +250,7 @@ struct SelectionEditor: View {
                 }
             }
             .task(id: selection) { await refreshPreview() }
-            .onAppear { if !started { selection = initial; started = true } }
+            .onAppear { if !started { selection = initial.droppingUnknownProjects(known: Set(projects.map(\.id))); started = true } }
             .alert(LocalizedStringKey(errorKey ?? ""), isPresented: Binding(get: { errorKey != nil }, set: { if !$0 { errorKey = nil } })) { Button("ok") {} }
         }
         #if os(macOS)

@@ -780,8 +780,6 @@ final class AppModel {
         var created: UUID?
         if await queueChange({ try await $0.createProject(id: id, name: name, parentID: parentID) }) {
             selectedProjectID = id; created = id
-            // The groups need the project on the server: push the queued create first.
-            if !groupIDs.isEmpty { await syncNow() }
         } else {
             do {
                 let p = try await client.createProject(name: name, parentID: parentID)
@@ -789,9 +787,20 @@ final class AppModel {
             } catch { await handle(error); return }
         }
         // Card 80738AEA: the person's groups for the new project (PUT /v1/projects/{id}/groups).
-        if let created, !groupIDs.isEmpty {
-            do { _ = try await client.setGroupsOfProject(created, groupIDs: groupIDs) } catch { noticeKey = "projectGroups.error.assign" }
+        if let created, !groupIDs.isEmpty { await assignGroups(groupIDs, to: created, client: client) }
+    }
+
+    /// The groups need the project on the server. Its create may still sit in the sync queue (a `sync()` that finds another
+    /// one running returns at once), so an unknown project is retried after a sync; offline ends in the notice.
+    private func assignGroups(_ groupIDs: [UUID], to projectID: UUID, client: APIClient) async {
+        for attempt in 1...10 {
+            do { _ = try await client.setGroupsOfProject(projectID, groupIDs: groupIDs); return }
+            catch APIError.notFound where attempt < 10 {
+                await syncNow()
+                try? await Task.sleep(for: .milliseconds(500))
+            } catch { break }
         }
+        noticeKey = "projectGroups.error.assign"
     }
 
     func renameProject(_ project: Project, to name: String) async {

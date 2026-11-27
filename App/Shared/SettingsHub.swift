@@ -107,8 +107,10 @@ final class SettingsHubModel {
         guard let client = app.client else { return "error.generic" }
         busy = true; defer { busy = false }
         do { try await work(client) }
-        catch APIError.conflict { return "projectGroups.error.taken" }
-        catch { return AppModel.key(for: error) }
+        catch let error as APIError {
+            await load(app)  // the lists may be stale (removed connection, deleted group)
+            return SelectionSaveRules.errorKey(for: error) ?? AppModel.key(for: error)
+        } catch { return AppModel.key(for: error) }
         await load(app)
         return nil
     }
