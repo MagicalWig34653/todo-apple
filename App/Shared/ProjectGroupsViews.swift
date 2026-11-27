@@ -194,7 +194,8 @@ struct SelectionEditor: View {
     @State private var selection = ProjectSelection()
     @State private var started = false
     @State private var preview: SelectionPreview?
-    @State private var previewFailed = false
+    /// The selection that `preview` (nil: the request failed) answers; anything else is still pending.
+    @State private var answered: ProjectSelection?
     @State private var saving = false
     @State private var errorKey: String?
 
@@ -203,7 +204,8 @@ struct SelectionEditor: View {
         ids.map { labels[$0] ?? String($0.uuidString.prefix(8)).lowercased() }.sorted { $0.localizedStandardCompare($1) == .orderedAscending }.joined(separator: ", ")
     }
     private var sortedProjects: [Project] { projects.sorted { (labels[$0.id] ?? $0.name).localizedStandardCompare(labels[$1.id] ?? $1.name) == .orderedAscending } }
-    private var canSave: Bool { !saving && SelectionSaveRules.canSave(selection, initial: initial, allowsEmpty: allowsEmpty, isNewGrant: isNewGrant) }
+    private var previewPending: Bool { answered != selection }
+    private var canSave: Bool { !saving && !previewPending && SelectionSaveRules.canSave(selection, initial: initial, allowsEmpty: allowsEmpty, isNewGrant: isNewGrant) }
 
     var body: some View {
         NavigationStack {
@@ -260,7 +262,9 @@ struct SelectionEditor: View {
 
     @ViewBuilder private var previewSection: some View {
         Section {
-            if let preview {
+            if previewPending {
+                HStack(spacing: Space.s) { ProgressView(); Text("selection.preview.loading").foregroundStyle(Color.textSecondary) }
+            } else if let preview {
                 Text("selection.preview.count \(preview.projectIDs.count)")
                     .font(.headline)
                     .accessibilityIdentifier("selection.preview.count")
@@ -279,10 +283,8 @@ struct SelectionEditor: View {
                 if selection.mode == .allExcept && !preview.agentCreatedProjectIDs.isEmpty {
                     Text("selection.preview.agentCreated \(names(preview.agentCreatedProjectIDs))").font(.caption).foregroundStyle(Color.textSecondary)
                 }
-            } else if previewFailed {
-                Text("selection.preview.failed").foregroundStyle(Color.textSecondary)
             } else {
-                HStack(spacing: Space.s) { ProgressView(); Text("selection.preview.loading").foregroundStyle(Color.textSecondary) }
+                Text("selection.preview.failed").foregroundStyle(Color.textSecondary)
             }
         } header: { Text("selection.preview") }
     }
@@ -299,19 +301,14 @@ struct SelectionEditor: View {
     }
 
     private func refreshPreview() async {
-        if let fixedPreview { preview = fixedPreview; return }
+        let asked = selection
+        if let fixedPreview { preview = fixedPreview; answered = asked; return }
         guard started, let client = app.client else { return }
-        previewFailed = false
         try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
-        do {
-            let result = try await client.previewSelection(selection)
-            guard !Task.isCancelled else { return }
-            preview = result
-        } catch {
-            guard !Task.isCancelled else { return }
-            preview = nil; previewFailed = true
-        }
+        let result = try? await client.previewSelection(asked)
+        guard !Task.isCancelled else { return }
+        preview = result; answered = asked
     }
 }
 

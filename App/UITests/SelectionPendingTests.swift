@@ -4,8 +4,9 @@ import XCTest
 /// "nothing new", server error and cancel, and an old preview must never look current. Needs a scratch backend with the seed
 /// of TodoCore `LiveProjectGroupsTests.testSeedGroupsTour` behind `scripts/selection-proxy.py`; run through
 /// `scripts/ui-tests-selection.sh` (env `TODO_UITEST_PROXY`, `TODO_UITEST_TOKEN`, optional `TODO_TOUR_OUT` and
-/// `TODO_PROOF_LOOK` for pictures), skipped otherwise. Only `testSaveThenCancelWhilePending` stores something, and it
-/// runs last (XCTest orders by name), so the other tests see the seeded mandate "Gruppen: Kunden".
+/// `TODO_PROOF_LOOK` for pictures), skipped otherwise. Tests expect the seeded mandate "Gruppen: Kunden" with three
+/// projects: `testSaveSucceedsAndClosesTheEditor` restores it, `testSaveThenCancelWhilePending` changes it and runs last
+/// (XCTest orders by name).
 final class SelectionPendingTests: XCTestCase {
     private var proxy = ""
     private var token = ""
@@ -158,6 +159,38 @@ final class SelectionPendingTests: XCTestCase {
         let row = try mandateRow()
         XCTAssertTrue(row.label.contains("3 Projekte"), "nothing stored: \(row.label)")
         XCTAssertEqual(try slowRequests("save").map(\.forwarded), [false])
+    }
+
+    /// Stores one more project and takes it out again, so the following test sees the seeded mandate.
+    func testSaveSucceedsAndClosesTheEditor() throws {
+        try mandateRow().tap()
+        assertCount(3)
+        flip("selection.project.Garten")
+        assertCount(4)
+        shot("speichern-erfolg-1-vorher")
+        try control(["save": ["delay": 5]])
+        save.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertFalse(save.isEnabled, "locked while saving")
+        shot("speichern-erfolg-2-waehrend")
+        XCTAssertTrue(waitGone(save), "editor closes after saving")
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        var row = try mandateRow()
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "4 Projekte"), evaluatedWith: row)
+        waitForExpectations(timeout: 15)
+        shot("speichern-erfolg-3-nachher")
+        try control([:])
+        row.tap()
+        assertCount(4)
+        XCTAssertFalse(save.isEnabled, "no lock to see, but nothing changed yet")
+        flip("selection.project.Garten")
+        assertCount(3)
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        XCTAssertTrue(waitGone(save))
+        row = try mandateRow()
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "3 Projekte"), evaluatedWith: row)
+        waitForExpectations(timeout: 15)
     }
 
     /// "Abbrechen" closes the sheet but does not take back a request that is already on its way: a failure is then silent

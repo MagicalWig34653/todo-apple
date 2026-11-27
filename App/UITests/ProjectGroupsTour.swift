@@ -81,7 +81,8 @@ final class ProjectGroupsTour: XCTestCase {
             app.segmentedControls["selection.mode"].buttons["Alle außer …"].tap()
             XCTAssertTrue(app.switches["selection.group.Privat"].waitForExistence(timeout: 5), "excluded groups list (\(look))")
             flip(app.switches["selection.group.Privat"])
-            let changed = NSPredicate(format: "label CONTAINS %@", "Wirkt jetzt auf 3 Projekte")
+            // The count is gone while the preview is pending, so the predicate asks for it first.
+            let changed = NSPredicate(format: "exists == true AND label CONTAINS %@", "Wirkt jetzt auf 3 Projekte")
             expectation(for: changed, evaluatedWith: app.staticTexts["selection.preview.count"])
             waitForExpectations(timeout: 15)  // Website-Relaunch, Kueche, Steuer 2026: "Privat" (Umzug, Garten) is out, the subproject Kueche is not in it
             shot("vollmacht-alle-ausser-\(look)")
@@ -167,7 +168,9 @@ final class ProjectGroupsTour: XCTestCase {
         mandate.tap()
         let save = app.buttons["selection.save"]
         XCTAssertTrue(save.waitForExistence(timeout: 10))
-        XCTAssertTrue(save.isEnabled, "a revoked mandate can be given again unchanged")
+        // "Sichern" waits for the preview of the shown selection.
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: save)
+        waitForExpectations(timeout: 15)  // a revoked mandate can be given again unchanged
         save.tap()
         XCTAssertTrue(waitGone(app.buttons["selection.save"]))
         XCTAssertTrue(reveal(app, mandate))
