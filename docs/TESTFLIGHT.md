@@ -198,3 +198,11 @@ Icon "Bausteine" und B6D004D4. Archive ueber die Skripte (`TODO_ARCHIVE_ONLY=1 T
 - Extern: `externalBuildState READY_FOR_BETA_SUBMISSION`, keine externe Gruppe, nichts eingereicht. Fuer externe Tester fehlen weiterhin Beta-App-Beschreibung, Feedback-E-Mail und Pruefungskontakt (26.11. per `asc` gelesen: leer); die traegt Lino ein.
 - Distribution-Log (`IDEDistributionPipeline.log`): Archiv `aps-environment development`, Export "are: ... production", `get-task-allow 0`, Signatur "Apple Distribution" (macOS ebenso); 0 ERROR-Zeilen in `upload.log`.
 - Kein App-Store-Release. Nicht geprueft: Geraetetest (Lino), Mac-Oberflaeche, Icon-Composer-Oberflaeche.
+
+## Upload Stand 4d70500 (2026-11-27, iOS und macOS, Version 0.1.1 (26), Karten 80738AEA, 21A79A08, 6C3E3F88)
+Projektgruppen, eindeutige Listen-IDs, Vorschau/"Sichern" passen zur gezeigten Auswahl. Nummer 26 mit `scripts/build-number.sh next` in f6ff00c reserviert, vorher per `asc builds list` frei; die ersten Archive (f6ff00c) wurden nicht hochgeladen und verworfen, die Archive aus 4d70500 (`TODO_BUILD_NUMBER=26`) hochgeladen. Nachweise `runtime/nachweise/todolino-apple-naechster-build.json` und `todolino-apple-mac-26.json`, Freigabe des Brains 27.11. 07:39, Export mit `destination=upload` ueber `tools/testflight-upload.sh`.
+- iOS: "Upload succeeded" 07:41, EXPORT SUCCEEDED, Build-ID `07933cdb-60dd-4de5-8d3e-bb6988c1b2eb`, `VALID`.
+- macOS: "Upload succeeded" 07:43, EXPORT SUCCEEDED, Build-ID `e77b21fa-2a13-48df-b8c8-b3abe7b9daed`, `VALID`.
+- Beide: interne Gruppe "ich" enthaelt den Build; `usesNonExemptEncryption=false`; "Was testen" (`de-DE`) gesetzt, zurueckgelesen und gleich der Datei; Distribution-Log: `aps-environment` production im Export (Archiv development), Signatur "Apple Distribution", eine bekannte harmlose ERROR-Zeile (Resume-Datei).
+- Extern: keine Gruppe, nichts eingereicht (Beta-Beschreibung, Feedback-E-Mail, Pruefungskontakt fuer externe Tester traegt Lino ein). Kein App-Store-Release. Nicht geprueft: Geraetetest (Lino), Mac-Oberflaeche.
+
