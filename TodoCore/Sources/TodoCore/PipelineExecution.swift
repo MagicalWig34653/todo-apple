@@ -180,7 +180,16 @@ public extension TaskPipeline {
         return rounds.used >= rounds.max ? .exhausted(max: rounds.max) : .ready(round: rounds.used + 1, max: rounds.max)
     }
 
-    func detail(bindings: [PipelineStartBinding], mayStart: Bool, management: Bool, hasMessage: Bool) -> PipelineDetail { .none }
+    /// A plan, an execution or a step beyond "offen" (a step that is off is no activity).
+    var hasActivity: Bool { plan != nil || execution != nil || steps.contains { $0.stateKind != .pending && $0.isOn } }
+
+    /// Plain to-dos keep their short detail: without activity only management projects offer the start (and nothing else);
+    /// a message about a refused start stays readable.
+    func detail(bindings: [PipelineStartBinding], mayStart: Bool, management: Bool, hasMessage: Bool) -> PipelineDetail {
+        if hasActivity { return .full }
+        let start = management && executionSection(bindings: bindings, mayStart: mayStart).start
+        return start || hasMessage ? .startOnly : .none
+    }
 
     func retryHint(mayStart: Bool) -> PipelineRetryHint? {
         guard execution?.isActive ?? false else { return nil }
@@ -280,9 +289,10 @@ private struct StartBody: Encodable { let id: String; let bindingID: String }
 private struct ContinueBody: Encodable { let planVersion: Int? }
 private struct RetryBody: Encodable { let planVersion: Int? }
 private struct EmptyBody: Encodable {}
-private struct OwnerFlag: Decodable {
+private struct ProjectAccessFlags: Decodable {
     let id: UUID
     let isOwner: Bool?
+    let role: String?
 }
 
 public extension APIClient {
@@ -308,11 +318,11 @@ public extension APIClient {
         try await send("POST", pipelinePath(taskID) + "/steps/\(step.rawValue)/retry", body: RetryBody(planVersion: planVersion))
     }
 
-    func pipelineRights(projectID: UUID) async throws -> PipelineRights? { throw APIError.invalidResponse }
-
-    /// Projects the viewer owns (start right); a server without the field counts as owner, like the PWA.
-    func ownedProjectIDs() async throws -> [UUID] {
-        let flags: [OwnerFlag] = try await send("GET", "v1/projects")
-        return flags.filter { $0.isOwner ?? true }.map(\.id)
+    /// Start right (owner) and edit right (retry) in a project; nil for a project the account does not see. A server without the
+    /// fields counts as own project with full access, like the PWA (`access.ts`).
+    func pipelineRights(projectID: UUID) async throws -> PipelineRights? {
+        let projects: [ProjectAccessFlags] = try await send("GET", "v1/projects")
+        guard let p = projects.first(where: { $0.id == projectID }) else { return nil }
+        return PipelineRights(mayStart: p.isOwner ?? true, canEdit: ["edit", "manage"].contains(p.role ?? "manage"))
     }
 }

@@ -31,8 +31,11 @@ final class TaskDetailModel {
     /// Own bindings (device and folder) of the card's project; empty without the start right.
     var startBindings: [PipelineStartBinding] = []
     var bindingID: UUID?
-    /// The start right (project owner); only hides controls, the server checks it.
+    /// The start right (project owner) and the edit right (retry); they only hide controls, the server checks them.
     var mayStart = false
+    var canEdit = false
+    /// Only the answer of the latest pipeline read (or action) is applied: an older poll never overwrites a newer state.
+    private var pipelineSequence = 0
     var executionActing: PipelineExecutionAction?
     var retrying: PipelineStepName?
     var executionFeedback: PipelineFeedback?
@@ -100,23 +103,27 @@ final class TaskDetailModel {
 
     /// Failures (older server, offline) just leave the card out.
     func loadPipeline(_ app: AppModel) async {
-        guard let client = app.client, let fresh = try? await client.taskPipelineIfAvailable(taskID: task.id) else { return }
+        guard let client = app.client else { return }
+        pipelineSequence += 1
+        let mine = pipelineSequence
+        guard let fresh = try? await client.taskPipelineIfAvailable(taskID: task.id), mine == pipelineSequence else { return }
         readGuard.shown(planVersion: fresh.plan?.version)
         // A message about the execution belongs to the state it was said about.
         if executionActing == nil, executionFeedback?.isSuccess == true, pipeline?.execution?.state != fresh.execution?.state { executionFeedback = nil }
         if pipeline != fresh { pipeline = fresh }
     }
 
-    /// The section "Ausführung" is there (an execution, or the start right with an own binding) or has something to say.
-    var showsExecution: Bool {
-        guard let pipeline else { return false }
-        return pipeline.executionSection(bindings: startBindings, mayStart: mayStart).show || executionFeedback != nil
+    /// How much of the pipeline the detail shows (plain to-dos stay short).
+    func pipelineDetail(management: Bool) -> PipelineDetail {
+        pipeline?.detail(bindings: startBindings, mayStart: mayStart, management: management, hasMessage: executionFeedback != nil) ?? .none
     }
 
-    /// Start right and own bindings of the project; failures (older server, offline) leave the start out.
+    /// Start and edit right, own bindings of the project; failures (older server, offline) leave the start out.
     func loadStartBindings(_ app: AppModel) async {
         guard let client = app.client else { return }
-        let owner = (try? await client.ownedProjectIDs())?.contains(task.projectID) ?? false
+        let rights = (try? await client.pipelineRights(projectID: task.projectID)) ?? nil
+        let owner = rights?.mayStart ?? false
+        if canEdit != (rights?.canEdit ?? false) { canEdit = rights?.canEdit ?? false }
         var found: [PipelineStartBinding] = []
         if owner, let devices = try? await client.agentDevices() { found = PipelineStartBinding.forProject(task.projectID, devices: devices) }
         if mayStart != owner { mayStart = owner }
@@ -158,6 +165,7 @@ final class TaskDetailModel {
         defer { executionActing = nil }
         do {
             let fresh = try await send()
+            pipelineSequence += 1
             readGuard.shown(planVersion: fresh.plan?.version)
             if action != .stop { readGuard.sent() }
             if pipeline != fresh { pipeline = fresh }
@@ -178,6 +186,7 @@ final class TaskDetailModel {
         defer { retrying = nil }
         do {
             let fresh = try await client.retryPipelineStep(taskID: task.id, step: step, planVersion: pipeline?.plan?.version)
+            pipelineSequence += 1
             readGuard.shown(planVersion: fresh.plan?.version)
             if pipeline != fresh { pipeline = fresh }
             let execution = fresh.execution
@@ -440,7 +449,7 @@ struct TaskDetailView: View {
     private func executionState(_ pipeline: TaskPipeline) -> PipelineCard.Execution {
         PipelineCard.Execution(
             section: pipeline.executionSection(bindings: model.startBindings, mayStart: model.mayStart),
-            bindings: model.startBindings, bindingID: $model.bindingID, mayStart: model.mayStart, canEdit: true,
+            bindings: model.startBindings, bindingID: $model.bindingID, mayStart: model.mayStart, canEdit: model.canEdit,
             acting: model.executionActing, retrying: model.retrying, confirming: model.readGuard.confirming, feedback: model.executionFeedback,
             reviewPending: model.context?.review?.state == "pending",
             onAct: { action in
@@ -467,8 +476,9 @@ struct TaskDetailView: View {
                                      onDecide: { d, note in Task { await model.decide(d, note: note, app) } },
                                      onChoose: { variantID in Task { await model.decide(.accept, note: nil, variantID: variantID, app) } })
                 }
-                if PipelineCard.hasContent(model.pipeline) || model.showsExecution, let pipeline = model.pipeline {
-                    PipelineCard(pipeline: pipeline, busy: model.pipelineBusy, execution: executionState(pipeline)) { d, comment in
+                if model.pipelineDetail(management: management) != .none, let pipeline = model.pipeline {
+                    PipelineCard(pipeline: pipeline, busy: model.pipelineBusy, execution: executionState(pipeline),
+                                 startOnly: model.pipelineDetail(management: management) == .startOnly) { d, comment in
                         Task { await model.decidePlan(d, comment: comment, app) }
                     }
                 }

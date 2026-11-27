@@ -3,8 +3,8 @@ import TodoCore
 
 // MARK: Plan approval and pipeline status in the task detail (card B6FC965A, contract pipeline 1.0.0)
 
-/// The plan of a card (Markdown), the actions "Plan freigeben" / "Änderungen" while it waits for a decision, and the status of the
-/// six pipeline steps. Shown only when the card has a plan or a step beyond "offen"; plain to-dos keep their short detail.
+/// The section "Ausführung", the plan of a card (Markdown) with "Plan freigeben" / "Änderungen" while it waits for a decision, and
+/// the status of the six pipeline steps. Plain to-dos keep their short detail (`TaskPipeline.detail`): at most the start.
 /// Identifiers sit on leaf elements only (a container identifier would hide the children's).
 struct PipelineCard: View {
     /// Stage 3 (card BEE2417E): what the section "Ausführung" and the retry at the steps need.
@@ -13,7 +13,7 @@ struct PipelineCard: View {
         var bindings: [PipelineStartBinding] = []
         var bindingID: Binding<UUID?> = .constant(nil)
         var mayStart = false
-        /// Edit right: the retry at a failed step (the app does not know it yet, the server checks it).
+        /// Edit right: the retry at a failed step.
         var canEdit = false
         var acting: PipelineExecutionAction?
         var retrying: PipelineStepName?
@@ -27,6 +27,8 @@ struct PipelineCard: View {
     let pipeline: TaskPipeline
     let busy: Bool
     var execution = Execution()
+    /// A plain to-do in a project with a runner: only the section "Ausführung", no empty list of steps.
+    var startOnly = false
     let onDecide: (PlanDecision, String?) -> Void
     @State private var asking = false
     @State private var comment = ""
@@ -35,22 +37,19 @@ struct PipelineCard: View {
     /// Blocks shown before "Ganzen Plan zeigen".
     private static let collapsedBlocks = 8
 
-    static func hasContent(_ pipeline: TaskPipeline?) -> Bool {
-        guard let pipeline else { return false }
-        return pipeline.plan != nil || pipeline.steps.contains { $0.stateKind != .pending }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             // First, like the PWA: what runs now and the start.
             if execution.section.show || execution.feedback != nil {
                 PipelineExecutionView(pipeline: pipeline, state: execution)
-                Divider()
+                if !startOnly { Divider() }
             }
-            if let plan = pipeline.plan {
-                planSection(plan)
+            if !startOnly {
+                if let plan = pipeline.plan {
+                    planSection(plan)
+                }
+                stepsSection
             }
-            stepsSection
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -408,6 +407,10 @@ extension PipelinePreviewData {
 #Preview("Pipeline execution dark") { pipelinePreview(PipelinePreviewData.held, execution: PipelinePreviewData.state(PipelinePreviewData.held)).preferredColorScheme(.dark) }
 #Preview("Pipeline execution accessibility5") { pipelinePreview(PipelinePreviewData.blocked, execution: PipelinePreviewData.state(PipelinePreviewData.blocked)).dynamicTypeSize(.accessibility5) }
 #Preview("Pipeline start light") { pipelinePreview(PipelinePreviewData.startable, execution: PipelinePreviewData.state(PipelinePreviewData.startable)).preferredColorScheme(.light) }
+#Preview("Pipeline start only dark") {
+    PipelineCard(pipeline: PipelinePreviewData.startable, busy: false, execution: PipelinePreviewData.state(PipelinePreviewData.startable), startOnly: true) { _, _ in }
+        .padding(Space.page).background(Color.canvas).preferredColorScheme(.dark)
+}
 #Preview("Pipeline proposed light") { pipelinePreview(PipelinePreviewData.proposed).preferredColorScheme(.light) }
 #Preview("Pipeline proposed dark") { pipelinePreview(PipelinePreviewData.proposed).preferredColorScheme(.dark) }
 #Preview("Pipeline proposed accessibility5") { pipelinePreview(PipelinePreviewData.proposed).dynamicTypeSize(.accessibility5) }
