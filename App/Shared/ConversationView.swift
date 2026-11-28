@@ -250,13 +250,15 @@ struct ChatComposer: View {
     var body: some View {
         let key: LocalizedStringKey = inline ? "chat.reply" : "chat.new"
         let empty = model.draft.isEmpty
+        let wraps = promptLines > 1
         HStack(alignment: .bottom, spacing: Space.s) {
             // The system placeholder of a vertical field stays on one line and ends in "Nachricht sc…" at large text sizes.
-            // It is drawn clear (VoiceOver names the field by its label); the visible one wraps and the field reserves its lines.
-            TextField(text: $model.draft, prompt: Text(key).foregroundColor(.clear), axis: .vertical) { Text(key) }
+            // Only then it is drawn clear (VoiceOver still names the field by its label): `WrappingPrompt` shows the text on
+            // several lines and the field reserves them. Where it fits one line, the system placeholder stays as it was.
+            TextField(text: $model.draft, prompt: Text(key).foregroundColor(wraps ? .clear : Color.textSecondary), axis: .vertical) { Text(key) }
                 .lineLimit(empty ? promptLines...max(promptLines, 4) : 1...4)
                 .background(alignment: .topLeading) {
-                    if empty { WrappingPrompt(key: key, lines: $promptLines) }
+                    if empty { WrappingPrompt(key: key, lines: $promptLines).opacity(wraps ? 1 : 0) }
                 }
                 .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                 .background(inline ? Color.canvas : Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
@@ -283,7 +285,7 @@ struct ChatComposer: View {
     }
 }
 
-/// Placeholder of `ChatComposer` that wraps instead of truncating; reports how many lines it needs so the field can
+/// Placeholder of `ChatComposer` that wraps instead of truncating; measures how many lines it needs so the field can
 /// reserve them. Same color as `TextField(accessible:)` (AA contrast).
 private struct WrappingPrompt: View {
     let key: LocalizedStringKey
@@ -304,7 +306,7 @@ private struct WrappingPrompt: View {
     }
 
     private func update() {
-        guard lineHeight > 0 else { return }
+        guard lineHeight > 0, textHeight > 0 else { return }
         let needed = max(1, Int((textHeight / lineHeight).rounded()))
         if needed != lines { lines = needed }
     }
