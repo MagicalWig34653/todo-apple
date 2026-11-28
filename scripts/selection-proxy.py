@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Loopback proxy for UI tests of pending states (SelectionPendingTests, PipelineExecutionUITests, PushAccountUITests,
-PushDeepLinkUITests): forwards to a local
+PushDeepLinkUITests, AccountSwitchUITests): forwards to a local
 backend, but the test can delay or fail the selection preview, the mandate save and the pipeline actions, so the pending,
 failed and cancelled states can be seen and asserted.
 
@@ -8,7 +8,7 @@ failed and cancelled states can be seen and asserted.
 
   POST /__control {"preview": {"delay": 5, "status": 200}, "save": {...}}   replaces the rules and clears the log
                   (rules: preview, save, exec-start, exec-stop, exec-continue, exec-retry, push-register, push-revoke,
-                  push-prefs-get, push-prefs-set, logout, live, live-head)
+                  push-prefs-get, push-prefs-set, logout, live, live-head, favorite)
   GET  /__log     [{"rule": "preview", "status": 200, "forwarded": true}, ...] answered slow requests, oldest first
 
 A forced status other than 200 is answered without asking the backend, so nothing is stored.
@@ -32,6 +32,8 @@ def rule_name(method, path):
         return "push-revoke"
     if method == "POST" and "/pipeline/" in path:
         return next((name for end, name in PIPELINE if path.endswith(end)), None)
+    if method == "PUT" and path.startswith("/v1/me/favorites/"):
+        return "favorite"
     return RULES.get((method, path))
 
 
