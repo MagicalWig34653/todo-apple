@@ -22,12 +22,10 @@ final class AccountSwitchUITests: XCTestCase {
         else { throw XCTSkip("TODO_ACCOUNTS_* not set (run through scripts/ui-tests-accounts.sh)") }
         serverA = a; backendA = direct; serverB = b; out = env["TODO_TOUR_OUT"]; look = env["TODO_PROOF_LOOK"] ?? "hell"
         accounts = try JSONDecoder().decode([String: Account].self, from: json)
-        XCUIDevice.shared.appearance = look == "dunkel" ? .dark : .light
     }
 
     override func tearDown() {
         if !serverA.isEmpty { try? control([:]) }
-        XCUIDevice.shared.appearance = .light
     }
 
     func testTwoAccountsAndAServerSwitchLeaveNothingBehind() throws {

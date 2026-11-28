@@ -65,6 +65,9 @@ for look in ${TODO_ACCOUNTS_LOOKS:-hell dunkel}; do
   kill -0 "$proxy_pid" 2>/dev/null || die "proxy exited"
   # A fresh simulator per look: the notification permission and the keychain are part of what is tested.
   sim="$(xcrun simctl create "todo-accounts-$$-$look" "iPhone 18 Pro" com.apple.CoreSimulator.SimRuntime.iOS-27-0)"
+  # The look is the system appearance of the simulator (the app follows it, also after its own reset on sign-out).
+  xcrun simctl boot "$sim" >/dev/null 2>&1 || true
+  xcrun simctl ui "$sim" appearance "$([[ $look == dunkel ]] && echo dark || echo light)"
   set +e
   TEST_RUNNER_TODO_ACCOUNTS_PROXY="http://127.0.0.1:$proxy_port" TEST_RUNNER_TODO_ACCOUNTS_BACKEND="$base" \
     TEST_RUNNER_TODO_ACCOUNTS_SECOND="$second" TEST_RUNNER_TODO_ACCOUNTS_JSON="$(cat "$scratch/accounts-$look.json")" \
