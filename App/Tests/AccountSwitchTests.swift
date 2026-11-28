@@ -414,6 +414,28 @@ final class AccountSwitchTests: XCTestCase {
         XCTAssertEqual(push.removedAll, 0)
     }
 
+    func testStartingAgainWhileSignedInKeepsTheRunningSessionsClient() async throws {
+        await signIn("anna")
+        let running = try XCTUnwrap(app.client)  // held by the live refresh loop for the whole session
+        await app.start()  // a reopened window starts the model again
+        XCTAssertEqual(app.phase, .signedIn)
+        do { _ = try await running.teams() } catch { XCTFail("the session did not change, its client stopped working: \(error)") }
+    }
+
+    func testSecondSignOutWhileTheFirstIsStillRunningShowsNoError() async throws {
+        await signIn("anna")
+        let held = server.hold("POST /v1/auth/logout", for: "anna")
+        let first = Task { await app.logout() }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await app.logout()  // tapped again while the first one waits for the server
+        XCTAssertEqual(app.phase, .signedOut)
+        XCTAssertNil(app.errorKey, "'invalid server' on the login screen")
+        held.release(204, "")
+        await first.value
+        XCTAssertNil(app.errorKey)
+        XCTAssertNotNil(app.capabilities)
+    }
+
     private func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
 }
 
