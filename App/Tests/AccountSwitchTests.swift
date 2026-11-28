@@ -35,6 +35,17 @@ final class AccountSwitchTests: XCTestCase {
         PushCoordinator.shared.model = nil
         PushCoordinator.shared.pendingLink = nil
         PushCoordinator.shared.system = SystemPush()
+        Self.removeTestDatabases()
+    }
+
+    /// Every sign-in opens a database per server and account under Application Support; the test servers are `*.invalid`.
+    static func removeTestDatabases() {
+        guard let dir = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+            .appendingPathComponent("Todo", isDirectory: true),
+            let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
+        for name in files where name.hasPrefix("sync-https___") && name.contains("_invalid-") {
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+        }
     }
 
     private func signIn(_ name: String) async {
