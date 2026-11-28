@@ -251,6 +251,70 @@ final class AccountSwitchTests: XCTestCase {
         XCTAssertEqual(app.user?.displayName, "bert")
     }
 
+    func testLateFailedPushSettingOfTheOldAccountIsNotRestored() async throws {
+        push.status = .authorized
+        await signIn("anna")
+        await PushCoordinator.shared.sync(client: app.client, userID: app.user?.id)
+        XCTAssertNotNil(PushCoordinator.shared.prefs)
+        let held = server.hold("POST /v1/me/push-prefs", for: "anna")
+        let client = app.client
+        let running = Task { await PushCoordinator.shared.setShowContent(true, client: client) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        push.status = .denied
+        await app.logout()
+        held.release(500, "{}")
+        await running.value
+        XCTAssertNil(PushCoordinator.shared.prefs, "the old account's notification settings are back")
+        XCTAssertNil(PushCoordinator.shared.prefsErrorKey)
+    }
+
+    func testLateFailedFavoriteOfTheOldAccountDoesNotUndoTheNewOnesFavorite() async throws {
+        let shared = UUID()
+        server.sharedProject = shared  // both accounts see it; only Bert has it as a favorite
+        await signIn("anna")
+        let project = try XCTUnwrap(app.projects.first { $0.id == shared })
+        let held = server.hold("PUT /v1/me/favorites/\(shared.uuidString.lowercased())", for: "anna")
+        let running = Task { await app.toggleFavorite(project) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await switchAccount(to: "bert")
+        XCTAssertEqual(app.favoriteProjects.map(\.id), [shared])
+        held.release(500, "{}")
+        await running.value
+        XCTAssertEqual(app.favoriteProjects.map(\.id), [shared], "Anna's rollback changed Bert's favorites")
+        XCTAssertNil(app.noticeKey)
+    }
+
+    func testLateAnswerToAMarkDoneFromANotificationDoesNotBringUpTheTaskForTheNextAccount() async throws {
+        await signIn("anna")
+        let held = server.hold("GET /v1/tasks", for: "anna")
+        let running = Task { await app.markDoneFromPush(taskID: UUID(), projectID: UUID()) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await switchAccount(to: "bert")
+        held.release(200, "[]")
+        let done = await running.value
+        XCTAssertTrue(done, "'false' makes the delegate open Anna's task in Bert's app")
+    }
+
+    func testSaveOfAClosingTaskAfterSignOutDoesNotReportAnExpiredSession() async throws {
+        server.hasSyncFeed = false
+        await signIn("anna")
+        let task = TodoTask(id: UUID(), projectID: UUID(), title: "Annas Aufgabe")
+        await app.logout()
+        server.unauthorized = true
+        // The detail view saves its text when it disappears, which can be after the sign-out.
+        _ = await app.updateTask(task, TaskUpdate(title: "noch getippt"))
+        XCTAssertNil(app.errorKey)
+        XCTAssertEqual(app.phase, .signedOut)
+    }
+
+    func testSessionExpiryEndsTheSystemRegistrationButKeepsTheNotifications() async throws {
+        await signIn("anna")
+        push.reset()
+        await app.handle(APIError.unauthorized(reason: nil))
+        XCTAssertEqual(push.unregistered, 1, "the server still holds the push device of the expired session")
+        XCTAssertEqual(push.removedAll, 0, "kept for the same account signing in again")
+    }
+
     private func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
 }
 
@@ -294,6 +358,8 @@ final class FakeServer: @unchecked Sendable {
     private var log: [String] = []
     private var ids: [String: UUID] = ["anna": UUID(), "bert": UUID()]
     var hasSyncFeed = true
+    var unauthorized = false
+    var sharedProject: UUID?
 
     var requests: [String] { lock.withLock { log } }
     func clearRequests() { lock.withLock { log = [] } }
@@ -314,6 +380,11 @@ final class FakeServer: @unchecked Sendable {
         }
         if let held { return await held.wait() }
         let now = ISO8601DateFormatter().string(from: Date())
+        if unauthorized { return (401, #"{"reason":"unauthorized"}"#) }
+        if route == "GET /v1/sync/changes", let sharedProject {
+            let favorite = account == "bert" ? #","isFavorite":true,"favoritePosition":0"# : #","isFavorite":false"#
+            return (200, #"{"changes":[{"seq":1,"entityType":"project","entityID":"\#(sharedProject)","kind":"upsert","project":{"id":"\#(sharedProject)","name":"Geteilt","version":1\#(favorite)}}],"cursor":"c1","hasMore":false}"#)
+        }
         switch route {
         case "GET /v1/capabilities": return (200, #"{"password":true,"passkey":true,"bootstrapOpen":false}"#)
         case "POST /v1/auth/password/login":
@@ -325,7 +396,7 @@ final class FakeServer: @unchecked Sendable {
         case "GET /v1/projects", "GET /v1/tasks", "GET /v1/teams", "GET /v1/team-invitations": return (200, "[]")
         case "GET /v1/system-status": return (200, #"{"items":[{"source":"\#(account)","reportedAt":"\#(now)","status":{}}],"now":"\#(now)"}"#)
         case "GET /v1/command-center": return (200, #"{"scope":"account","view":"kanban","summary":{"running":0,"question":3,"review":0,"ready":0,"blocked":0,"done":0,"backlog":0,"openQuestions":3,"pendingReviews":0,"features":0,"activeAgents":0},"lanes":[],"updates":[],"builds":[],"generatedAt":"\#(now)"}"#)
-        case "GET /v1/push/prefs", "GET /v1/me/push-prefs": return (200, #"{"categories":{},"showContent":false,"badge":true,"dailyBriefHour":6}"#)
+        case "GET /v1/push/prefs", "GET /v1/me/push-prefs": return (200, #"{"categories":{"reminders":true,"agent_questions":true,"agent_reviews":true,"assignments":false,"comments":false},"showContent":false,"badge":true,"dailyBriefHour":6}"#)
         default: return (404, "{}")
         }
     }
