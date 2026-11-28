@@ -166,7 +166,12 @@ final class TodoUITests: XCTestCase {
 
     /// By identifier prefix: the message field is "chat.field.<kind>".
     private func element(_ id: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", id)).firstMatch
+        let matches = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", id))
+        // Since card 5016A3E3 the identifier of the chat field also sits on its drawn placeholder; the field itself is the
+        // editable element (the first match was the placeholder and never had keyboard focus: iPad, 28.11.2026).
+        guard id.hasPrefix("chat.field") else { return matches.firstMatch }
+        return matches.matching(NSPredicate(format: "elementType == %d OR elementType == %d",
+                                            XCUIElement.ElementType.textField.rawValue, XCUIElement.ElementType.textView.rawValue)).firstMatch
     }
 
     /// The detail is open exactly once: one "Fertig" (a second bar behind a sheet was the earlier symptom) and the title field.

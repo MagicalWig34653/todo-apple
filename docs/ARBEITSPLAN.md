@@ -11,9 +11,14 @@ Globale Planung bleibt ausschließlich im Hauptrepository. Dieser Checkpoint bes
 
 Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des parallel entwickelten Serververtrags. Lokale Pfade werden nicht an `RunnerServer` übergeben. Bei unklarer Prozessidentität nach Neustart keine PID-Signale und kein automatischer Neustart; expliziter Abgleich bleibt erforderlich.
 
+## TestFlight 0.1.1 (28) 28.11.2026 (Karte 28832496)
+- [x] Offene Punkte aus 346B7A6F: Auswahl-Suite hell/dunkel 8/8, Mac-Fenster- und Push-Lauf, iPad-Lauf (Ergebnis: STATUS, Nachtrag 28.11. "TestFlight 0.1.1 (28)"); dabei Chatfeld-Fehler am Mac rot/gruen behoben (`f2b8bc8`, `758780d`).
+- [x] Nummer 28 reserviert (`ced0bc0`), Archive iOS und macOS aus `758780d`, Nachweise `runtime/nachweise/todolino-apple-28.json` und `-mac-28.json`.
+- [ ] Upload ueber das Tor (Brain: Bilder sichten, `upload-tor.py pruefen`), dann `tools/testflight-upload.sh`, Gruppe, "Was testen", Gerätetest durch Lino (docs/PUSH.md, 5 Schritte).
+
 ## Konto- und Serverwechsel 28.11.2026 (Karte 346B7A6F)
 - [x] Geprueft, Fehler rot/gruen behoben, E2E mit zwei Konten und zwei lokalen Backends (`scripts/ui-tests-accounts.sh`); Pruefliste: STATUS, Nachtrag 28.11.
-- [ ] TestFlight erst nach Entscheidung des Brain/Lino; Geraetetest mit echtem APNs offen.
+- [ ] TestFlight: siehe Abschnitt Karte 28832496; Geraetetest mit echtem APNs offen.
 - Keine API-/Servermigration, Hauptrepo unveraendert.
 
 ## "Für dich": entschiedene Bestaetigung bleibt stehen 26.11.2026 (Karte B6D004D4)
