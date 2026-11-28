@@ -14,7 +14,8 @@ Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des para
 ## TestFlight 0.1.1 (28) 28.11.2026 (Karte 28832496)
 - [x] Offene Punkte aus 346B7A6F: Auswahl-Suite hell/dunkel 8/8, Mac-Fenster- und Push-Lauf, iPad-Lauf (Ergebnis: STATUS, Nachtrag 28.11. "TestFlight 0.1.1 (28)"); dabei Chatfeld-Fehler am Mac rot/gruen behoben (`f2b8bc8`, `758780d`).
 - [x] Nummer 28 reserviert (`ced0bc0`), Archive iOS und macOS aus `758780d`, Nachweise `runtime/nachweise/todolino-apple-28.json` und `-mac-28.json`.
-- [ ] Upload ueber das Tor (Brain: Bilder sichten, `upload-tor.py pruefen`), dann `tools/testflight-upload.sh`, Gruppe, "Was testen", Gerätetest durch Lino (docs/PUSH.md, 5 Schritte).
+- [x] Upload ueber das Tor: iOS und macOS 28 VALID, Gruppe intern, "Was testen" de-DE (docs/TESTFLIGHT.md).
+- [ ] Geraetetest durch Lino (docs/PUSH.md, 5 Schritte), echtes APNs.
 
 ## Konto- und Serverwechsel 28.11.2026 (Karte 346B7A6F)
 - [x] Geprueft, Fehler rot/gruen behoben, E2E mit zwei Konten und zwei lokalen Backends (`scripts/ui-tests-accounts.sh`); Pruefliste: STATUS, Nachtrag 28.11.
