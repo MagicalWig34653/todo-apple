@@ -125,6 +125,7 @@ final class PushDeepLinkUITests: XCTestCase {
             XCTAssertTrue(title.waitForExistence(timeout: 45), "\(kind): task detail open", file: file, line: line)
             wait(title, NSPredicate(format: "value == %@", target.taskTitle), "\(kind): title of the pushed task", file: file, line: line)
             settleAndShoot(name)
+            if !isPad { assertComposerPromptFits(app, large: app.launchArguments.contains(Self.largeText), "\(kind)", file: file, line: line) }
             if app.launchArguments.contains(Self.largeText) {
                 let created = app.descendants(matching: .any).matching(identifier: "audit.created").firstMatch
                 let updated = app.descendants(matching: .any).matching(identifier: "audit.updated").firstMatch
@@ -181,6 +182,34 @@ final class PushDeepLinkUITests: XCTestCase {
         }
         XCTAssertEqual(app.alerts.count, 0, "\(kind): no error alert", file: file, line: line)
         XCTAssertEqual(app.state, .runningForeground, file: file, line: line)
+    }
+
+    /// The chat field at the bottom of the task (card 5016A3E3): its placeholder "Nachricht schreiben" must be readable in
+    /// full. At accessibility sizes it does not fit one line on an iPhone, so the field has to be as tall as the wrapped
+    /// text instead of showing "Nachricht sc…". At the standard size the field stays one line (layout unchanged).
+    private func assertComposerPromptFits(_ app: XCUIApplication, large: Bool, _ what: String, file: StaticString, line: UInt) {
+        let prompt = "Nachricht schreiben"
+        let field = app.descendants(matching: .any).matching(identifier: "chat.field.task").firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(what): chat field at the bottom", file: file, line: line)
+        XCTAssertEqual(field.placeholderValue, prompt, "\(what): placeholder text", file: file, line: line)
+        let size: UIContentSizeCategory = large ? .accessibilityExtraLarge : .large
+        let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size))
+        let width = (prompt as NSString).size(withAttributes: [.font: font]).width
+        let frame = field.frame
+        let screen = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(frame.minX, screen.minX, "\(what): chat field not cut off on the left", file: file, line: line)
+        XCTAssertLessThanOrEqual(frame.maxX, screen.maxX + 1, "\(what): chat field not cut off on the right", file: file, line: line)
+        if width > frame.width {
+            // Needs at least two lines; the field must give them room instead of truncating.
+            XCTAssertGreaterThanOrEqual(frame.height, 2 * font.lineHeight - 1,
+                                        "\(what): placeholder wraps instead of 'Nachricht sc…' (field \(frame), text \(Int(width)) pt wide, line \(Int(font.lineHeight)) pt)",
+                                        file: file, line: line)
+        } else {
+            XCTAssertLessThan(frame.height, 2 * font.lineHeight,
+                              "\(what): placeholder fits one line, the field stays one line (\(frame))", file: file, line: line)
+        }
+        XCTAssertFalse(large && width <= frame.width, "\(what): the large-text check really needs two lines (\(Int(width)) <= \(frame.width))",
+                       file: file, line: line)
     }
 
     private func wait(_ element: XCUIElement, _ predicate: NSPredicate, _ message: String, file: StaticString, line: UInt) {
