@@ -243,7 +243,8 @@ final class AppModel {
 
     func refreshCapabilities() async {
         errorKey = nil
-        guard let client else { errorKey = "error.invalidServer"; return }
+        // No session involved (and the login screen asks while a second sign-out may still run).
+        guard let client = unboundClient else { errorKey = "error.invalidServer"; return }
         AppConfig.savedBaseURL = serverURL
         let generation = sessionGeneration
         do {
@@ -280,7 +281,9 @@ final class AppModel {
     /// previous account's appearance, notifications and tapped link, also after an expired session that kept them. A launch
     /// with a stored session (`signingIn: false`) is no switch.
     private func openSession(_ account: User, signingIn: Bool = true) async {
-        sessionGeneration = UUID()
+        // A sign-in ends whatever the signed-out screens still have on the way. A launch changes no session: `start()` also
+        // runs again for a reopened window, and the running session's clients (live refresh) must stay valid.
+        if signingIn { sessionGeneration = UUID() }
         let origin = URL(string: serverURL).map(ServerIdentity.origin) ?? serverURL
         let identity = origin + "|" + account.id.uuidString
         if signingIn, let last = UserDefaults.standard.string(forKey: Self.lastAccountKey), last != identity {
