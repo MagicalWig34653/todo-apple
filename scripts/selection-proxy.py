@@ -9,6 +9,7 @@ failed and cancelled states can be seen and asserted.
   POST /__control {"preview": {"delay": 5, "status": 200}, "save": {...}}   replaces the rules and clears the log
                   (rules: preview, save, exec-start, exec-stop, exec-continue, exec-retry, push-register, push-revoke,
                   push-prefs-get, push-prefs-set, logout, live, live-head, favorite)
+                  A rule may hold a request ({"hold": true}) until the next /__control.
   GET  /__log     [{"rule": "preview", "status": 200, "forwarded": true}, ...] answered slow requests, oldest first
 
 A forced status other than 200 is answered without asking the backend, so nothing is stored.
@@ -62,6 +63,9 @@ class Proxy(BaseHTTPRequestHandler):
         name = rule_name(self.command, path)
         rule = rules.get(name, {}) if name else {}
         time.sleep(rule.get("delay", 0))
+        # "hold": true keeps the request until the next /__control replaces the rules (the app gives up after its 60 s timeout).
+        while rule.get("hold") and rules.get(name) is rule:
+            time.sleep(0.2)
         status = rule.get("status", 200)
         if status != 200:
             headers, data, forwarded = [("content-type", "application/json")], b'{"error":true,"reason":"forced"}', False

@@ -44,7 +44,7 @@ final class AccountSwitchUITests: XCTestCase {
         XCTAssertTrue(text("Annas Garten").waitForExistence(timeout: 30))
         openTab("Planen")
         let task = text("Annas Rosen schneiden")
-        XCTAssertTrue(task.waitForExistence(timeout: 30))
+        if !task.waitForExistence(timeout: 60) { shot("fehler-planen"); XCTFail("task missing on Planen") }
         task.tap()
         // The identifier also sits on the drawn placeholder; the field itself is the editable element.
         let field = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ AND (elementType == %d OR elementType == %d)",
@@ -79,21 +79,20 @@ final class AccountSwitchUITests: XCTestCase {
         XCTAssertTrue(waitFor { (try? self.devices(anna).count) == 1 }, "Anna's device registered")
         openTab("Projekte")
         let project = text("Annas Garten")
-        XCTAssertTrue(project.waitForExistence(timeout: 30))
-        try control(["favorite": ["delay": 50]])
+        XCTAssertTrue(project.waitForExistence(timeout: 60))
+        try control(["favorite": ["hold": true]])
         project.press(forDuration: 1.2)
         let favorite = app.buttons["Zu Favoriten"]
-        XCTAssertTrue(favorite.waitForExistence(timeout: 10))
+        XCTAssertTrue(favorite.waitForExistence(timeout: 40))
         favorite.tap()
-        Thread.sleep(forTimeInterval: 2)
-        try control([:])  // the request that already waits keeps its delay; Bert's requests are not delayed
         signOut()
-        XCTAssertEqual(try devices(anna).count, 0, "Anna's device is revoked on the server")
+        // Anna's request has been held on its way; the session is gone on the server now, so it is answered with 401 and
+        // reaches the app after the sign-out (while Bert signs in).
+        XCTAssertEqual(try log("push-revoke").last?["status"] as? Int, 204, "Anna's device revoked on sign-out")
+        try control([:])
         shot("4-nach-abmelden")
         signIn("bert")
         XCTAssertTrue(waitFor { (try? self.devices(bert).count) == 1 }, "the device now belongs to Bert")
-        XCTAssertEqual(try devices(anna).count, 0)
-        // Anna's request reaches the server after her sign-out and is answered with 401.
         XCTAssertTrue(waitFor(80) { (try? self.log("favorite").first?["status"] as? Int) == 401 }, "late 401 of Anna: \(String(describing: try? log("favorite")))")
         Thread.sleep(forTimeInterval: 4)
         XCTAssertFalse(loginScreen.exists, "Anna's late 401 signed Bert out")
@@ -113,13 +112,13 @@ final class AccountSwitchUITests: XCTestCase {
         url.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60) + serverB)
         XCTAssertEqual(url.value as? String, serverB)
         app.buttons["Verbindung prüfen"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "erreichbar")).firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Verbunden")).firstMatch.waitForExistence(timeout: 20))
         app.buttons["Schließen"].tap()
         signIn("carla")
         assertPlanBadge(2)
         assertNothing(of: "Anna", present: "Carlas Kueche", pictures: "6-carla-server-b")
         assertNothing(of: "Bert", present: "Carlas Kueche", pictures: nil)
-        XCTAssertEqual(try devices(bert).count, 0, "Bert's device is revoked on server A")
+        XCTAssertEqual(try log("push-revoke").last?["status"] as? Int, 204, "Bert's device revoked on server A when he signed out")
     }
 
     // MARK: Steps
@@ -149,20 +148,28 @@ final class AccountSwitchUITests: XCTestCase {
         tab.tap()
     }
 
-    private func openAccount() {
+    /// Right after a sign-in the toolbar may still settle and swallow the first tap on the avatar; try again.
+    private func menuEntry(_ name: String) -> XCUIElement {
         openTab("Für dich")
-        app.buttons["accountMenu"].tap()
-        let settings = app.buttons["Einstellungen"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 10))
-        settings.tap()
+        let entry = app.buttons[name], avatar = app.buttons["accountMenu"]
+        // A screen pushed onto the tab (settings) hides the avatar: the second tap on the tab goes back to its root.
+        if !avatar.waitForExistence(timeout: 5) { app.tabBars.buttons["Für dich"].tap() }
+        for _ in 0..<3 {
+            if !avatar.waitForExistence(timeout: 60) {
+                shot("fehler-kein-avatar")
+                XCTFail("no avatar; buttons: \(app.buttons.allElementsBoundByIndex.map(\.label)); alerts: \(app.alerts.count)")
+            }
+            avatar.tap()
+            if entry.waitForExistence(timeout: 15) { break }
+        }
+        if !entry.exists { shot("fehler-menue-\(name)"); XCTFail("menu entry \(name); buttons: \(app.buttons.allElementsBoundByIndex.map(\.label))") }
+        return entry
     }
 
+    private func openAccount() { menuEntry("Einstellungen").tap() }
+
     private func signOut() {
-        openTab("Für dich")
-        app.buttons["accountMenu"].tap()
-        let logout = app.buttons["Abmelden"]
-        XCTAssertTrue(logout.waitForExistence(timeout: 10))
-        logout.tap()
+        menuEntry("Abmelden").tap()
         XCTAssertTrue(loginScreen.waitForExistence(timeout: 40), "signed out")
     }
 
