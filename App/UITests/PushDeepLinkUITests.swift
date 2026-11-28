@@ -191,7 +191,9 @@ final class PushDeepLinkUITests: XCTestCase {
         let prompt = "Nachricht schreiben"
         let field = app.descendants(matching: .any).matching(identifier: "chat.field.task").firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10), "\(what): chat field at the bottom", file: file, line: line)
-        XCTAssertEqual(field.placeholderValue, prompt, "\(what): placeholder text", file: file, line: line)
+        // VoiceOver name of the field (the visible placeholder itself is drawn, not announced twice).
+        XCTAssertTrue(field.label == prompt || field.placeholderValue == prompt,
+                      "\(what): accessible name (label \(field.label), placeholder \(field.placeholderValue ?? "nil"))", file: file, line: line)
         let size: UIContentSizeCategory = large ? .accessibilityExtraLarge : .large
         let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size))
         let width = (prompt as NSString).size(withAttributes: [.font: font]).width
@@ -204,12 +206,45 @@ final class PushDeepLinkUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(frame.height, 2 * font.lineHeight - 1,
                                         "\(what): placeholder wraps instead of 'Nachricht sc…' (field \(frame), text \(Int(width)) pt wide, line \(Int(font.lineHeight)) pt)",
                                         file: file, line: line)
+            // Room alone is not enough: the system placeholder stays on one line ("Nachricht sc…") even in a taller field,
+            // centered there. The picture of the field must show two separate lines of text.
+            let lines = textLines(field, lineHeight: font.lineHeight)
+            XCTAssertGreaterThanOrEqual(lines.count, 2, "\(what): 'Nachricht schreiben' on two lines, not 'Nachricht sc…' (text rows \(lines))",
+                                        file: file, line: line)
         } else {
             XCTAssertLessThan(frame.height, 2 * font.lineHeight,
                               "\(what): placeholder fits one line, the field stays one line (\(frame))", file: file, line: line)
         }
         XCTAssertFalse(large && width <= frame.width, "\(what): the large-text check really needs two lines (\(Int(width)) <= \(frame.width))",
                        file: file, line: line)
+    }
+
+    /// Bands of pixel rows with text in the picture of the element (rows in pt; a band ends at the first row without
+    /// text, bands lower than a third of a line are ignored). Background = bottom-right corner of the field, which stays
+    /// empty in both variants (a wrapped second line is shorter than the first).
+    private func textLines(_ element: XCUIElement, lineHeight: CGFloat) -> [ClosedRange<Int>] {
+        guard let image = element.screenshot().image.cgImage else { return [] }
+        let w = image.width, h = image.height
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return [] }
+        let scale = CGFloat(h) / element.frame.height
+        func pixel(_ x: Int, _ y: Int) -> [Int] { let i = (y * w + x) * 4; return [Int(pixels[i]), Int(pixels[i + 1]), Int(pixels[i + 2])] }
+        let background = pixel(w - 3, h - 3)
+        let inked = (0..<h).map { y in (0..<w).filter { x in zip(pixel(x, y), background).contains { abs($0 - $1) > 60 } }.count >= 2 }
+        var bands: [ClosedRange<Int>] = [], start: Int?
+        for y in 0...h {
+            if y < h && inked[y] { start = start ?? y; continue }
+            if let s = start, CGFloat(y - s) >= lineHeight * scale / 3 { bands.append(Int(CGFloat(s) / scale)...Int(CGFloat(y - 1) / scale)) }
+            start = nil
+        }
+        return bands
     }
 
     private func wait(_ element: XCUIElement, _ predicate: NSPredicate, _ message: String, file: StaticString, line: UInt) {
