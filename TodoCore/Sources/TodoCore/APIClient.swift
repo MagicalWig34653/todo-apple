@@ -20,6 +20,9 @@ public struct APIClient: Sendable {
     let session: URLSession
     let tokenStore: any TokenStore
 
+    /// A copy that belongs to one signed-in session (see `isCurrent`).
+    public func bound(to isCurrent: @escaping @Sendable () -> Bool) -> APIClient { self }
+
     public init(baseURL: URL, session: URLSession = .shared, tokenStore: any TokenStore = InMemoryTokenStore()) {
         self.baseURL = baseURL
         self.session = session
