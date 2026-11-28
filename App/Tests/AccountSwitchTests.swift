@@ -315,6 +315,82 @@ final class AccountSwitchTests: XCTestCase {
         XCTAssertEqual(push.removedAll, 0, "kept for the same account signing in again")
     }
 
+    func testLateListMetadataOfTheOldAccountIsNotWrittenIntoTheNewAccountsCache() async throws {
+        await signIn("anna")
+        let annasCache = try XCTUnwrap(app.metaCacheURL)
+        try Data(#"{"planning":[],"labels":[{"id":"\#(UUID())","name":"Annas Label","version":1}],"labelsByTask":[]}"#.utf8).write(to: annasCache)
+        let meta = TaskMeta()
+        let held = server.hold("GET /v1/planning/up-next", for: "anna")
+        let running = Task { await meta.refresh(app) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await switchAccount(to: "bert")
+        let bertsCache = try XCTUnwrap(app.metaCacheURL)
+        XCTAssertNotEqual(annasCache, bertsCache)
+        held.release(200, "[]")
+        await running.value
+        let written = (try? String(contentsOf: bertsCache, encoding: .utf8)) ?? ""
+        XCTAssertFalse(written.contains("Annas Label"), "Anna's labels were saved as Bert's offline cache")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: annasCache.path), "the removed cache of the old account was written again")
+    }
+
+    func testLateGroupAssignmentOfTheOldAccountLeavesNoNotice() async throws {
+        server.hasSyncFeed = false
+        server.createdProject = UUID()
+        await signIn("anna")
+        let held = server.hold("PUT /v1/projects/\(server.createdProject.uuidString)/groups", for: "anna")
+        let running = Task { await app.addProject(name: "Annas Projekt", parentID: nil, groupIDs: [UUID()]) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await switchAccount(to: "bert")
+        held.release(500, "{}")
+        await running.value
+        XCTAssertNil(app.noticeKey)
+        XCTAssertTrue(app.projects.isEmpty)
+    }
+
+    func testLatePlanningReadOfTheOldAccountLeavesNoNotice() async throws {
+        await signIn("anna")
+        let task = TodoTask(id: UUID(), projectID: UUID(), title: "Annas Aufgabe")
+        let held = server.hold("GET /v1/planning/tasks/\(task.id.uuidString)", for: "anna")
+        let running = Task { await TaskMeta().setPriority(task, to: 2, app) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await switchAccount(to: "bert")
+        held.release(500, "{}")
+        await running.value
+        XCTAssertNil(app.noticeKey)
+    }
+
+    func testChangeCancelledBySignOutLeavesNoNotice() async throws {
+        await signIn("anna")
+        _ = await app.queueChange { _ in throw CancellationError() }
+        XCTAssertNil(app.noticeKey)
+    }
+
+    func testLateSettingsAnswerOfTheOldAccountIsDiscarded() async throws {
+        server.darkPreferencesFor = "anna"
+        await signIn("anna")
+        app.colorScheme = .system
+        let hub = SettingsHubModel()
+        let held = server.hold("GET /v1/me/passkeys", for: "anna")
+        let running = Task { await hub.load(app) }
+        await fulfillment(of: [held.arrived], timeout: 5)
+        await settle()
+        await switchAccount(to: "bert")
+        held.release(404, "{}")
+        await running.value
+        XCTAssertEqual(app.colorScheme, .system, "Anna's appearance was applied to Bert")
+        XCTAssertNil(hub.preferences)
+    }
+
+    func testExpiredSessionAtLaunchEndsTheSystemRegistration() async throws {
+        try tokens["a.invalid"]!.save("token-anna")
+        server.unauthorized = true
+        await app.start()
+        XCTAssertEqual(app.phase, .signedOut)
+        XCTAssertNil(try tokens["a.invalid"]!.load())
+        XCTAssertEqual(push.unregistered, 1)
+        XCTAssertEqual(push.removedAll, 0)
+    }
+
     private func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
 }
 
@@ -360,6 +436,8 @@ final class FakeServer: @unchecked Sendable {
     var hasSyncFeed = true
     var unauthorized = false
     var sharedProject: UUID?
+    var createdProject = UUID()
+    var darkPreferencesFor: String?
 
     var requests: [String] { lock.withLock { log } }
     func clearRequests() { lock.withLock { log = [] } }
@@ -384,6 +462,10 @@ final class FakeServer: @unchecked Sendable {
         if route == "GET /v1/sync/changes", let sharedProject {
             let favorite = account == "bert" ? #","isFavorite":true,"favoritePosition":0"# : #","isFavorite":false"#
             return (200, #"{"changes":[{"seq":1,"entityType":"project","entityID":"\#(sharedProject)","kind":"upsert","project":{"id":"\#(sharedProject)","name":"Geteilt","version":1\#(favorite)}}],"cursor":"c1","hasMore":false}"#)
+        }
+        if route == "POST /v1/projects" { return (200, #"{"id":"\#(createdProject)","name":"Neu","version":1}"#) }
+        if route == "GET /v1/me/preferences", account == darkPreferencesFor {
+            return (200, #"{"version":1,"appearance":{"colorScheme":"dark","accent":"blue","glow":"subtle"},"revision":1}"#)
         }
         switch route {
         case "GET /v1/capabilities": return (200, #"{"password":true,"passkey":true,"bootstrapOpen":false}"#)
