@@ -263,7 +263,15 @@ final class SelectionPendingTests: XCTestCase {
     private func assertCount(_ n: Int, file: StaticString = #filePath, line: UInt = #line) {
         let wanted = NSPredicate(format: "exists == true AND label CONTAINS %@", "Wirkt jetzt auf \(n) Projekte")
         let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: wanted, object: count)], timeout: 20)
-        XCTAssertEqual(result, .completed, "preview with \(n) projects: \(count.exists ? count.label : "none")", file: file, line: line)
+        // Seen once under load (28.11.2026): no preview and no preview request after the tap on the row. Say what is on
+        // screen then, to tell "the editor never opened" from "it opened and asked nothing".
+        var state = ""
+        if result != .completed {
+            shot("fehler-vorschau-\(n)")
+            let row = app.buttons["mandate.row.Brain"]
+            state = " (editor open: \(save.exists), pending: \(loading.exists), failed: \(failed.exists), row enabled: \(row.exists ? "\(row.isEnabled)" : "row not found"))"
+        }
+        XCTAssertEqual(result, .completed, "preview with \(n) projects: \(count.exists ? count.label : "none")\(state)", file: file, line: line)
     }
 
     private func flip(_ identifier: String) {
