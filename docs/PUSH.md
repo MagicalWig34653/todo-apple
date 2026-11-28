@@ -75,7 +75,7 @@ Weitere Fälle: große Schrift (`testLargeTextReachesTheSameDestinations`, Erinn
 
 **Behobene Lücke (`952f102`):** Beim Tap aus der geschlossenen App öffnete sich zwar die Aufgabe, darunter lag aber die falsche Seite (Erinnerung, Kommentar: nicht das Projekt; Rückfrage, Review: nicht die Projekt-Steuerzentrale). Der Link wurde verbraucht, bevor die Projektliste geladen war; dasselbe bei einem gerade erst angelegten Projekt. Jetzt entscheidet `PushLink.readiness`: sofort, warten auf die ersten Daten, oder einmal nachladen (höchstens vier Versuche, danach das allgemeine Ziel). Rot vorher: `PushTests` 6 Fehler (`dc5aca7`), DL auf dem iPhone 6 von 8 rot (Erinnerung, Kommentar, Rückfrage, Review, große Schrift; der Nachlade-Test scheiterte erst am Testdaten-Aufruf und war nach dessen Korrektur ohne Fix rot).
 
-**Behobene Lücke große Schrift (`c9d2c31`):** In der geöffneten Aufgabe standen "erstellt" und "zuletzt geändert" in vier schmalen Spalten und wurden abgeschnitten; bei Bedienungshilfen-Größen stehen sie jetzt untereinander (Prüfung in `testLargeTextReachesTheSameDestinations`).
+**Behobene Lücke große Schrift (`c9d2c31`):** In der geöffneten Aufgabe standen "erstellt" und "zuletzt geändert" in vier schmalen Spalten und wurden abgeschnitten; bei Bedienungshilfen-Größen stehen sie jetzt untereinander (Prüfung in `testLargeTextReachesTheSameDestinations`). Nachtrag `af7d42b` (rot `bca52be`): "zuletzt geändert vor N Min." war dabei noch gekürzt und bricht jetzt um. Bilder Standard/groß, hell/dunkel, Aufgabe und Konto: `docs/screenshots/push-grosse-schrift-af7d42b/`.
 
 ### Registrierung, Berechtigung, Einstellungen
 
