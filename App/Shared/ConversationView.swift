@@ -244,11 +244,20 @@ struct ChatComposer: View {
     @Environment(AppModel.self) private var app
     @Bindable var model: ConversationModel
     var inline = false
+    /// Lines the placeholder needs at the current width and text size (more than one only at large text sizes).
+    @State private var promptLines = 1
 
     var body: some View {
+        let key: LocalizedStringKey = inline ? "chat.reply" : "chat.new"
+        let empty = model.draft.isEmpty
         HStack(alignment: .bottom, spacing: Space.s) {
-            TextField(accessible: inline ? "chat.reply" : "chat.new", text: $model.draft, axis: .vertical)
-                .lineLimit(1...4)
+            // The system placeholder of a vertical field stays on one line and ends in "Nachricht sc…" at large text sizes.
+            // It is drawn clear (VoiceOver names the field by its label); the visible one wraps and the field reserves its lines.
+            TextField(text: $model.draft, prompt: Text(key).foregroundColor(.clear), axis: .vertical) { Text(key) }
+                .lineLimit(empty ? promptLines...max(promptLines, 4) : 1...4)
+                .background(alignment: .topLeading) {
+                    if empty { WrappingPrompt(key: key, lines: $promptLines) }
+                }
                 .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                 .background(inline ? Color.canvas : Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
@@ -271,6 +280,33 @@ struct ChatComposer: View {
             .accessibilityLabel(Text("chat.send"))
             .accessibilityIdentifier("chat.send.\(model.thread.kindName)")
         }
+    }
+}
+
+/// Placeholder of `ChatComposer` that wraps instead of truncating; reports how many lines it needs so the field can
+/// reserve them. Same color as `TextField(accessible:)` (AA contrast).
+private struct WrappingPrompt: View {
+    let key: LocalizedStringKey
+    @Binding var lines: Int
+    @State private var textHeight: CGFloat = 0
+    @State private var lineHeight: CGFloat = 0
+
+    var body: some View {
+        Text(key)
+            .foregroundStyle(Color.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(alignment: .topLeading) {
+                Text(verbatim: "X").hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { lineHeight = $0; update() }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { textHeight = $0; update() }
+            .accessibilityHidden(true)
+    }
+
+    private func update() {
+        guard lineHeight > 0 else { return }
+        let needed = max(1, Int((textHeight / lineHeight).rounded()))
+        if needed != lines { lines = needed }
     }
 }
 
