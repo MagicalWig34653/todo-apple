@@ -20,8 +20,18 @@ public struct APIClient: Sendable {
     let session: URLSession
     let tokenStore: any TokenStore
 
-    /// A copy that belongs to one signed-in session (see `isCurrent`).
-    public func bound(to isCurrent: @escaping @Sendable () -> Bool) -> APIClient { self }
+    /// Whether the signed-in session this client was handed out for is still the current one (always true for a client
+    /// that belongs to no session, like the one that signs in).
+    var isCurrent: @Sendable () -> Bool = { true }
+
+    /// A copy that belongs to one signed-in session: once `isCurrent` turns false it sends nothing (the token store may
+    /// hold the next account's token by then) and every answer that is still on its way, success or error, is replaced by
+    /// a `CancellationError`, so a late "401" of the old account can never end the new account's session.
+    public func bound(to isCurrent: @escaping @Sendable () -> Bool) -> APIClient {
+        var copy = self
+        copy.isCurrent = isCurrent
+        return copy
+    }
 
     public init(baseURL: URL, session: URLSession = .shared, tokenStore: any TokenStore = InMemoryTokenStore()) {
         self.baseURL = baseURL
@@ -226,10 +236,24 @@ public struct APIClient: Sendable {
         try await performWithStatus(request).0
     }
 
+    /// The one place that talks to the network: checks the session before sending and again when the answer is back.
+    func transfer(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        guard isCurrent() else { throw CancellationError() }
+        let result: (Data, URLResponse)
+        do { result = try await session.data(for: request) }
+        catch {
+            guard isCurrent() else { throw CancellationError() }
+            throw error
+        }
+        guard isCurrent() else { throw CancellationError() }
+        return result
+    }
+
     func performWithStatus(_ request: URLRequest) async throws -> (Data, Int) {
         let data: Data
         let response: URLResponse
-        do { (data, response) = try await session.data(for: request) }
+        do { (data, response) = try await transfer(request) }
+        catch is CancellationError { throw CancellationError() }
         catch { throw APIError.transport(error.localizedDescription) }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {

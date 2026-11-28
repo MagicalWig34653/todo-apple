@@ -183,6 +183,7 @@ final class PushCoordinator {
             registrationErrorKey = nil
             serverSupport = .supported
             Self.storeDeviceID(device.id, for: userID)
+        } catch is CancellationError {
         } catch {
             if APIClient.isPushUnavailable(error) { serverSupport = .unavailable }
             else if case .invalidInput = error as? APIError { registrationErrorKey = "push.error.rejected" }
@@ -191,15 +192,25 @@ final class PushCoordinator {
         }
     }
 
-    /// Revokes this device server-side before the session ends, clears the badge and local push state.
-    func accountWillSignOut(client: APIClient?, userID: UUID?) async {
+    /// Ends push for this session: the system stops delivering (the next sign-in registers again), the device is revoked
+    /// server-side if the session still works, badge and local push state are cleared. `keepNotifications` (expired
+    /// session): shown notifications and a tapped link wait for the same account to sign in again.
+    func accountWillSignOut(client: APIClient?, userID: UUID?, keepNotifications: Bool) async {
+        system.unregister()
+        if !keepNotifications { forgetNotifications() }
+        registeredKey = nil; prefs = nil; registrationErrorKey = nil; prefsErrorKey = nil; serverPushEnabled = nil
+        serverSupport = .unknown
         if let client, let userID, let id = Self.deviceID(for: userID) {
             try? await client.revokePushDevice(id)
             Self.storeDeviceID(nil, for: userID)
         }
-        registeredKey = nil; prefs = nil; registrationErrorKey = nil; prefsErrorKey = nil; serverPushEnabled = nil
-        serverSupport = .unknown
         await system.setBadge(0)
+    }
+
+    /// Notifications and a tapped link of the account that is gone.
+    func forgetNotifications() {
+        pendingLink = nil
+        system.removeAllNotifications()
     }
 
     // MARK: Preferences
@@ -231,6 +242,7 @@ final class PushCoordinator {
             prefs = p
         }
         do { prefs = try await client.updatePushPrefs(change); prefsErrorKey = nil }
+        catch is CancellationError {}
         catch {
             prefs = before
             if APIClient.isPushUnavailable(error) { serverSupport = .unavailable } else { prefsErrorKey = "push.error.prefs" }

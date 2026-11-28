@@ -17,6 +17,9 @@ final class SystemStatusModel {
     private(set) var fetchedAt = Date()
     @ObservationIgnored private var loading = false
 
+    /// Sign-out: the report belongs to the account that is gone.
+    func reset() { response = nil; fetchedAt = Date() }
+
     func load(_ app: AppModel) async {
         #if DEBUG
         if let stub = Self.debugStub { response = stub; fetchedAt = Date(); return }

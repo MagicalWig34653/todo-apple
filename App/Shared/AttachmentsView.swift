@@ -42,7 +42,10 @@ final class AttachmentsModel {
         catch { await fail(error, app) }
     }
 
-    func clearPreviewFiles() { try? FileManager.default.removeItem(at: Self.previewDirectory) }
+    func clearPreviewFiles() { Self.clearPreviewCache() }
+
+    /// Removes the downloaded preview files (also on sign-out).
+    static func clearPreviewCache() { try? FileManager.default.removeItem(at: previewDirectory) }
 
     private func fail(_ error: Error, _ app: AppModel) async {
         switch error as? APIError {

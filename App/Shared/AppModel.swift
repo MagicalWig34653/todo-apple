@@ -17,6 +17,16 @@ enum SidebarItem: Hashable {
     case label(UUID)
 }
 
+/// The current session generation, readable from the network code off the main actor.
+private final class SessionFence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = UUID()
+    var current: UUID {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
+    }
+}
+
 @MainActor @Observable
 final class AppModel {
     enum Phase { case launching, signedOut, signedIn }
@@ -32,7 +42,11 @@ final class AppModel {
     /// Host of the configured server, used in error texts.
     var serverHost: String { URL(string: serverURL)?.host ?? serverURL }
     var busy = false
-    var sessionGeneration = UUID()
+    /// Changes whenever a session starts or ends (sign-in, sign-out, other server). Work that belongs to the previous
+    /// value is thrown away; `client` hands out clients that are bound to it.
+    var sessionGeneration = UUID() { didSet { fence.current = sessionGeneration } }
+    @ObservationIgnored private let fence = SessionFence()
+    @ObservationIgnored private var signOutsRunning = 0
     var serverURL = AppConfig.savedBaseURL {
         didSet {
             if serverURL != oldValue {
@@ -151,12 +165,21 @@ final class AppModel {
             #endif
             return KeychainTokenStore(account: ServerIdentity.origin(url))
         }
+        fence.current = sessionGeneration
     }
 
     /// Retries once after ~3 s on 1004 notAssociated (swcd has not confirmed the AASA right after install).
     private let passkey = RetryingPasskey(PlatformPasskey())
 
+    /// The client of the current session: it stops working (nothing sent, late answers become `CancellationError`) as soon
+    /// as the session ends. nil while a sign-out runs, so the old screens cannot start anything new.
     var client: APIClient? {
+        guard signOutsRunning == 0, let client = unboundClient else { return nil }
+        let generation = sessionGeneration, fence = fence
+        return client.bound { fence.current == generation }
+    }
+
+    private var unboundClient: APIClient? {
         guard let url = URL(string: serverURL), url.scheme != nil, url.host != nil else { return nil }
         return APIClient(baseURL: url, session: networkSession, tokenStore: tokenStoreForServer(url))
     }
@@ -198,23 +221,19 @@ final class AppModel {
         do {
             let result = try await client.me()
             guard generation == sessionGeneration else { return }
-            user = result
-            cachedUser = user
-            phase = .signedIn
-            await beginSync()
+            await openSession(result)
         } catch APIError.unauthorized {
             guard generation == sessionGeneration else { return }
             try? await client.logout()
             guard generation == sessionGeneration else { return }
+            await PushCoordinator.shared.accountWillSignOut(client: nil, userID: nil, keepNotifications: true)
             phase = .signedOut
             await refreshCapabilities()
         } catch {
             guard generation == sessionGeneration else { return }
             if let cached = cachedUser {
                 // Offline at launch with a stored session: work from the local store, sync when the server is back.
-                user = cached
-                phase = .signedIn
-                await beginSync()
+                await openSession(cached)
             } else {
                 phase = .signedOut
                 errorKey = "error.network"
@@ -248,14 +267,30 @@ final class AppModel {
             let result = try await work(client)
             guard generation == sessionGeneration else { return }
             if let token = try loginTokens.load() { try tokenStoreForServer(url).save(token) }
-            user = result
-            cachedUser = user
-            phase = .signedIn
-            await beginSync()
+            await openSession(result)
         } catch {
             guard generation == sessionGeneration else { return }
             errorKey = Self.key(for: error); errorDetail = Self.detail(for: error)
         }
+    }
+
+    private static let lastAccountKey = "session.lastAccount"
+
+    /// Every way into the app. A different account (or server) than the last one starts without the previous account's
+    /// appearance, notifications and tapped link, also after an expired session that kept them for a new sign-in.
+    private func openSession(_ account: User) async {
+        sessionGeneration = UUID()
+        let origin = URL(string: serverURL).map(ServerIdentity.origin) ?? serverURL
+        let identity = origin + "|" + account.id.uuidString
+        if let last = UserDefaults.standard.string(forKey: Self.lastAccountKey), last != identity {
+            colorScheme = .system
+            PushCoordinator.shared.forgetNotifications()
+        }
+        UserDefaults.standard.set(identity, forKey: Self.lastAccountKey)
+        user = account
+        cachedUser = account
+        phase = .signedIn
+        await beginSync()
     }
 
     /// Recovery with a one-time code issued by an admin: redeem, create a new passkey for the existing account
@@ -293,10 +328,7 @@ final class AppModel {
             let result = try await client.loginWithPasskey(authenticator: passkey)
             guard generation == sessionGeneration else { return }
             if let token = try loginTokens.load() { try tokenStoreForServer(url).save(token) }
-            user = result
-            cachedUser = user
-            phase = .signedIn
-            await beginSync()
+            await openSession(result)
         } catch RecoveryStepError.redeem(let e) {
             guard generation == sessionGeneration else { return }
             errorKey = Self.recoveryRedeemKey(for: e); errorDetail = Self.detail(for: e)
@@ -341,35 +373,48 @@ final class AppModel {
         await run { try await $0.passwordLogin(username: username, password: password) }
     }
 
+    /// `preservingLocalData`: the session expired; queue, cache and notifications stay for the same account signing in again.
     func logout(preservingLocalData: Bool = false) async {
+        signOutsRunning += 1
+        let completed = await endSession(preservingLocalData: preservingLocalData)
+        signOutsRunning -= 1
+        if completed { await refreshCapabilities() }
+    }
+
+    /// False if something else (another sign-out, a server change) took over meanwhile.
+    private func endSession(preservingLocalData: Bool) async -> Bool {
         sessionGeneration = UUID()
         let generation = sessionGeneration
-        let logoutClient = client, logoutUserID = user?.id
+        let logoutClient = unboundClient, logoutUserID = user?.id
         let oldMetaCacheURL = metaCacheURL
         let oldEngine = engine, oldOutbox = outbox
         engine = nil; outbox = nil
         await oldEngine?.invalidate()
         await oldOutbox?.invalidate()
         initialDataLoaded = false
-        await PushCoordinator.shared.accountWillSignOut(client: logoutClient, userID: logoutUserID)
+        await PushCoordinator.shared.accountWillSignOut(client: logoutClient, userID: logoutUserID, keepNotifications: preservingLocalData)
         syncLoop?.cancel(); syncLoop = nil
         if !preservingLocalData {
             try? await oldEngine?.reset()
             try? await oldOutbox?.reset()
             if let url = oldMetaCacheURL { try? FileManager.default.removeItem(at: url) }
         }
-        guard generation == sessionGeneration else { return }
+        guard generation == sessionGeneration else { return false }
         metaCacheURL = nil
         outbox = nil; legacyOutboxSnapshot = OutboxSnapshot(); syncMetaOverlay = OutboxSnapshot(); feedPlanning = [:]; feedLabels = []; metaFromFeed = false
         engine = nil; usesREST = false; syncStatus = .idle; pendingChanges = 0; conflict = nil
         try? await logoutClient?.logout()
-        guard generation == sessionGeneration else { return }
+        guard generation == sessionGeneration else { return false }
         VoicePlayer.clearCache()
+        AttachmentsModel.clearPreviewCache()
         cachedUser = nil
         user = nil; projects = []; tasks = []; columns = []; displayPrefs = [:]; pendingPrefs = [:]; today = []; upcoming = []; teams = []; teamInvitations = []; commandSummary = nil; runningCards = []; selection = nil
         reviewUndo = nil; reviewUndoClosed = []
+        path = []; detailDrafts = [:]; confirmationFocus = nil; noticeKey = nil; agendaLoaded = false
+        systemStatus.reset()
+        if !preservingLocalData { colorScheme = .system }
         phase = .signedOut
-        await refreshCapabilities()
+        return true
     }
 
     // MARK: Data
@@ -509,7 +554,8 @@ final class AppModel {
                 try await outbox.setPlanning(taskID: taskID, data)
                 await outboxChanged()
                 return true
-            } catch { noticeKey = "error.localSave"; return false }
+            } catch is CancellationError { return false }
+            catch { noticeKey = "error.localSave"; return false }
         }
         guard let client else { return false }
         do { apply(try await client.setPlanning(taskID: taskID, data).task); await reloadAgenda(); metaRevision += 1; return true }
@@ -529,7 +575,7 @@ final class AppModel {
             do {
                 if enabled { try await outbox.addLabel(label.id, toTask: taskID) } else { try await outbox.removeLabel(label.id, fromTask: taskID) }
                 await outboxChanged()
-            } catch { noticeKey = "error.localSave" }
+            } catch is CancellationError {} catch { noticeKey = "error.localSave" }
             return
         }
         guard let client else { return }
@@ -572,7 +618,7 @@ final class AppModel {
             do {
                 try await outbox.addLabel(named: name, toTask: taskID)
                 await outboxChanged()
-            } catch { noticeKey = "error.localSave" }
+            } catch is CancellationError {} catch { noticeKey = "error.localSave" }
             return
         }
         guard let client else { return }
@@ -617,6 +663,7 @@ final class AppModel {
             }
             if queued != nil {
                 do { try await outbox.dismiss(op.id) }
+                catch is CancellationError { return }
                 catch { noticeKey = "error.localSave"; return }
             }  // an unknown task stays in the outbox
         }
@@ -631,6 +678,7 @@ final class AppModel {
         let parked = await engine.unsupportedMutations()
         guard generation == sessionGeneration, self.engine === engine, !parked.isEmpty, let outbox else { return }
         do { try await outbox.adopt(parked.map(\.mutation)) }
+        catch is CancellationError { return }
         catch { noticeKey = "error.localSave"; return }
         for q in parked { _ = try? await engine.dismiss(q.id) }
         let snap = await outbox.snapshot()
@@ -695,7 +743,8 @@ final class AppModel {
             let snap = try await change(engine)
             guard generation == sessionGeneration, self.engine === engine else { return true }
             publish(snap)
-        } catch { noticeKey = "error.generic"; return true }
+        } catch is CancellationError { return true }
+        catch { noticeKey = "error.generic"; return true }
         Task { await syncNow() }
         return true
     }
@@ -808,6 +857,7 @@ final class AppModel {
     private func assignGroups(_ groupIDs: [UUID], to projectID: UUID, client: APIClient) async {
         for attempt in 1...10 {
             do { _ = try await client.setGroupsOfProject(projectID, groupIDs: groupIDs); return }
+            catch is CancellationError { return }
             catch APIError.notFound where attempt < 10 {
                 await syncNow()
                 try? await Task.sleep(for: .milliseconds(500))
@@ -921,11 +971,15 @@ final class AppModel {
 
     /// Simple conflict policy: the server state wins; reload and tell the user to repeat the change.
     func handle(_ error: Error) async {
+        // An answer of a session that has ended meanwhile: nothing to tell the person.
+        if error is CancellationError { return }
         switch error as? APIError {
         case .versionConflict:
             noticeKey = "notice.conflict"
             await reload()
         case .unauthorized:
+            // A view that saves while it disappears gets a 401 after the sign-out; there is no session left to expire.
+            guard phase != .signedOut else { return }
             await logout(preservingLocalData: true); errorKey = "error.sessionExpired"
         default:
             noticeKey = Self.key(for: error)

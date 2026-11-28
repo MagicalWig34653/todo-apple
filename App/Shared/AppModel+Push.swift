@@ -84,12 +84,16 @@ extension AppModel {
             return true
         }
         guard let client, let projectID else { return false }
+        let generation = sessionGeneration
         do {
             guard let task = try await client.tasks(projectID: projectID).first(where: { $0.id == taskID }) else { return false }
             if task.isDone { return true }
             let updated = try await client.updateTask(taskID, version: task.version, TaskUpdate(status: .done))
             apply(updated)
             return true
-        } catch { return false }
+        } catch {
+            // false brings the task up; not for a session that has ended meanwhile (it would open in another account).
+            return generation != sessionGeneration
+        }
     }
 }

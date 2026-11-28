@@ -103,7 +103,9 @@ final class TaskMeta {
     }
 
     func refresh(_ app: AppModel) async {
-        restore(from: app.metaCacheURL)
+        // The cache file of this session: after an account switch `app.metaCacheURL` names the next account's file.
+        let generation = app.sessionGeneration, cache = app.metaCacheURL
+        restore(from: cache)
         adoptFeed(app)
         guard let client = app.client else { return }
         let fromFeed = app.metaFromFeed
@@ -144,14 +146,17 @@ final class TaskMeta {
             confirmedAllLabels = labels
             if complete { confirmedLabels = map }
         }
-        persist(to: app.metaCacheURL)
+        guard generation == app.sessionGeneration else { return }
+        persist(to: cache)
     }
 
     /// Current planning of the task for a read-modify-write: the known value, else the server's. nil if neither is
     /// available (offline and never seen); callers then must not guess, because PUT replaces everything.
     private func basePlanning(_ task: TodoTask, _ app: AppModel) async -> PlanningData? {
         if let known = planning(for: task.id) { return known }
+        let generation = app.sessionGeneration
         if let client = app.client, let fetched = try? await client.planning(taskID: task.id).planning { return fetched }
+        guard generation == app.sessionGeneration else { return nil }
         app.noticeKey = "notice.planningUnavailable"
         return nil
     }

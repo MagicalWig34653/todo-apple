@@ -328,7 +328,7 @@ extension APIClient: LiveRefreshTransport {
 
     private func liveRaw(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let data: Data, response: URLResponse
-        do { (data, response) = try await session.data(for: request) }
+        do { (data, response) = try await transfer(request) }
         catch is CancellationError { throw CancellationError() }
         catch let e as URLError where e.code == .cancelled { throw CancellationError() }
         catch { throw APIError.transport(error.localizedDescription) }

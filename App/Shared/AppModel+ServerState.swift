@@ -184,6 +184,8 @@ extension AppModel {
             if project.isFavorite { try await client.removeFavorite(project.id); confirmed = try await client.favorites() }
             else { confirmed = try await client.setFavorite(project.id) }
             if hasEngine { await applyFavorites(confirmed) } else { await reloadREST() }
+        } catch is CancellationError {
+            // The session ended: the optimistic list belongs to the old account, nothing to roll back in the new one.
         } catch {
             await applyFavorites(before)
             await handle(error)

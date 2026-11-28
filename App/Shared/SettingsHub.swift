@@ -31,9 +31,19 @@ final class SettingsHubModel {
     var loaded = false
     var busy = false
     var errorKey: String?
+    /// Server and account the values belong to; the Mac settings window stays alive across sign-outs.
+    @ObservationIgnored private var account: String?
+
+    private func forget() {
+        passkeys = []; sessions = []; connections = []; groups = []; mandates = []
+        editingGroup = nil; editingSelection = nil; preferences = nil; pairing = nil; loaded = false; errorKey = nil
+    }
 
     func load(_ app: AppModel) async {
         guard let client = app.client else { return }
+        let owner = app.serverURL + "|" + (app.user?.id.uuidString ?? "-")
+        if account != owner { forget(); account = owner }
+        let generation = app.sessionGeneration
         async let k = try? client.passkeys()
         async let s = try? client.sessions()
         async let c = try? client.connections()
@@ -42,6 +52,7 @@ final class SettingsHubModel {
         async let m = try? client.brainMandates()
         let (keys, sessions, connections, prefs) = await (k, s, c, p)
         let (groups, mandates) = await (g, m)
+        guard generation == app.sessionGeneration else { return }
         passkeys = (keys ?? []).filter(\.isActive)
         self.sessions = (sessions ?? []).sortedCurrentFirst
         self.connections = (connections ?? []).active
@@ -64,6 +75,7 @@ final class SettingsHubModel {
         guard let client = app.client, !busy else { return }
         busy = true; defer { busy = false }
         do { try await work(client) }
+        catch is CancellationError { return }
         catch APIError.conflict { errorKey = "settings.passkeys.last" }
         catch { errorKey = AppModel.key(for: error) }
         await load(app)

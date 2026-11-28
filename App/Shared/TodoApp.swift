@@ -130,7 +130,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .modifier(ProjectGroupsSheets(model: hub))
-        .task { if model.phase == .signedIn { await hub.load(model) } }
+        .task(id: model.sessionGeneration) { if model.phase == .signedIn { await hub.load(model) } }
         .frame(minWidth: 460, idealWidth: 460, minHeight: 480, idealHeight: 560)
     }
 }
