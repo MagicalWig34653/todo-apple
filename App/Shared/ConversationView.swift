@@ -247,19 +247,29 @@ struct ChatComposer: View {
     /// Lines the placeholder needs at the current width and text size (more than one only at large text sizes).
     @State private var promptLines = 1
 
+    @ViewBuilder private func field(_ key: LocalizedStringKey, empty: Bool, wraps: Bool) -> some View {
+        #if os(iOS)
+        // The system placeholder of a vertical field stays on one line and ends in "Nachricht sc…" at large text sizes.
+        // Only then it is drawn clear (VoiceOver still names the field by its label): `WrappingPrompt` shows the text on
+        // several lines and the field reserves them. Where it fits one line, the system placeholder stays as it was.
+        TextField(text: $model.draft, prompt: Text(key).foregroundColor(wraps ? .clear : Color.textSecondary), axis: .vertical) { Text(key) }
+            .lineLimit(empty ? promptLines...max(promptLines, 4) : 1...4)
+            .background(alignment: .topLeading) {
+                if empty { WrappingPrompt(key: key, lines: $promptLines).opacity(wraps ? 1 : 0) }
+            }
+        #else
+        // macOS has no Dynamic Type, so the system placeholder fits. The wrapping one made the field four lines high in the
+        // Mac window (28.11.2026, mac-window-e2e).
+        TextField(accessible: key, text: $model.draft, axis: .vertical).lineLimit(1...4)
+        #endif
+    }
+
     var body: some View {
         let key: LocalizedStringKey = inline ? "chat.reply" : "chat.new"
         let empty = model.draft.isEmpty
         let wraps = promptLines > 1
         HStack(alignment: .bottom, spacing: Space.s) {
-            // The system placeholder of a vertical field stays on one line and ends in "Nachricht sc…" at large text sizes.
-            // Only then it is drawn clear (VoiceOver still names the field by its label): `WrappingPrompt` shows the text on
-            // several lines and the field reserves them. Where it fits one line, the system placeholder stays as it was.
-            TextField(text: $model.draft, prompt: Text(key).foregroundColor(wraps ? .clear : Color.textSecondary), axis: .vertical) { Text(key) }
-                .lineLimit(empty ? promptLines...max(promptLines, 4) : 1...4)
-                .background(alignment: .topLeading) {
-                    if empty { WrappingPrompt(key: key, lines: $promptLines).opacity(wraps ? 1 : 0) }
-                }
+            field(key, empty: empty, wraps: wraps)
                 .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                 .background(inline ? Color.canvas : Color.canvasRaised, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.l, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
