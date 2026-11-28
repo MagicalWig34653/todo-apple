@@ -391,6 +391,18 @@ final class AccountSwitchTests: XCTestCase {
         XCTAssertEqual(push.removedAll, 0)
     }
 
+    func testNotificationTappedForAStoredSessionOpensAtLaunch() async throws {
+        // A launch with a stored session is no account switch, whatever was signed in on this device before.
+        UserDefaults.standard.set("https://other.invalid:443|\(UUID())", forKey: "session.lastAccount")
+        try tokens["a.invalid"]!.save("token-anna")
+        let request = UUID()
+        PushCoordinator.shared.pendingLink = .forYou(requestID: request)
+        await app.start()
+        XCTAssertEqual(app.phase, .signedIn)
+        XCTAssertEqual(app.confirmationFocus, request)
+        XCTAssertEqual(push.removedAll, 0)
+    }
+
     private func settle() async { try? await Task.sleep(for: .milliseconds(400)) }
 }
 
@@ -473,6 +485,9 @@ final class FakeServer: @unchecked Sendable {
             let name = ((try? JSONSerialization.jsonObject(with: body)) as? [String: Any])?["username"] as? String ?? "?"
             let id = lock.withLock { ids[name]! }
             return (200, #"{"token":"token-\#(name)","expiresAt":"2027-01-01T00:00:00Z","user":{"id":"\#(id)","displayName":"\#(name)","isAdmin":false}}"#)
+        case "GET /v1/me":
+            let id = lock.withLock { ids[account] ?? UUID() }
+            return (200, #"{"id":"\#(id)","displayName":"\#(account)","isAdmin":false}"#)
         case "POST /v1/auth/logout": return (204, "")
         case "GET /v1/sync/changes" where hasSyncFeed: return (200, #"{"changes":[],"cursor":"c1","hasMore":false}"#)
         case "GET /v1/projects", "GET /v1/tasks", "GET /v1/teams", "GET /v1/team-invitations": return (200, "[]")

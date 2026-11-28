@@ -221,7 +221,7 @@ final class AppModel {
         do {
             let result = try await client.me()
             guard generation == sessionGeneration else { return }
-            await openSession(result)
+            await openSession(result, signingIn: false)
         } catch APIError.unauthorized {
             guard generation == sessionGeneration else { return }
             try? await client.logout()
@@ -233,7 +233,7 @@ final class AppModel {
             guard generation == sessionGeneration else { return }
             if let cached = cachedUser {
                 // Offline at launch with a stored session: work from the local store, sync when the server is back.
-                await openSession(cached)
+                await openSession(cached, signingIn: false)
             } else {
                 phase = .signedOut
                 errorKey = "error.network"
@@ -276,13 +276,14 @@ final class AppModel {
 
     private static let lastAccountKey = "session.lastAccount"
 
-    /// Every way into the app. A different account (or server) than the last one starts without the previous account's
-    /// appearance, notifications and tapped link, also after an expired session that kept them for a new sign-in.
-    private func openSession(_ account: User) async {
+    /// Every way into the app. Signing in with a different account (or server) than the last one starts without the
+    /// previous account's appearance, notifications and tapped link, also after an expired session that kept them. A launch
+    /// with a stored session (`signingIn: false`) is no switch.
+    private func openSession(_ account: User, signingIn: Bool = true) async {
         sessionGeneration = UUID()
         let origin = URL(string: serverURL).map(ServerIdentity.origin) ?? serverURL
         let identity = origin + "|" + account.id.uuidString
-        if let last = UserDefaults.standard.string(forKey: Self.lastAccountKey), last != identity {
+        if signingIn, let last = UserDefaults.standard.string(forKey: Self.lastAccountKey), last != identity {
             colorScheme = .system
             PushCoordinator.shared.forgetNotifications()
         }
