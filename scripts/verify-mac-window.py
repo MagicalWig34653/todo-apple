@@ -90,6 +90,12 @@ def main(out):
             if s.get("clickPath") and not s.get("sidebarSelectionLegible") and not artefact: fail(f"{screen}/{scheme}: selected sidebar row not legible (colour {s.get('selectionColor')}, label {s.get('selectionLabelColor')})")
         if len(lums) == 2 and not lums["dark"] < lums["light"] - 40:
             fail(f"{screen}: dark ({lums['dark']:.0f}) is not clearly darker than light ({lums['light']:.0f})")
+    # The empty chat field of the task column is one line high and shows its placeholder (28.11.2026: about five lines).
+    for scheme in ("light", "dark"):
+        fields = (shots.get(("task", scheme)) or {}).get("textFields", [])
+        composer = [f for f in fields if f["placeholder"] == "Nachricht schreiben"]
+        if not composer: fail(f"task/{scheme}: no chat field with placeholder 'Nachricht schreiben' in {fields}")
+        elif composer[0]["height"] > 30: fail(f"task/{scheme}: chat field is {composer[0]['height']:.0f} pt high, expected one line: {composer[0]}")
     if not fails:
         print(f"OK: {len(shots)} shots, real window never on screen, policy prohibited")
 

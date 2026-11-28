@@ -268,10 +268,22 @@ enum DebugWindowShots {
             }
         }
         info["contentHasText"] = hasText(in: window.contentView)
+        info["textFields"] = editableTextFields(in: window.contentView)
         return info
     }
 
     // MARK: AppKit introspection
+
+    /// Every editable text field with its placeholder and size: the verifier checks that the empty chat field is one line high.
+    private static func editableTextFields(in view: NSView?) -> [[String: Any]] {
+        guard let view else { return [] }
+        var found: [[String: Any]] = []
+        if let field = view as? NSTextField, field.isEditable {
+            found.append(["placeholder": field.placeholderAttributedString?.string ?? field.placeholderString ?? "",
+                          "width": Double(field.frame.width), "height": Double(field.frame.height)])
+        }
+        return view.subviews.reduce(found) { $0 + editableTextFields(in: $1) }
+    }
 
     private static func dump(_ view: NSView?, _ depth: Int) {
         guard let view, depth < 40 else { return }
