@@ -11,6 +11,11 @@ Globale Planung bleibt ausschließlich im Hauptrepository. Dieser Checkpoint bes
 
 Entscheidung aus dem Auftrag: keine echte HTTP-Anbindung vor Festlegung des parallel entwickelten Serververtrags. Lokale Pfade werden nicht an `RunnerServer` übergeben. Bei unklarer Prozessidentität nach Neustart keine PID-Signale und kein automatischer Neustart; expliziter Abgleich bleibt erforderlich.
 
+## Konto- und Serverwechsel 28.11.2026 (Karte 346B7A6F)
+- [x] Geprueft, Fehler rot/gruen behoben, E2E mit zwei Konten und zwei lokalen Backends (`scripts/ui-tests-accounts.sh`); Pruefliste: STATUS, Nachtrag 28.11.
+- [ ] TestFlight erst nach Entscheidung des Brain/Lino; Geraetetest mit echtem APNs offen.
+- Keine API-/Servermigration, Hauptrepo unveraendert.
+
 ## "Für dich": entschiedene Bestaetigung bleibt stehen 26.11.2026 (Karte B6D004D4)
 - [x] Rot (abbff6a, 63d22ca), Fix (b9b8af6, 7d42e53), E2E und Bildfolge iPhone/iPad hell/dunkel; Details: STATUS, Nachtrag.
 - [ ] TestFlight erst nach Entscheidung des Brain (Upload-Tor).
