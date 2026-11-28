@@ -8,11 +8,48 @@ import UIKit
 import AppKit
 #endif
 
+/// What push needs from the system (notification centre and APNs registration); a seam so tests can watch it.
+@MainActor protocol PushSystem {
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func setBadge(_ count: Int) async
+    func register()
+    func unregister()
+    /// Delivered and still scheduled local notifications ("Später").
+    func removeAllNotifications()
+}
+
+struct SystemPush: PushSystem {
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+    func setBadge(_ count: Int) async { try? await UNUserNotificationCenter.current().setBadgeCount(count) }
+    func register() {
+        #if canImport(UIKit)
+        UIApplication.shared.registerForRemoteNotifications()
+        #elseif canImport(AppKit)
+        NSApplication.shared.registerForRemoteNotifications()
+        #endif
+    }
+    func unregister() {
+        #if canImport(UIKit)
+        UIApplication.shared.unregisterForRemoteNotifications()
+        #elseif canImport(AppKit)
+        NSApplication.shared.unregisterForRemoteNotifications()
+        #endif
+    }
+    func removeAllNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+    }
+}
+
 /// APNs registration, notification permission and push preferences (ADR 0021, docs/PUSH.md).
 /// The permission prompt is never shown automatically: only an explicit user action (settings, explainer card) asks.
 @MainActor @Observable
 final class PushCoordinator {
     static let shared = PushCoordinator()
+    @ObservationIgnored var system: any PushSystem = SystemPush()
 
     enum Authorization { case unknown, notDetermined, denied, authorized }
     enum ServerSupport { case unknown, supported, unavailable }
@@ -66,8 +103,7 @@ final class PushCoordinator {
     // MARK: Authorization
 
     func refreshAuthorization() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        switch settings.authorizationStatus {
+        switch await system.authorizationStatus() {
         case .notDetermined: authorization = .notDetermined
         case .denied: authorization = .denied
         case .authorized, .provisional, .ephemeral: authorization = .authorized
@@ -90,11 +126,7 @@ final class PushCoordinator {
             return
         }
         #endif
-        #if canImport(UIKit)
-        UIApplication.shared.registerForRemoteNotifications()
-        #elseif canImport(AppKit)
-        NSApplication.shared.registerForRemoteNotifications()
-        #endif
+        system.register()
     }
 
     // MARK: Token callbacks (from the application delegate)
@@ -167,7 +199,7 @@ final class PushCoordinator {
         }
         registeredKey = nil; prefs = nil; registrationErrorKey = nil; prefsErrorKey = nil; serverPushEnabled = nil
         serverSupport = .unknown
-        try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        await system.setBadge(0)
     }
 
     // MARK: Preferences
@@ -184,7 +216,7 @@ final class PushCoordinator {
     func setShowContent(_ on: Bool, client: APIClient?) async { await update(PushPrefsUpdate(showContent: on), client: client) }
     func setBadge(_ on: Bool, client: APIClient?) async {
         await update(PushPrefsUpdate(badge: on), client: client)
-        if !on { try? await UNUserNotificationCenter.current().setBadgeCount(0) }
+        if !on { await system.setBadge(0) }
     }
 
     private func update(_ change: PushPrefsUpdate, client: APIClient?) async {
@@ -211,7 +243,8 @@ final class PushCoordinator {
     func updateBadge(_ count: Int) {
         guard authorization == .authorized else { return }
         let value = (prefs?.badge ?? true) ? count : 0
-        Task { try? await UNUserNotificationCenter.current().setBadgeCount(value) }
+        let system = system
+        Task { await system.setBadge(value) }
     }
 
     // MARK: Device id per account
